@@ -10,7 +10,7 @@ export interface DetectResponse {
 }
 
 // Prefer same-origin proxy in dev to avoid CORS/ad-blockers: use /api unless explicitly overridden
-const API_BASE = (import.meta as any).env?.VITE_API_BASE || (globalThis as any)?.VITE_API_BASE || "/api";
+const API_BASE = (import.meta as any).env?.VITE_BACKEND || (globalThis as any)?.VITE_BACKEND || "/api";
 // Debug print once (won't throw in production)
 try { console.debug("[stringsight] API_BASE:", API_BASE); } catch {}
 

@@ -1691,20 +1691,37 @@ function App() {
                 </Typography>
               </Box>
             )}
-            <Button 
-              variant="contained" 
+            <Button
+              variant="contained"
+              component="label"
               color="primary"
-              onClick={() => setShowFileBrowser(true)}
             >
-              Load File
+              Upload File
+              <input
+                type="file"
+                hidden
+                accept=".csv,.json,.jsonl"
+                onChange={onFileChange}
+              />
             </Button>
-            <Button 
-              variant="outlined" 
-              color="inherit"
-              onClick={() => setShowFolderBrowser(true)}
-            >
-              Browse Results Folder
-            </Button>
+            {(import.meta as any).env?.VITE_ENABLE_SERVER_BROWSE !== 'false' && (
+              <>
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  onClick={() => setShowFileBrowser(true)}
+                >
+                  Load from Server
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  onClick={() => setShowFolderBrowser(true)}
+                >
+                  Browse Server Folders
+                </Button>
+              </>
+            )}
             {availableColumns.length > 0 && !showColumnSelector && (
               <Button 
                 variant="outlined" 
