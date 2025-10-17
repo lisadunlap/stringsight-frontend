@@ -18,12 +18,9 @@ The frontend will run on `http://localhost:5180`
 Create a `.env.local` file:
 
 ```bash
-# Backend API URL (default: http://localhost:8000)
-VITE_BACKEND=http://localhost:8000
-
-# Enable/disable server file browsing (default: enabled)
-# Set to 'false' for public deployments to hide server filesystem access
-VITE_ENABLE_SERVER_BROWSE=true
+# Backend API URL (optional; only needed for extraction/clustering features)
+# If not using a backend, omit this.
+# VITE_BACKEND=http://localhost:8000
 ```
 
 ## Backend Connection
@@ -62,7 +59,7 @@ The frontend will automatically build and deploy. Configure `VITE_BACKEND` in Ve
 - **Clusters Tab**: Analyze grouped behaviors and patterns
 - **Metrics Tab**: Compare model performance across behavioral dimensions
 - **Conversation Traces**: Inspect full conversation context with side-by-side comparisons
-- **Server File Browser**: Load results directly from backend file system
+// Server browsing removed; upload files in-browser instead
 
 ## Project Structure
 
@@ -78,28 +75,13 @@ src/
 
 ## Loading Data
 
-The frontend supports three ways to load data:
+The frontend supports browser-based uploads:
 
-### 1. Upload File (Browser-based)
-Click **"Upload File"** and select a CSV, JSON, or JSONL file from your computer. This works entirely in the browser and doesn't require backend access.
+- Upload File: Click "Upload File" and select a CSV, JSON, or JSONL file. Parsing happens entirely in the browser; no backend required.
 
 Supported formats:
-- **CSV**: Standard evaluation datasets
-- **JSON/JSONL**: Structured data or StringSight results (`full_dataset.json`)
-
-### 2. Load from Server (Optional)
-If `VITE_ENABLE_SERVER_BROWSE` is enabled, you can:
-- **"Load from Server"**: Select a single file from the backend filesystem
-- **"Browse Server Folders"**: Navigate and load precomputed results folders
-
-Expected file structure from StringSight pipeline:
-- `full_dataset.json` - Main results file (required)
-- `model_cluster_scores.json` - Cluster metrics (optional)
-- `cluster_scores.json` - Cluster statistics (optional)
-- `model_scores.json` - Model performance metrics (optional)
-
-### For Public Deployments
-Set `VITE_ENABLE_SERVER_BROWSE=false` in Vercel environment variables to hide server file browsing and only allow browser uploads.
+- CSV: Standard evaluation datasets
+- JSON/JSONL: Structured data or StringSight results (`full_dataset.json`)
 
 ## Development
 

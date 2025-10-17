@@ -28,175 +28,20 @@ export async function detectAndValidate(file: File): Promise<DetectResponse> {
   return res.json();
 }
 
-export async function readPath(path: string, limit?: number, method?: "single_model" | "side_by_side") {
-  const res = await fetch(`${API_BASE}/read-path`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, limit, method }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`read-path failed: ${res.status} ${text}`);
-  }
-  return res.json();
-}
+// Removed readPath and listPath (server file browsing removed from UI)
 
-export async function listPath(path: string, exts?: string[]) {
-  const res = await fetch(`${API_BASE}/list-path`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, exts }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`list-path failed: ${res.status} ${text}`);
-  }
-  return res.json();
-}
-
-export type ResultsLoadResponse = {
-  path: string;
-  model_cluster_scores: any[];
-  cluster_scores: any[];
-  model_scores: any[];
-  conversations: any[];
-  properties: any[];
-  clusters: any[];
-};
-
-export async function resultsLoad(path: string, options?: { max_conversations?: number; max_properties?: number }) {
-  const res = await fetch(`${API_BASE}/results/load`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path,
-      max_conversations: options?.max_conversations,
-      max_properties: options?.max_properties
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`results-load failed: ${res.status} ${text}`);
-  }
-  return res.json() as Promise<ResultsLoadResponse>;
-}
+// Removed resultsLoad (server results loading removed from UI)
 
 /**
  * Stream properties data progressively using JSONL endpoint.
  * This allows rendering results as they arrive instead of waiting for the full response.
  */
-export async function streamProperties(
-  path: string,
-  offset: number = 0,
-  limit: number = 1000,
-  onChunk?: (items: any[]) => void
-): Promise<any[]> {
-  const params = new URLSearchParams({ path, offset: String(offset), limit: String(limit) });
-  const res = await fetch(`${API_BASE}/results/stream/properties?${params.toString()}`);
-
-  if (!res.ok) {
-    throw new Error(`stream-properties failed: ${res.status}`);
-  }
-
-  const reader = res.body?.getReader();
-  if (!reader) {
-    throw new Error('Stream not supported');
-  }
-
-  const decoder = new TextDecoder();
-  let buffer = '';
-  const items: any[] = [];
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-      const batch: any[] = [];
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            const item = JSON.parse(line);
-            items.push(item);
-            batch.push(item);
-          } catch (e) {
-            console.warn('Failed to parse JSONL line:', line);
-          }
-        }
-      }
-
-      if (onChunk && batch.length > 0) {
-        onChunk(batch);
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  return items;
-}
+// Removed streaming helpers for server-side results
 
 /**
  * Stream conversations data progressively using JSONL endpoint.
  */
-export async function streamConversations(
-  path: string,
-  offset: number = 0,
-  limit: number = 1000,
-  onChunk?: (items: any[]) => void
-): Promise<any[]> {
-  const params = new URLSearchParams({ path, offset: String(offset), limit: String(limit) });
-  const res = await fetch(`${API_BASE}/results/stream/conversations?${params.toString()}`);
-
-  if (!res.ok) {
-    throw new Error(`stream-conversations failed: ${res.status}`);
-  }
-
-  const reader = res.body?.getReader();
-  if (!reader) {
-    throw new Error('Stream not supported');
-  }
-
-  const decoder = new TextDecoder();
-  let buffer = '';
-  const items: any[] = [];
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-      const batch: any[] = [];
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            const item = JSON.parse(line);
-            items.push(item);
-            batch.push(item);
-          } catch (e) {
-            console.warn('Failed to parse JSONL line:', line);
-          }
-        }
-      }
-
-      if (onChunk && batch.length > 0) {
-        onChunk(batch);
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  return items;
-}
+// Removed streaming helpers for server-side results
 
 // DataFrame ops
 export async function dfSelect(body: { rows: any[]; include?: Record<string, any[]>; exclude?: Record<string, any[]>; }) {
@@ -229,11 +74,7 @@ export async function dfGroupPreview(body: { rows: any[]; by: string; numeric_co
   return result;
 }
 
-export async function dfGroupRows(body: { rows: any[]; by: string; value: any; page?: number; page_size?: number; }) {
-  const res = await fetch(`${API_BASE}/df/groupby/rows`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
+// Removed dfGroupRows (unused)
 
 export async function dfCustom(body: { rows: any[]; code: string; }) {
   const res = await fetch(`${API_BASE}/df/custom`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

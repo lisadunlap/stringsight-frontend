@@ -4,7 +4,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { detectAndValidate, dfGroupPreview, dfGroupRows, dfCustom, resultsLoad, readPath } from "./lib/api";
+import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics } from "./lib/api";
 import { flattenScores } from "./lib/normalize";
 import { parseFile } from "./lib/parse";
 import { detectMethodFromColumns, ensureOpenAIFormat } from "./lib/traces";
@@ -24,15 +24,14 @@ import ExpandedSidebar from "./components/ExpandedSidebar";
 import DataStatsPanel from "./components/sidebar-sections/DataStatsPanel";
 import PropertyExtractionPanel from "./components/sidebar-sections/PropertyExtractionPanel";
 import ClusteringPanel from "./components/sidebar-sections/ClusteringPanel";
-import { recomputeClusterMetrics } from "./lib/api";
+// recomputeClusterMetrics imported above
 import ClustersTab from "./components/ClustersTab";
 import MetricsPanel from "./components/sidebar-sections/MetricsPanel";
 import type { MetricsFilters, MetricsSummary } from "./types/metrics";
 import { ColumnSelector, type ColumnMapping } from "./components/ColumnSelector";
 import CardTestPage from "./components/cards/CardTestPage";
 import { MetricsTab } from "./components/metrics/MetricsTab";
-import ServerFolderBrowser from "./components/ServerFolderBrowser";
-import ServerFileBrowser from "./components/ServerFileBrowser";
+// Removed server browsing components
 import type { DataOperation } from "./types/operations";
 import { createFilterOperation, createCustomCodeOperation, createSortOperation } from "./types/operations";
 
@@ -207,21 +206,7 @@ function App() {
   const [mappingValid, setMappingValid] = useState(false);
   const [mappingErrors, setMappingErrors] = useState<string[]>([]); // reserved for future validation UI
   const [filterNotice, setFilterNotice] = useState<string | null>(null);
-  // Server-side folder browser state
-  const [showFolderBrowser, setShowFolderBrowser] = useState(false);
-  // Server-side file browser state
-  const [showFileBrowser, setShowFileBrowser] = useState(false);
-  // Local folder input ref for results loading (set webkitdirectory via ref to avoid TS complaints)
-  const resultsFolderInputRef = useRef<HTMLInputElement | null>(null);
-  React.useEffect(() => {
-    if (resultsFolderInputRef.current) {
-      try {
-        resultsFolderInputRef.current.setAttribute('webkitdirectory', '');
-        resultsFolderInputRef.current.setAttribute('directory', '');
-        resultsFolderInputRef.current.setAttribute('multiple', '');
-      } catch {}
-    }
-  }, []);
+  // Removed server/browser folder/file state and inputs
 
   // Reset UI, panels, and tabs when a brand new source is loaded
   const resetUiStateForNewSource = React.useCallback((mode: 'file' | 'results') => {
@@ -323,355 +308,11 @@ function App() {
     }
   }
 
-  // Load previously computed results from a selected folder (expects full_dataset.json)
-  async function onResultsFolderChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    // Assume a completely different source; reset panels and tabs
-    resetUiStateForNewSource('results');
-    setIsLoadingResults(true);
-    setResultsLoadingMessage('Reading results folder...');
+  // Removed local results folder loader (unused)
 
-    const fileList = Array.from(files);
-    // Locate full_dataset.json anywhere within the selected folder
-    const fullDataset = fileList.find((f) => f.name === 'full_dataset.json' || (f as any).webkitRelativePath?.endsWith('/full_dataset.json'));
-    if (!fullDataset) {
-      console.warn('[ResultsLoader] full_dataset.json not found in selected folder');
-      return;
-    }
+  // Removed server file loader
 
-    // Parse dataset
-    let data: any;
-    try {
-      const text = await fullDataset.text();
-      data = JSON.parse(text);
-    } catch (err) {
-      console.error('[ResultsLoader] Failed parsing full_dataset.json', err);
-      setIsLoadingResults(false);
-      setResultsLoadingMessage('');
-      return;
-    }
-
-    const conversations: any[] = Array.isArray(data?.conversations) ? data.conversations : [];
-    const properties: any[] = Array.isArray(data?.properties) ? data.properties : [];
-    const clustersRaw: any[] = Array.isArray(data?.clusters) ? data.clusters : [];
-
-    // Detect method from conversations
-    const detectedMethod: 'single_model' | 'side_by_side' = conversations.some((c) => Array.isArray(c?.model)) ? 'side_by_side' : 'single_model';
-
-    // Build operational rows from conversations
-    const operational: any[] = conversations.map((c, idx) => {
-      const qid = String(c?.question_id ?? idx);
-      const prompt = c?.prompt ?? '';
-      const meta = (c?.meta && typeof c.meta === 'object') ? c.meta : {};
-      // Keep processed (operational) rows minimal for backend compatibility and deterministic UI:
-      // Only include: __index, question_id, prompt, model(s), response(s), and score dict(s).
-      const row: any = { __index: idx, question_id: qid, prompt };
-      if (Array.isArray(c?.model)) {
-        // side-by-side
-        row.model_a = c.model?.[0] ?? 'model_a';
-        row.model_b = c.model?.[1] ?? 'model_b';
-        const [respA, respB] = pickPairResponses(c);
-        row.model_a_response = respA ?? '';
-        row.model_b_response = respB ?? '';
-        const scores = c?.scores ?? [{}, {}];
-        if (Array.isArray(scores)) {
-          row.score_a = (scores?.[0] && typeof scores[0] === 'object') ? scores[0] : {};
-          row.score_b = (scores?.[1] && typeof scores[1] === 'object') ? scores[1] : {};
-        }
-      } else {
-        // single model
-        row.model = c?.model ?? 'model';
-        row.model_response = pickSingleResponse(c);
-        const score = (c?.scores && typeof c.scores === 'object' && !Array.isArray(c.scores)) ? c.scores : {};
-        if (Object.keys(score).length > 0) row.score = score;
-      }
-      // Intentionally do NOT copy additional metadata into the processed dataframe.
-      // This ensures predictable grouping/aggregation and keeps the operational dataset lean.
-      return row;
-    });
-
-    // Build a mapping from question_id to __index for property linking
-    const qidToIndex = new Map<string, number>();
-    operational.forEach((r: any) => { qidToIndex.set(String(r.question_id), Number(r.__index)); });
-
-    // Prepare properties rows with row_index to aid lookup
-    const propsWithIndex = properties.map((p: any) => ({ ...p, row_index: qidToIndex.get(String(p?.question_id)) }));
-
-    // Set state: method, operational, current (flattened), properties, clusters
-    setMethod(detectedMethod);
-    setOperationalRows(operational);
-    const { rows: flattenedRows } = flattenScores(operational, detectedMethod);
-    setCurrentRows(flattenedRows);
-    setPropertiesRows(propsWithIndex);
-    setClusters(clustersRaw);
-    setIsResultsMode(true);
-    // Collapse the control panel and switch to Metrics for an overview-first experience
-    setSidebarExpanded(false);
-    setActiveSection('data');
-
-    // Enrich clusters with metrics meta so plots and summaries render immediately
-    try {
-      setResultsLoadingMessage('Computing per-model proportions and quality...');
-      const res = await recomputeClusterMetrics({
-        clusters: clustersRaw,
-        properties: propsWithIndex,
-        operationalRows: operational,
-      });
-      if (res?.clusters) setClusters(res.clusters);
-    } catch (err) {
-      console.warn('[ResultsLoader] Failed to enrich clusters; showing raw clusters', err);
-    }
-
-    // Cache functional metrics if present for future Metrics tab
-    try {
-      const findFile = (name: string) => fileList.find((f) => f.name === name || (f as any).webkitRelativePath?.endsWith(`/${name}`));
-      const readJson = async (f?: File) => (f ? JSON.parse(await f.text()) : undefined);
-      
-      // Try to load from both old JSON format and new JSONL format
-      let modelCluster, clusterScores, modelScores;
-      
-      // First try old JSON format
-      modelCluster = await readJson(findFile('model_cluster_scores.json') as File);
-      clusterScores = await readJson(findFile('cluster_scores.json') as File);
-      modelScores = await readJson(findFile('model_scores.json') as File);
-      
-      // If JSON files don't exist, try JSONL format (convert to array format for compatibility)
-      if (!modelCluster) {
-        const jsonlFile = findFile('model_cluster_scores_df.jsonl');
-        if (jsonlFile) {
-          const text = await jsonlFile.text();
-          modelCluster = text.trim().split('\n').map(line => JSON.parse(line));
-        }
-      }
-      
-      if (!modelScores) {
-        const jsonlFile = findFile('model_scores_df.jsonl');
-        if (jsonlFile) {
-          const text = await jsonlFile.text();
-          modelScores = text.trim().split('\n').map(line => JSON.parse(line));
-        }
-      }
-      
-      if (!clusterScores) {
-        const jsonlFile = findFile('cluster_scores_df.jsonl');
-        if (jsonlFile) {
-          const text = await jsonlFile.text();
-          clusterScores = text.trim().split('\n').map(line => JSON.parse(line));
-        }
-      }
-      
-      if (modelCluster || clusterScores || modelScores) {
-        console.log('📊 Loaded metrics data:', { 
-          modelCluster: modelCluster?.length || 0, 
-          clusterScores: clusterScores?.length || 0, 
-          modelScores: modelScores?.length || 0 
-        });
-        setResultsMetrics({ model_cluster_scores: modelCluster, cluster_scores: clusterScores, model_scores: modelScores });
-      } else {
-        console.warn('📊 No metrics files found in results folder');
-        setResultsMetrics(null);
-      }
-    } catch (e) {
-      console.error('📊 Error loading metrics:', e);
-      // Non-fatal: metrics are optional
-      setResultsMetrics(null);
-    }
-    finally {
-      setIsLoadingResults(false);
-      setResultsLoadingMessage('');
-    }
-  }
-
-  // Load a single data file from server-side path (for Load File button)
-  async function onServerFileSelected(path: string) {
-    console.log('[ServerFileLoader] Loading file from path:', path);
-    
-    // Reset UI state for new file source
-    resetUiStateForNewSource('file');
-    setIsLoadingResults(true);
-    setResultsLoadingMessage('Loading file from server...');
-
-    try {
-      // Load data using the server API
-      const data = await readPath(path);
-      console.log('[ServerFileLoader] Loaded data:', data);
-
-      const rows = data.preview || [];
-      const columns = data.columns || [];
-      const detectedMethod = data.method as 'single_model' | 'side_by_side';
-
-      // Store raw data and columns
-      setOriginalRows(rows);
-      setAvailableColumns(columns);
-      setFilterNotice(null);
-
-      // Create auto-detected mapping
-      const autoMapping: ColumnMapping = {
-        promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
-        responseCols: detectedMethod === 'side_by_side' 
-          ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
-          : columns.filter(c => c.includes('model_response')),
-        modelCols: detectedMethod === 'side_by_side'
-          ? columns.filter(c => (c.includes('model_a') || c.includes('model_b')) && !c.includes('response'))
-          : columns.filter(c => c.toLowerCase() === 'model'),
-        scoreCols: columns.filter(c => c.toLowerCase().includes('score')),
-        method: detectedMethod
-      };
-      
-      setAutoDetectedMapping(autoMapping);
-      
-      // Always show the column selector after upload (clear, explicit flow for new users)
-      setShowColumnSelector(true);
-      setMethod('unknown');
-      setOperationalRows([]);
-      setCurrentRows([]);
-
-      console.log(`[ServerFileLoader] Successfully loaded ${rows.length} rows from ${path}`);
-
-    } catch (err) {
-      console.error('[ServerFileLoader] Failed to load file:', err);
-      // Show error to user (could add error state here)
-    }
-    finally {
-      setIsLoadingResults(false);
-      setResultsLoadingMessage('');
-    }
-  }
-
-  // Load results from server-side path
-  async function onServerPathSelected(path: string) {
-    console.log('[ServerResultsLoader] Loading results from path:', path);
-    
-    // Reset UI state for new results source
-    resetUiStateForNewSource('results');
-    setIsLoadingResults(true);
-    setResultsLoadingMessage('Loading results from server...');
-
-    try {
-      // Load data using the server API with initial limits to speed up loading
-      // Load first 10k conversations and all properties for responsive initial load
-      const data = await resultsLoad(path, {
-        max_conversations: 10000,
-        max_properties: undefined // Load all properties (they're smaller)
-      });
-      setResultsLoadingMessage('Parsing conversations, properties, and clusters...');
-      console.log('[ServerResultsLoader] Loaded data:', data);
-
-      const conversations: any[] = Array.isArray(data?.conversations) ? data.conversations : [];
-      const properties: any[] = Array.isArray(data?.properties) ? data.properties : [];
-      const clustersRaw: any[] = Array.isArray(data?.clusters) ? data.clusters : [];
-
-      // Detect method from conversations
-      const detectedMethod: 'single_model' | 'side_by_side' = conversations.some((c) => Array.isArray(c?.model)) ? 'side_by_side' : 'single_model';
-
-      // Build operational rows from conversations (same logic as local loader)
-      const operational: any[] = conversations.map((c, idx) => {
-        const qid = String(c?.question_id ?? idx);
-        const prompt = c?.prompt ?? '';
-        const meta = (c?.meta && typeof c.meta === 'object') ? c.meta : {};
-        const row: any = { __index: idx, question_id: qid, prompt };
-        
-        if (Array.isArray(c?.model)) {
-          // side-by-side
-          row.model_a = c.model?.[0] ?? 'model_a';
-          row.model_b = c.model?.[1] ?? 'model_b';
-          const [respA, respB] = pickPairResponses(c);
-          row.model_a_response = respA ?? '';
-          row.model_b_response = respB ?? '';
-          const scores = c?.scores ?? [{}, {}];
-          if (Array.isArray(scores)) {
-            row.score_a = (scores?.[0] && typeof scores[0] === 'object') ? scores[0] : {};
-            row.score_b = (scores?.[1] && typeof scores[1] === 'object') ? scores[1] : {};
-          }
-        } else {
-          // single_model (mirror local results loader schema)
-          row.model = c?.model ?? 'model';
-          // Accept multiple common aliases for assistant response
-          row.model_response = pickSingleResponse(c);
-          const score = (c?.scores && typeof c.scores === 'object' && !Array.isArray(c.scores)) ? c.scores : (c?.score && typeof c.score === 'object' ? c.score : {});
-          if (Object.keys(score).length > 0) (row as any).score = score;
-        }
-        
-        return row;
-      });
-
-      console.log(`[ServerResultsLoader] ${operational.length} operational rows built`);
-      setResultsLoadingMessage('Indexing and linking properties...');
-
-      // Build a mapping from question_id to __index for property linking (mirror local loader)
-      const qidToIndex = new Map<string, number>();
-      operational.forEach((r: any) => { qidToIndex.set(String(r?.question_id), Number(r?.__index)); });
-      // Prepare properties with row_index to aid metrics recompute
-      const propsWithIndex = properties.map((p: any) => ({ ...p, row_index: qidToIndex.get(String(p?.question_id)) }));
-
-      // Set state (and ensure flattened view for table)
-      setOperationalRows(operational);
-      const { rows: flattenedRows } = flattenScores(operational, detectedMethod);
-      setCurrentRows(flattenedRows);
-      setMethod(detectedMethod);
-
-      // Parse properties
-      const propMap = new Map<string, any[]>();
-      properties.forEach((prop) => {
-        const propType = prop?.property_type || 'unknown';
-        if (!propMap.has(propType)) propMap.set(propType, []);
-        propMap.get(propType)!.push(prop);
-      });
-      setPropertiesByKey(propMap);
-      setPropertiesRows(properties);
-
-      // Set clusters if available
-      if (clustersRaw.length > 0) {
-        setClusters(clustersRaw);
-      }
-
-      // Enrich clusters with metrics meta so plots and summaries render immediately (mirror local loader)
-      try {
-        setResultsLoadingMessage('Computing per-model proportions and quality...');
-        const res = await recomputeClusterMetrics({
-          clusters: clustersRaw,
-          properties: propsWithIndex,
-          operationalRows: operational,
-        });
-        if (res?.clusters) setClusters(res.clusters);
-      } catch (err) {
-        console.warn('[ServerResultsLoader] Failed to enrich clusters; showing raw clusters', err);
-      }
-
-      // Load metrics if available
-      try {
-        setResultsLoadingMessage('Loading metrics artifacts...');
-        const metricsData = {
-          model_cluster_scores: data.model_cluster_scores || [],
-          cluster_scores: data.cluster_scores || [],
-          model_scores: data.model_scores || []
-        };
-        setResultsMetrics(metricsData);
-      } catch (e) {
-        console.error('📊 Error loading metrics:', e);
-        setResultsMetrics(null);
-      }
-
-      // Show notification if data was truncated
-      if (data.conversations.length >= 10000) {
-        console.warn('[ServerResultsLoader] Loaded first 10k conversations. Full dataset may be larger.');
-      }
-
-      console.log(`[ServerResultsLoader] Successfully loaded results from ${path}`);
-
-      // Close sidebar when data is successfully loaded
-      setSidebarExpanded(false);
-
-    } catch (err) {
-      console.error('[ServerResultsLoader] Failed to load results:', err);
-      setResultsError(`Failed to load results: ${String((err as any)?.message || err)}`);
-    }
-    finally {
-      setIsLoadingResults(false);
-      setResultsLoadingMessage('');
-    }
-  }
+  // Removed server results loader
 
   // New function to process data with flexible column mapping
   function processDataWithMapping(rows: Record<string, any>[], mapping: ColumnMapping) {
@@ -1704,24 +1345,7 @@ function App() {
                 onChange={onFileChange}
               />
             </Button>
-            {(import.meta as any).env?.VITE_ENABLE_SERVER_BROWSE !== 'false' && (
-              <>
-                <Button
-                  variant="outlined"
-                  color="inherit"
-                  onClick={() => setShowFileBrowser(true)}
-                >
-                  Load from Server
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="inherit"
-                  onClick={() => setShowFolderBrowser(true)}
-                >
-                  Browse Server Folders
-                </Button>
-              </>
-            )}
+            {/* Server browsing removed */}
             {availableColumns.length > 0 && !showColumnSelector && (
               <Button 
                 variant="outlined" 
@@ -2225,23 +1849,7 @@ function App() {
         />
       )}
 
-      {/* Server-side folder browser dialog */}
-      <ServerFolderBrowser
-        open={showFolderBrowser}
-        onClose={() => setShowFolderBrowser(false)}
-        onSelectPath={onServerPathSelected}
-        title="Browse Results Folder"
-        acceptedExtensions={['.json', '.jsonl']}
-      />
-
-      {/* Server-side file browser dialog */}
-      <ServerFileBrowser
-        open={showFileBrowser}
-        onClose={() => setShowFileBrowser(false)}
-        onSelectPath={onServerFileSelected}
-        title="Select File from Server"
-        acceptedExtensions={['.json', '.jsonl', '.csv']}
-      />
+      {/* Server browsing dialogs removed */}
     </Box>
   );
 }
