@@ -305,13 +305,16 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
             : String(m.content ?? '')
         );
 
-        // Determine background color based on role
-        const getBackgroundColor = (role: string) => {
-          if (role === "user") return "#f8fafc";
-          if (role === "tool") return "#fef3c7";
-          if (role === "info") return "#f0fdf4";
-          return "#ffffff";
+        // Determine background color and border color based on role
+        const getRoleColors = (role: string) => {
+          if (role === "user") return { bg: "#f8fafc", border: "#cbd5e1" }; // Light grey bg, darker grey border
+          if (role === "tool") return { bg: "#fffef5", border: "#fbbf24" }; // Very light amber bg, darker amber border
+          if (role === "info") return { bg: "#fafefb", border: "#6ee7b7" }; // Lighter green bg, darker green border
+          if (role === "system") return { bg: "#fcfaff", border: "#c084fc" }; // Very light purple bg (incredibly subtle), darker purple border
+          return { bg: "#ffffff", border: "#e5e7eb" }; // Default white bg, gray border
         };
+
+        const colors = getRoleColors(m.role);
 
         // Check if this message contains JSON-like content
         const hasJsonContent = (() => {
@@ -323,9 +326,10 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
         return (
           <Box key={i} sx={{
             p: 1.5,
-            border: "1px solid #e5e7eb",
+            border: "1px solid",
+            borderColor: colors.border,
             borderRadius: 1,
-            backgroundColor: getBackgroundColor(m.role),
+            backgroundColor: colors.bg,
           }}>
             <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
               <Stack direction="row" spacing={1} alignItems="center">
@@ -375,6 +379,8 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
                         fontFamily: 'monospace',
                         fontSize: '0.75rem',
                         whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere',
                         mt: 0.5,
                         color: '#475569'
                       }}>
@@ -398,37 +404,47 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
             // If formatted JSON, render with pre-wrap to preserve formatting
             if (isFormattedJson) {
               return (
-                <Typography variant="body2" sx={{
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  fontFamily: 'monospace',
-                  fontSize: '0.75rem',
-                  lineHeight: 1.5,
-                }}>
+                <Typography
+                  component="pre"
+                  variant="body2"
+                  sx={{
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontFamily: 'monospace',
+                    fontSize: '0.75rem',
+                    lineHeight: 1.5,
+                    margin: 0,
+                    maxWidth: '100%',
+                    overflowWrap: 'anywhere',
+                  }}
+                >
                   {highlights && highlights.length > 0 ? highlightContent(content, highlights) : content}
                 </Typography>
               );
             }
 
             const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(content);
-            const hasLaTeX = /\$\$[^$]*\$\$|\$[^$]+\$|\\[a-zA-Z]+\{|\\\\\(|\\\\\[/.test(content);
+            // Only detect LaTeX if it has $$ or \commands, not single $ followed by numbers (to avoid treating $255 as LaTeX)
+            const hasLaTeX = /\$\$[^$]*\$\$|\\[a-zA-Z]+\{|\\\\\(|\\\\\[/.test(content);
 
             // Render Markdown/LaTeX if detected
             if (hasMarkdown || hasLaTeX) {
               return (
                 <Box
                   sx={{
-                    '& p': { margin: '4px 0' },
-                    '& code': { backgroundColor: '#f5f5f5', padding: '2px 4px', borderRadius: '4px', fontSize: '0.9em', fontFamily: 'monospace' },
-                    '& pre': { backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px', overflow: 'auto' },
+                    '& p': { margin: '4px 0', wordBreak: 'break-word', overflowWrap: 'anywhere' },
+                    '& code': { backgroundColor: '#f5f5f5', padding: '2px 4px', borderRadius: '4px', fontSize: '0.9em', fontFamily: 'monospace', wordBreak: 'break-word' },
+                    '& pre': { backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
                     '& pre code': { fontFamily: 'monospace' },
-                    '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600 },
+                    '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600, wordBreak: 'break-word' },
                     '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
-                    '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0' },
+                    '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0', wordBreak: 'break-word' },
                     '& .katex': { fontSize: '1em' },
                     '& .katex-display': { margin: '8px 0' },
                     fontSize: '0.875rem',
                     lineHeight: 1.5,
+                    wordBreak: 'break-word',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   <ReactMarkdown
@@ -456,7 +472,11 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
 
             // Fallback plain text with highlighting
             return (
-              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+              <Typography variant="body2" sx={{
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                overflowWrap: 'anywhere',
+              }}>
                 {highlights && highlights.length > 0 ? highlightContent(content, highlights) : content}
               </Typography>
             );

@@ -177,19 +177,7 @@ export default function ClusteringPanel({ hasAnyProperties, getOperationalRows, 
         </Typography>
       </Box>
 
-      {/* Placeholder for clustering results */}
-      <Box sx={{ 
-        p: 2, 
-        border: '1px dashed', 
-        borderColor: 'divider', 
-        borderRadius: 1, 
-        backgroundColor: 'background.default',
-        textAlign: 'center'
-      }}>
-        <Typography variant="body2" color="text.secondary">
-          Clustering results will appear here
-        </Typography>
-      </Box>
+      
     </Stack>
   );
 }
