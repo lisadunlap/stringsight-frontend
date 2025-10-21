@@ -336,33 +336,7 @@ export default function PropertyExtractionPanel({
             </Stack>
           )}
 
-          {/* Resolved prompt preview */}
-          <Box sx={{ 
-            p: 2, 
-            border: '1px dashed', 
-            borderColor: 'divider', 
-            borderRadius: 1, 
-            backgroundColor: 'background.default' 
-          }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block' }}>
-              Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
-            </Typography>
-            <Box sx={{
-              p: 1.5,
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              backgroundColor: '#FFFFFF',
-              maxHeight: 280,
-              overflow: 'auto',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \\"Liberation Mono\\", \\"Courier New\\", monospace',
-              fontSize: 12,
-              whiteSpace: 'pre-wrap',
-              lineHeight: 1.6,
-            }}>
-              {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
-            </Box>
-          </Box>
+          {/* Resolved system prompt moved to Advanced accordion */}
         </Stack>
       </Box>
 
@@ -380,36 +354,6 @@ export default function PropertyExtractionPanel({
             />
             <TextField 
               size="small" 
-              label="Temperature" 
-              type="number" 
-              inputProps={{ step: 0.1 }} 
-              value={temperature} 
-              onChange={(e) => setTemperature(Number(e.target.value))} 
-            />
-            <TextField 
-              size="small" 
-              label="Top P" 
-              type="number" 
-              inputProps={{ step: 0.05 }} 
-              value={topP} 
-              onChange={(e) => setTopP(Number(e.target.value))} 
-            />
-            <TextField 
-              size="small" 
-              label="Max tokens" 
-              type="number" 
-              value={maxTokens} 
-              onChange={(e) => setMaxTokens(Number(e.target.value))} 
-            />
-            <TextField 
-              size="small" 
-              label="Max workers" 
-              type="number" 
-              value={maxWorkers} 
-              onChange={(e) => setMaxWorkers(Number(e.target.value))} 
-            />
-            <TextField 
-              size="small" 
               label="Sample size (batch only)" 
               type="number" 
               value={sampleSize || ''} 
@@ -417,6 +361,39 @@ export default function PropertyExtractionPanel({
               placeholder="Leave empty for all prompts"
               helperText={sampleSize ? `Will sample ${sampleSize} prompts total` : 'Process all prompts'}
             />
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="subtitle2">Full system prompt</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{ 
+                  p: 2, 
+                  border: '1px dashed', 
+                  borderColor: 'divider', 
+                  borderRadius: 1, 
+                  backgroundColor: 'background.default' 
+                }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block' }}>
+                    Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
+                  </Typography>
+                  <Box sx={{
+                    p: 1.5,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    backgroundColor: '#FFFFFF',
+                    maxHeight: 280,
+                    overflow: 'auto',
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
+                    fontSize: 12,
+                    whiteSpace: 'pre-wrap',
+                    lineHeight: 1.6,
+                  }}>
+                    {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
+                  </Box>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
           </Stack>
         </AccordionDetails>
       </Accordion>

@@ -14,6 +14,20 @@ const API_BASE = (import.meta as any).env?.VITE_BACKEND || (globalThis as any)?.
 // Debug print once (won't throw in production)
 try { console.debug("[stringsight] API_BASE:", API_BASE); } catch {}
 
+/**
+ * Check backend health endpoint. Returns true if reachable and ok.
+ */
+export async function checkBackendHealth(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/health`);
+    if (!res.ok) return false;
+    const body = await res.json().catch(() => null) as any;
+    return Boolean(body && (body.ok === true || body.status === 'ok'));
+  } catch (_) {
+    return false;
+  }
+}
+
 export async function detectAndValidate(file: File): Promise<DetectResponse> {
   const form = new FormData();
   form.append("file", file);
