@@ -4,7 +4,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics } from "./lib/api";
+import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
 import { flattenScores } from "./lib/normalize";
 import { parseFile } from "./lib/parse";
 import { detectMethodFromColumns, ensureOpenAIFormat } from "./lib/traces";
@@ -29,7 +29,6 @@ import ClustersTab from "./components/ClustersTab";
 import MetricsPanel from "./components/sidebar-sections/MetricsPanel";
 import type { MetricsFilters, MetricsSummary } from "./types/metrics";
 import { ColumnSelector, type ColumnMapping } from "./components/ColumnSelector";
-import CardTestPage from "./components/cards/CardTestPage";
 import { MetricsTab } from "./components/metrics/MetricsTab";
 // Removed server browsing components
 import type { DataOperation } from "./types/operations";
@@ -124,7 +123,7 @@ function App() {
   const [propertiesRows, setPropertiesRows] = useState<any[]>([]);
   const [activeSection, setActiveSection] = useState<SidebarSection>('data');
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'table'|'properties'|'clusters'|'metrics'|'test'>('table');
+  const [activeTab, setActiveTab] = useState<'table'|'properties'|'clusters'|'metrics'>('table');
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
   // Debug toggles
   const [debugCacheHits, setDebugCacheHits] = useState<boolean>(false);
@@ -139,6 +138,7 @@ function App() {
   // Results mode (when loading full_dataset.json)
   const [isResultsMode, setIsResultsMode] = useState<boolean>(false);
   const [resultsMetrics, setResultsMetrics] = useState<{ model_cluster_scores?: any; cluster_scores?: any; model_scores?: any } | null>(null);
+  const [backendAvailable, setBackendAvailable] = useState<boolean>(false);
 
   // -------- Display Settings ---------
   const [decimalPrecision, setDecimalPrecision] = useState<number>(2);
@@ -207,6 +207,14 @@ function App() {
   const [mappingErrors, setMappingErrors] = useState<string[]>([]); // reserved for future validation UI
   const [filterNotice, setFilterNotice] = useState<string | null>(null);
   // Removed server/browser folder/file state and inputs
+
+  // Backend availability check on mount
+  React.useEffect(() => {
+    (async () => {
+      const ok = await checkBackendHealth();
+      setBackendAvailable(ok);
+    })();
+  }, []);
 
   // Reset UI, panels, and tabs when a brand new source is loaded
   const resetUiStateForNewSource = React.useCallback((mode: 'file' | 'results') => {
@@ -1322,7 +1330,10 @@ function App() {
       )}
       <AppBar position="fixed">
         <Toolbar sx={{ gap: 2 }}>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>StringSight (or maybe Squiglit)</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
+            <Box component="img" src="/icon.png" alt="StringSight icon" sx={{ width: 24, height: 24 }} />
+            <Typography variant="h6">StringSight</Typography>
+          </Box>
           <Stack direction="row" spacing={1} alignItems="center">
             {isLoadingResults && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: 320 }}>
@@ -1510,11 +1521,13 @@ function App() {
               setSelectedProperty(null);
             }}
           />
-          {isResultsMode && (
+          {(isResultsMode || !backendAvailable) && (
             <Box sx={{ position: 'absolute', inset: 0, zIndex: (theme) => theme.zIndex.modal + 1, bgcolor: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, pointerEvents: 'all' }}>
               <Box sx={{ bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 4, border: '1px solid #EA580C', textAlign: 'center' }}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  Extraction disabled in results mode. Upload raw data to enable extraction.
+                  {isResultsMode
+                    ? 'Extraction disabled in results mode. Upload raw data to enable extraction.'
+                    : 'Backend not connected. Set VITE_BACKEND to your backend URL to enable extraction.'}
                 </Typography>
               </Box>
             </Box>
@@ -1533,11 +1546,13 @@ function App() {
               setTotalUniqueConversations(data.total_unique_conversations || null);
             }}
           />
-          {isResultsMode && (
+          {(isResultsMode || !backendAvailable) && (
             <Box sx={{ position: 'absolute', inset: 0, zIndex: (theme) => theme.zIndex.modal + 1, bgcolor: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, pointerEvents: 'all' }}>
               <Box sx={{ bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 4, border: '1px solid #EA580C', textAlign: 'center' }}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  Clustering disabled in results mode. Upload raw data to re-cluster.
+                  {isResultsMode
+                    ? 'Clustering disabled in results mode. Upload raw data to re-cluster.'
+                    : 'Backend not connected. Set VITE_BACKEND to your backend URL to enable clustering.'}
                 </Typography>
               </Box>
             </Box>
@@ -1643,7 +1658,6 @@ function App() {
             <Tab value="properties" label={`Properties${propertiesRows.length ? ` (${propertiesRows.length})` : ''}`} />
             <Tab value="clusters" label={`Clusters${clusters.length ? ` (${clusters.length})` : ''}`} />
             <Tab value="metrics" label="Metrics" />
-            <Tab value="test" label="Card Test" />
           </Tabs>
         </Box>
 
@@ -1704,7 +1718,6 @@ function App() {
             />
           </Box>
         )}
-        {activeTab === 'test' ? <CardTestPage /> : null}
         {activeTab === 'metrics' && (
           <Box sx={{ mt: 1 }}>
             {resultsMetrics ? (
