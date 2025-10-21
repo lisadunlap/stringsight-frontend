@@ -125,8 +125,7 @@ function App() {
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'table'|'properties'|'clusters'|'metrics'>('table');
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
-  // Debug toggles
-  const [debugCacheHits, setDebugCacheHits] = useState<boolean>(false);
+  
   // Results loading indicator
   const [isLoadingResults, setIsLoadingResults] = useState<boolean>(false);
   const [resultsLoadingMessage, setResultsLoadingMessage] = useState<string>('');
@@ -600,17 +599,15 @@ function App() {
     const cache = new Map<string, string[]>();
     return (col: string) => {
       if (cache.has(col)) {
-        if (debugCacheHits) console.debug(`[Cache] uniqueValuesFor hit: ${col}`);
         return cache.get(col)!;
       }
       const s = new Set<string>();
       operationalRows.forEach(r => { const v = r?.[col]; if (v !== undefined && v !== null) s.add(String(v)); });
       const result = Array.from(s).sort();
       cache.set(col, result);
-      if (debugCacheHits) console.debug(`[Cache] uniqueValuesFor miss: ${col} → computed ${result.length} values`);
       return result;
     };
-  }, [operationalRows, debugCacheHits]);
+  }, [operationalRows]);
 
   // Apply the entire operation chain to operational data
   const applyOperationChain = useCallback(async (operations: DataOperation[]) => {
@@ -1366,14 +1363,7 @@ function App() {
                 Configure Columns
               </Button>
             )}
-            <Button 
-              variant={debugCacheHits ? "contained" : "outlined"}
-              color={debugCacheHits ? "secondary" : "inherit"}
-              onClick={() => setDebugCacheHits(v => !v)}
-              size="small"
-            >
-              {debugCacheHits ? 'Debug Cache: On' : 'Debug Cache: Off'}
-            </Button>
+            
           </Stack>
         </Toolbar>
       </AppBar>
