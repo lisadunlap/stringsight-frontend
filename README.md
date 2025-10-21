@@ -79,6 +79,8 @@ The frontend supports browser-based uploads:
 
 - Upload File: Click "Upload File" and select a CSV, JSON, or JSONL file. Parsing happens entirely in the browser; no backend required.
 
+- Load Demo Data: Click "Load Demo Data" to auto-load a bundled JSONL sample (`taubench_airline.jsonl`). This file is served from `public/` and demonstrates the expected column mapping flow.
+
 Supported formats:
 - CSV: Standard evaluation datasets
 - JSON/JSONL: Structured data or StringSight results (`full_dataset.json`)

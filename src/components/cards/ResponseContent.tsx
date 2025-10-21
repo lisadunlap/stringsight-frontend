@@ -14,7 +14,12 @@ export interface HighlightRange {
 }
 
 interface ResponseContentProps {
-  content: string;
+  /**
+   * Content to render. Accepts plain strings, dictionaries/objects, or arrays (e.g., list of dictionaries).
+   * If a string contains JSON (object or array), it will be parsed and pretty-printed.
+   */
+  content: string | Record<string, unknown> | any[];
+  /** Index-based highlight ranges applied to the final rendered text. */
   highlightedRanges?: HighlightRange[];
   className?: string;
 }
@@ -25,6 +30,61 @@ interface ResponseContentProps {
  * - Otherwise, detect and render Markdown/LaTeX/HTML similarly to legacy cards
  */
 export default function ResponseContent({ content, highlightedRanges = [], className }: ResponseContentProps) {
+  // Normalize to string for rendering/markdown detection; pretty-print objects/arrays
+  const normalizeContentToString = (value: string | Record<string, unknown> | any[]): string => {
+    if (typeof value !== 'string') {
+      return JSON.stringify(value, null, 2);
+    }
+    const trimmed = value.trim();
+    // Heuristic: only attempt parse if it appears to be JSON object or array
+    const looksJson = (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'));
+    if (!looksJson) return value;
+    try {
+      // First try standard JSON parsing
+      const parsed = JSON.parse(trimmed);
+      if (parsed && (typeof parsed === 'object')) {
+        return JSON.stringify(parsed, null, 2);
+      }
+      return value;
+    } catch (_e) {
+      // Try Python-style dict/list strings (single quotes instead of double quotes)
+      try {
+        // Replace single quotes with double quotes for Python-style dicts
+        // This handles common Python dict notation: {'key': 'value'}
+        // Use a more careful regex that handles nested quotes better
+        let pythonToJson = trimmed;
+
+        // First replace Python literals
+        pythonToJson = pythonToJson
+          .replace(/\bTrue\b/g, 'true')   // Python boolean (word boundary)
+          .replace(/\bFalse\b/g, 'false') // Python boolean (word boundary)
+          .replace(/\bNone\b/g, 'null');  // Python None (word boundary)
+
+        // Replace single quotes with double quotes
+        // This is a simple approach that works for most cases
+        pythonToJson = pythonToJson.replace(/'/g, '"');
+
+        const parsed = JSON.parse(pythonToJson);
+        if (parsed && (typeof parsed === 'object')) {
+          return JSON.stringify(parsed, null, 2);
+        }
+      } catch (_e2) {
+        // Both parsing attempts failed, render original string unchanged
+      }
+      return value;
+    }
+  };
+
+  const text = normalizeContentToString(content);
+
+  // Check if the text is formatted JSON (has proper indentation and newlines)
+  const isFormattedJson = (() => {
+    const trimmed = text.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+    // Check for JSON-like indentation (multiple newlines with spaces)
+    return /\n\s+["{[]/.test(trimmed);
+  })();
+
   // If highlighting is requested, render the simple highlighter to preserve index-based ranges
   if (highlightedRanges && highlightedRanges.length > 0) {
     const sortedRanges = [...highlightedRanges].sort((a, b) => a.start - b.start);
@@ -33,11 +93,11 @@ export default function ResponseContent({ content, highlightedRanges = [], class
 
     sortedRanges.forEach((range, index) => {
       const { start, end, color = '#ffeb3b' } = range;
-      const validStart = Math.max(0, Math.min(start, content.length));
-      const validEnd = Math.max(validStart, Math.min(end, content.length));
+      const validStart = Math.max(0, Math.min(start, text.length));
+      const validEnd = Math.max(validStart, Math.min(end, text.length));
 
       if (currentPos < validStart) {
-        segments.push(<span key={`text-${index}`}>{content.slice(currentPos, validStart)}</span>);
+        segments.push(<span key={`text-${index}`}>{text.slice(currentPos, validStart)}</span>);
       }
       if (validStart < validEnd) {
         segments.push(
@@ -52,15 +112,15 @@ export default function ResponseContent({ content, highlightedRanges = [], class
               border: '1px solid rgba(0,0,0,0.1)'
             }}
           >
-            {content.slice(validStart, validEnd)}
+            {text.slice(validStart, validEnd)}
           </Box>
         );
       }
       currentPos = validEnd;
     });
 
-    if (currentPos < content.length) {
-      segments.push(<span key="text-final">{content.slice(currentPos)}</span>);
+    if (currentPos < text.length) {
+      segments.push(<span key="text-final">{text.slice(currentPos)}</span>);
     }
 
     return (
@@ -81,12 +141,31 @@ export default function ResponseContent({ content, highlightedRanges = [], class
   }
 
   // No highlighting: detect content type and render like legacy cards
-  const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(content);
-  const hasLaTeX = /\$\$[^$]*\$\$|\$[^$]+\$|\\[a-zA-Z]+\{/.test(content);
-  const hasHTML = /<[^>]+>/.test(content);
+  // If it's formatted JSON, render as plain text with pre-wrap to preserve formatting
+  if (isFormattedJson) {
+    return (
+      <Typography
+        variant="body2"
+        className={className}
+        sx={{
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          fontFamily: 'monospace',
+          fontSize: '0.875rem',
+          lineHeight: 1.5,
+        }}
+      >
+        {text}
+      </Typography>
+    );
+  }
+
+  const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(text);
+  const hasLaTeX = /\$\$[^$]*\$\$|\$[^$]+\$|\\[a-zA-Z]+\{/.test(text);
+  const hasHTML = /<[^>]+>/.test(text);
 
   if (hasHTML) {
-    const sanitizedHTML = DOMPurify.sanitize(content, {
+    const sanitizedHTML = DOMPurify.sanitize(text, {
       ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'code', 'pre', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'a'],
       ALLOWED_ATTR: ['href', 'target', 'rel'],
     });
@@ -137,7 +216,7 @@ export default function ResponseContent({ content, highlightedRanges = [], class
             p: ({ children }) => <span>{children}</span>,
           }}
         >
-          {content}
+          {text}
         </ReactMarkdown>
       </Box>
     );
@@ -156,7 +235,7 @@ export default function ResponseContent({ content, highlightedRanges = [], class
         lineHeight: 1.5,
       }}
     >
-      {content}
+      {text}
     </Typography>
   );
 }

@@ -6,7 +6,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
 import { flattenScores } from "./lib/normalize";
-import { parseFile } from "./lib/parse";
+import { parseFile, inferColumns } from "./lib/parse";
 import { detectMethodFromColumns, ensureOpenAIFormat } from "./lib/traces";
 import DataTable from "./components/DataTable";
 import ConversationTrace from "./components/ConversationTrace";
@@ -266,6 +266,33 @@ function App() {
     setCustomError(null);
   }, []);
 
+  // Reuse: prepare UI to map columns for a newly provided dataset
+  const applyAutoMappingFromColumns = React.useCallback((columns: string[]) => {
+    // Try to auto-detect column mapping using legacy method as fallback
+    const legacyDetected = detectMethodFromColumns(columns);
+
+    // Create auto-detected mapping based on legacy detection and available columns
+    const autoMapping: ColumnMapping = {
+      promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
+      responseCols: legacyDetected === 'side_by_side' 
+        ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
+        : columns.filter(c => c.includes('model_response')),
+      modelCols: legacyDetected === 'side_by_side'
+        ? columns.filter(c => (c.includes('model_a') || c.includes('model_b')) && !c.includes('response'))
+        : columns.filter(c => c.toLowerCase() === 'model'),
+      scoreCols: columns.filter(c => c.toLowerCase().includes('score')),
+      method: legacyDetected === 'unknown' ? 'single_model' : legacyDetected
+    };
+
+    setAutoDetectedMapping(autoMapping);
+
+    // Always show the column selector after new data is provided
+    setShowColumnSelector(true);
+    setMethod('unknown');
+    setOperationalRows([]);
+    setCurrentRows([]);
+  }, []);
+
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -282,29 +309,8 @@ function App() {
     setAvailableColumns(columns);
     setFilterNotice(null);
     
-    // Try to auto-detect column mapping using legacy method as fallback
-    const legacyDetected = detectMethodFromColumns(columns);
-    
-    // Create auto-detected mapping based on legacy detection and available columns
-    const autoMapping: ColumnMapping = {
-      promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
-      responseCols: legacyDetected === 'side_by_side' 
-        ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
-        : columns.filter(c => c.includes('model_response')),
-      modelCols: legacyDetected === 'side_by_side'
-        ? columns.filter(c => (c.includes('model_a') || c.includes('model_b')) && !c.includes('response'))
-        : columns.filter(c => c.toLowerCase() === 'model'),
-      scoreCols: columns.filter(c => c.toLowerCase().includes('score')),
-      method: legacyDetected === 'unknown' ? 'single_model' : legacyDetected
-    };
-    
-    setAutoDetectedMapping(autoMapping);
-    
-    // Always show the column selector after upload (clear, explicit flow for new users)
-    setShowColumnSelector(true);
-    setMethod('unknown');
-    setOperationalRows([]);
-    setCurrentRows([]);
+    // Prepare UI to select mapping for these columns
+    applyAutoMappingFromColumns(columns);
     
     try {
       await detectAndValidate(file); // optional backend validation
@@ -314,6 +320,65 @@ function App() {
       setResultsLoadingMessage('');
     }
   }
+
+  // Load demo dataset from a bundled JSONL file and reuse the same flow as upload
+  const onLoadDemoData = React.useCallback(async () => {
+    // Treat as a new source
+    resetUiStateForNewSource('file');
+    setIsLoadingResults(true);
+    setResultsLoadingMessage('Loading demo data...');
+
+    try {
+      // Fetch from public root; ensure file exists at public/taubench_airline.jsonl
+      const res = await fetch('/taubench_airline.jsonl');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch demo data (HTTP ${res.status})`);
+      }
+      const text = await res.text();
+      const rows = text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => {
+          // Some demo lines may have a leading token like "can " before the JSON begins
+          const brace = l.indexOf('{');
+          const jsonStr = brace > 0 ? l.slice(brace) : l;
+          return JSON.parse(jsonStr);
+        });
+
+      // Infer columns using same util as parseFile
+      const columns = inferColumns(rows);
+
+      // Store raw data and columns
+      setOriginalRows(rows);
+      setAvailableColumns(columns);
+      setFilterNotice(null);
+
+      // Auto-detect mapping using legacy detection
+      const legacyDetected = detectMethodFromColumns(columns);
+      const autoMapping: ColumnMapping = {
+        promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
+        responseCols: legacyDetected === 'side_by_side'
+          ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
+          : columns.filter(c => c.includes('model_response')),
+        modelCols: legacyDetected === 'side_by_side'
+          ? columns.filter(c => (c.includes('model_a') || c.includes('model_b')) && !c.includes('response'))
+          : columns.filter(c => c.toLowerCase() === 'model'),
+        scoreCols: columns.filter(c => c.toLowerCase().includes('score')),
+        method: legacyDetected === 'unknown' ? 'single_model' : legacyDetected
+      };
+      setAutoDetectedMapping(autoMapping);
+      setShowColumnSelector(true);
+      setMethod('unknown');
+      setOperationalRows([]);
+      setCurrentRows([]);
+    } catch (e: any) {
+      setResultsError(String(e?.message || e));
+    } finally {
+      setIsLoadingResults(false);
+      setResultsLoadingMessage('');
+    }
+  }, [resetUiStateForNewSource, applyAutoMappingFromColumns]);
 
   // Removed local results folder loader (unused)
 
@@ -1352,6 +1417,14 @@ function App() {
                 accept=".csv,.json,.jsonl"
                 onChange={onFileChange}
               />
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              size="small"
+              onClick={onLoadDemoData}
+            >
+              Load Demo Data
             </Button>
             {/* Server browsing removed */}
             {availableColumns.length > 0 && !showColumnSelector && (

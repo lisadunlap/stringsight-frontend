@@ -23,8 +23,8 @@ export const theme = createTheme({
   shape: { borderRadius: 8 },
   typography: {
     fontFamily: [
-      "Inter",
-      "ui-sans-serif",
+      "Avenir",
+      "Avenir Next",
       "system-ui",
       "-apple-system",
       "Segoe UI",

@@ -5,7 +5,7 @@ import type { HighlightRange } from './ResponseContent';
 
 interface ModelResponseCardProps {
   modelName: string;
-  response: string;
+  response: string | Record<string, unknown> | any[];
   highlightedRanges?: HighlightRange[];
   metadata?: Record<string, any>;
   variant?: 'default' | 'compact' | 'expanded';

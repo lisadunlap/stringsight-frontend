@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import type { Message } from "../lib/traces";
-import { Box, Typography, Chip, Stack, Accordion, AccordionSummary, AccordionDetails } from "@mui/material";
+import { Box, Typography, Chip, Stack, Accordion, AccordionSummary, AccordionDetails, FormControlLabel, Switch } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -12,49 +12,263 @@ function escapeRegex(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g
 
 // Helper to extract text content from various content formats
 function getTextContent(content: any): string {
-  if (typeof content === 'string') return content;
+  if (typeof content === 'string') {
+    // Try to parse and pretty-print if it's a stringified dict/object
+    const trimmed = content.trim();
+    const looksJson = (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'));
+    if (looksJson) {
+      try {
+        // Try standard JSON parsing
+        const parsed = JSON.parse(trimmed);
+        if (parsed && (typeof parsed === 'object')) {
+          return JSON.stringify(parsed, null, 2);
+        }
+      } catch (_e) {
+        // Try Python-style dict/list strings
+        try {
+          let pythonToJson = trimmed;
+          // Replace Python literals
+          pythonToJson = pythonToJson
+            .replace(/\bTrue\b/g, 'true')
+            .replace(/\bFalse\b/g, 'false')
+            .replace(/\bNone\b/g, 'null');
+          // Replace single quotes with double quotes
+          pythonToJson = pythonToJson.replace(/'/g, '"');
+          const parsed = JSON.parse(pythonToJson);
+          if (parsed && (typeof parsed === 'object')) {
+            return JSON.stringify(parsed, null, 2);
+          }
+        } catch (_e2) {
+          // Both parsing attempts failed, return original
+        }
+      }
+    }
+    return content;
+  }
   if (typeof content === 'object' && content !== null) {
-    if (content.text) return String(content.text);
-    if (content.content) return String(content.content);
+    // Extract text from nested object and recursively process it
+    if (content.text) return getTextContent(String(content.text));
+    if (content.content) return getTextContent(String(content.content));
     return JSON.stringify(content, null, 2);
   }
   return String(content ?? '');
 }
 
-// Minimal highlighting: escapes and marks exact terms
+/**
+ * Normalize text for fuzzy matching:
+ * - Collapse multiple whitespace to single space
+ * - Normalize quote and dash variations
+ * - Lowercase for comparison
+ */
+function normalizeForMatching(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, ' ')  // Collapse whitespace
+    .replace(/[''']/g, "'")  // Normalize quotes
+    .replace(/["""]/g, '"')
+    .replace(/[—–-]/g, '-')  // Normalize dashes
+    .trim();
+}
 
-// Keep rendering simple; no delimiter normalization here
+/**
+ * Calculate word overlap score (Jaccard similarity)
+ */
+function calculateWordOverlap(words1: string[], words2: string[]): number {
+  const set1 = new Set(words1);
+  const set2 = new Set(words2);
+  const intersection = new Set([...set1].filter(w => set2.has(w)));
+  const union = new Set([...set1, ...set2]);
+  return intersection.size / union.size;
+}
 
-// No evidence fragment splitting; highlights are exact term matches
+/**
+ * Map character position in normalized text back to original text
+ */
+function mapNormalizedToOriginal(
+  original: string,
+  normalizedStart: number,
+  normalizedLength: number
+): { start: number; end: number } | null {
+  const normalized = normalizeForMatching(original);
+  let normIdx = 0;
+  let origIdx = 0;
+  let foundStart = -1;
+  let foundEnd = -1;
 
-// No flexible regex; use simple exact highlighting only
+  while (origIdx < original.length && normIdx < normalized.length) {
+    const origChar = normalizeForMatching(original[origIdx]);
+    const normChar = normalized[normIdx];
 
+    if (origChar === normChar) {
+      if (normIdx === normalizedStart) {
+        foundStart = origIdx;
+      }
+      if (normIdx === normalizedStart + normalizedLength - 1) {
+        foundEnd = origIdx + 1;
+        break;
+      }
+      normIdx++;
+    }
+    origIdx++;
+  }
+
+  if (foundStart >= 0 && foundEnd > foundStart) {
+    return { start: foundStart, end: foundEnd };
+  }
+  return null;
+}
+
+/**
+ * Find best substring match using sliding window and fuzzy matching
+ */
+function findBestMatch(
+  haystack: string,
+  needle: string,
+  minSimilarity: number = 0.75
+): { start: number; end: number } | null {
+  const normalizedNeedle = normalizeForMatching(needle);
+  const normalizedHaystack = normalizeForMatching(haystack);
+
+  // Try exact normalized match first
+  const exactIdx = normalizedHaystack.indexOf(normalizedNeedle);
+  if (exactIdx !== -1) {
+    return mapNormalizedToOriginal(haystack, exactIdx, normalizedNeedle.length);
+  }
+
+  // Fallback: sliding window with word-based fuzzy similarity
+  const needleWords = normalizedNeedle.split(/\s+/).filter(w => w.length > 0);
+  if (needleWords.length === 0) return null;
+
+  const haystackWords = normalizedHaystack.split(/\s+/).filter(w => w.length > 0);
+  if (haystackWords.length === 0) return null;
+
+  let bestMatch = null;
+  let bestScore = 0;
+
+  // Slide window of similar size to needle
+  const windowSize = Math.max(needleWords.length, Math.floor(needleWords.length * 1.5));
+
+  for (let i = 0; i <= haystackWords.length - Math.min(needleWords.length, haystackWords.length); i++) {
+    const actualWindowSize = Math.min(windowSize, haystackWords.length - i);
+    const windowWords = haystackWords.slice(i, i + actualWindowSize);
+    const score = calculateWordOverlap(needleWords, windowWords);
+
+    if (score > bestScore && score >= minSimilarity) {
+      bestScore = score;
+      bestMatch = { windowStart: i, windowEnd: i + actualWindowSize };
+    }
+  }
+
+  if (!bestMatch) return null;
+
+  // Map word window back to character positions in normalized text
+  const beforeWords = haystackWords.slice(0, bestMatch.windowStart).join(' ');
+  const matchWords = haystackWords.slice(bestMatch.windowStart, bestMatch.windowEnd).join(' ');
+  const normStart = beforeWords.length + (beforeWords.length > 0 ? 1 : 0);
+  const normLength = matchWords.length;
+
+  return mapNormalizedToOriginal(haystack, normStart, normLength);
+}
+
+/**
+ * Merge overlapping or adjacent ranges
+ */
+function mergeOverlappingRanges(
+  ranges: Array<{ start: number; end: number }>
+): Array<{ start: number; end: number }> {
+  if (ranges.length === 0) return [];
+
+  const merged: Array<{ start: number; end: number }> = [ranges[0]];
+
+  for (let i = 1; i < ranges.length; i++) {
+    const current = ranges[i];
+    const last = merged[merged.length - 1];
+
+    if (current.start <= last.end) {
+      // Overlapping or adjacent - merge
+      last.end = Math.max(last.end, current.end);
+    } else {
+      merged.push(current);
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * Improved highlighting with fuzzy matching fallback
+ */
 function highlightContent(text: string, highlights?: string[]): Array<string | React.ReactNode> {
   if (!highlights || highlights.length === 0) return [text];
-  let nodes: Array<string | React.ReactNode> = [text];
+
+  // Collect all match regions first to handle overlaps
+  const matches: Array<{ start: number; end: number }> = [];
+
   for (const term of highlights) {
-    const pattern = escapeRegex(String(term || '').trim());
-    if (!pattern) continue;
-    const regex = new RegExp(pattern, 'gi');
-    const next: Array<string | React.ReactNode> = [];
-    for (const node of nodes) {
-      if (typeof node !== 'string') { next.push(node); continue; }
-      let last = 0; let m: RegExpExecArray | null;
-      while ((m = regex.exec(node)) !== null) {
-        if (m.index > last) next.push(node.slice(last, m.index));
-        next.push(
-          <mark key={`${m.index}-${Math.random()}`} style={{ backgroundColor: '#FEF08A', padding: 0 }}>
-            {m[0]}
-          </mark>
-        );
-        last = m.index + m[0].length;
-        if (regex.lastIndex === m.index) regex.lastIndex++;
-      }
-      if (last < node.length) next.push(node.slice(last));
+    const trimmed = String(term || '').trim();
+    if (!trimmed) continue;
+
+    // Strategy 1: Try exact match (case-insensitive but whitespace-sensitive)
+    const exactPattern = escapeRegex(trimmed);
+    const exactRegex = new RegExp(exactPattern, 'gi');
+    let m: RegExpExecArray | null;
+    let foundExact = false;
+
+    while ((m = exactRegex.exec(text)) !== null) {
+      matches.push({
+        start: m.index,
+        end: m.index + m[0].length
+      });
+      foundExact = true;
+      if (exactRegex.lastIndex === m.index) exactRegex.lastIndex++;
     }
-    nodes = next;
+
+    // Strategy 2: Fuzzy match if no exact matches found
+    if (!foundExact) {
+      const fuzzyMatch = findBestMatch(text, trimmed, 0.75);
+      if (fuzzyMatch) {
+        matches.push(fuzzyMatch);
+      }
+    }
   }
-  return nodes;
+
+  if (matches.length === 0) return [text];
+
+  // Sort and merge overlapping matches
+  matches.sort((a, b) => a.start - b.start);
+  const merged = mergeOverlappingRanges(matches);
+
+  // Build result with highlighted segments
+  const result: Array<string | React.ReactNode> = [];
+  let lastEnd = 0;
+
+  for (let i = 0; i < merged.length; i++) {
+    const match = merged[i];
+
+    // Add text before match
+    if (match.start > lastEnd) {
+      result.push(text.slice(lastEnd, match.start));
+    }
+
+    // Add highlighted match
+    result.push(
+      <mark
+        key={`${match.start}-${i}`}
+        style={{ backgroundColor: '#FEF08A', padding: 0 }}
+      >
+        {text.slice(match.start, match.end)}
+      </mark>
+    );
+
+    lastEnd = match.end;
+  }
+
+  // Add remaining text
+  if (lastEnd < text.length) {
+    result.push(text.slice(lastEnd));
+  }
+
+  return result;
 }
 
 // Recursively apply highlighting to React children
@@ -78,12 +292,18 @@ function applyHighlightToChildren(children: React.ReactNode, highlights?: string
 // applyHighlightRegex is unused in the simplified version; removing to keep surface area minimal
 
 export function ConversationTrace({ messages, highlights, rawResponse }: { messages: Message[]; highlights?: string[]; rawResponse?: any }) {
+  const [prettyPrintEnabled, setPrettyPrintEnabled] = useState(true);
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
       {messages.map((m, i) => {
         const isStructuredContent = typeof m.content === 'object' && m.content !== null;
         const hasToolCalls = isStructuredContent && m.content.tool_calls;
-        const content = getTextContent(m.content);
+        const content = prettyPrintEnabled ? getTextContent(m.content) : (
+          typeof m.content === 'object' && m.content !== null
+            ? (m.content.text ? String(m.content.text) : (m.content.content ? String(m.content.content) : JSON.stringify(m.content)))
+            : String(m.content ?? '')
+        );
 
         // Determine background color based on role
         const getBackgroundColor = (role: string) => {
@@ -93,6 +313,13 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
           return "#ffffff";
         };
 
+        // Check if this message contains JSON-like content
+        const hasJsonContent = (() => {
+          const trimmed = content.trim();
+          if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+          return /\n\s+["{[]/.test(trimmed) || (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'));
+        })();
+
         return (
           <Box key={i} sx={{
             p: 1.5,
@@ -100,12 +327,33 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
             borderRadius: 1,
             backgroundColor: getBackgroundColor(m.role),
           }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                {m.role}
-              </Typography>
-              {m.name && (
-                <Chip label={m.name} size="small" variant="outlined" sx={{ height: '18px', fontSize: '0.65rem' }} />
+            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                  {m.role}
+                </Typography>
+                {m.name && (
+                  <Chip label={m.name} size="small" variant="outlined" sx={{ height: '18px', fontSize: '0.65rem' }} />
+                )}
+              </Stack>
+              {hasJsonContent && (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={prettyPrintEnabled}
+                      onChange={(e) => setPrettyPrintEnabled(e.target.checked)}
+                      size="small"
+                    />
+                  }
+                  label="Pretty-print dictionaries"
+                  sx={{
+                    margin: 0,
+                    '& .MuiFormControlLabel-label': {
+                      fontSize: '0.7rem',
+                      color: 'text.secondary'
+                    }
+                  }}
+                />
               )}
             </Stack>
 
@@ -139,6 +387,29 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
             )}
 
             {content && content.trim() && (() => {
+            // Check if content is formatted JSON first (before markdown detection)
+            const isFormattedJson = (() => {
+              const trimmed = content.trim();
+              if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+              // Check for JSON-like indentation (multiple newlines with spaces)
+              return /\n\s+["{[]/.test(trimmed);
+            })();
+
+            // If formatted JSON, render with pre-wrap to preserve formatting
+            if (isFormattedJson) {
+              return (
+                <Typography variant="body2" sx={{
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  fontFamily: 'monospace',
+                  fontSize: '0.75rem',
+                  lineHeight: 1.5,
+                }}>
+                  {highlights && highlights.length > 0 ? highlightContent(content, highlights) : content}
+                </Typography>
+              );
+            }
+
             const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(content);
             const hasLaTeX = /\$\$[^$]*\$\$|\$[^$]+\$|\\[a-zA-Z]+\{|\\\\\(|\\\\\[/.test(content);
 
