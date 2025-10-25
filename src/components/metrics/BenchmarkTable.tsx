@@ -155,9 +155,9 @@ export function BenchmarkTable({ data, qualityMetrics, showCI = false }: Benchma
   return (
     <Box>
       <Box sx={{ mb: 2 }}>
-        <Typography variant="h6" component="h3">
+        {/* <Typography variant="h6" component="h3">
           Benchmark Metrics Table
-        </Typography>
+        </Typography> */}
         <Typography variant="body2" color="text.secondary">
           Click column headers to sort • Hover over values to see confidence intervals
         </Typography>

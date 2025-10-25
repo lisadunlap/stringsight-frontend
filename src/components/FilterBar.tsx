@@ -170,25 +170,21 @@ export default function FilterBar({
             />
           ))}
           
+        {/* Group By (inline) */}
+        {showGroupBy && (
+          <Autocomplete
+            size="small"
+            sx={{ minWidth: 160, maxWidth: 220, flex: '0 1 auto' }}
+            options={groupByOptions}
+            value={groupByValue}
+            onChange={(_, v) => onGroupByChange?.(v)}
+            renderInput={(params) => <TextField {...params} label="Group by" />}
+          />
+        )}
+
 
         </Stack>
 
-        {/* Group By Section */}
-        {showGroupBy && (
-          <>
-            <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Autocomplete
-                size="small"
-                sx={{ minWidth: 160, maxWidth: 220, flex: '0 1 auto' }}
-                options={groupByOptions}
-                value={groupByValue}
-                onChange={(_, v) => onGroupByChange?.(v)}
-                renderInput={(params) => <TextField {...params} label="Group by" />}
-              />
-            </Stack>
-          </>
-        )}
 
         {/* Custom Code Section */}
         {showCustomCode && (
@@ -198,7 +194,7 @@ export default function FilterBar({
               <TextField 
                 size="small" 
                 fullWidth 
-                placeholder={`pandas expression (returns DataFrame), e.g., df.query("model==\"gpt-4\"")`} 
+                placeholder={"Custom expression"} 
                 value={customCodeValue} 
                 onChange={(e) => onCustomCodeChange?.(e.target.value)} 
               />

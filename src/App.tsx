@@ -5,7 +5,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
-import { flattenScores } from "./lib/normalize";
+import { flattenScores, normalizeMetricsColumnNames } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
 import { detectMethodFromColumns, ensureOpenAIFormat } from "./lib/traces";
 import DataTable from "./components/DataTable";
@@ -30,7 +30,6 @@ import MetricsPanel from "./components/sidebar-sections/MetricsPanel";
 import type { MetricsFilters, MetricsSummary } from "./types/metrics";
 import { ColumnSelector, type ColumnMapping } from "./components/ColumnSelector";
 import { MetricsTab } from "./components/metrics/MetricsTab";
-// Removed server browsing components
 import type { DataOperation } from "./types/operations";
 import { createFilterOperation, createCustomCodeOperation, createSortOperation } from "./types/operations";
 
@@ -67,6 +66,124 @@ function pickPairResponses(c: any): [any, any] {
   const a = (c as any)?.response_a ?? (c as any)?.assistant_a ?? (c as any)?.output_a ?? (c as any)?.completion_a ?? (c as any)?.text_a ?? '';
   const b = (c as any)?.response_b ?? (c as any)?.assistant_b ?? (c as any)?.output_b ?? (c as any)?.completion_b ?? (c as any)?.text_b ?? '';
   return [a, b];
+}
+
+/**
+ * Enrich clusters with per-model quality data from metrics.
+ * Extracts quality_by_model and quality_delta_by_model from model_cluster_scores.
+ */
+function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[]): any[] {
+  if (!clusters || !modelClusterScores || modelClusterScores.length === 0) {
+    console.log('🔧 enrichClustersWithQualityData: No clusters or metrics to enrich');
+    return clusters;
+  }
+
+  console.log('🔧 Enriching', clusters.length, 'clusters with quality data from', modelClusterScores.length, 'metric rows');
+
+  // Build a map of cluster_id -> model -> metrics
+  const clusterModelMetrics = new Map<string | number, Map<string, Record<string, number>>>();
+  
+  modelClusterScores.forEach(row => {
+    const clusterId = row.cluster_id;
+    const model = row.model;
+    if (clusterId == null || !model) return;
+
+    if (!clusterModelMetrics.has(clusterId)) {
+      clusterModelMetrics.set(clusterId, new Map());
+    }
+    
+    const modelMap = clusterModelMetrics.get(clusterId)!;
+    if (!modelMap.has(model)) {
+      modelMap.set(model, {});
+    }
+    
+    const metrics = modelMap.get(model)!;
+    
+    // Extract quality metrics (both absolute and delta)
+    // 1) Flat columns: quality_<metric>, quality_delta_<metric>
+    Object.keys(row).forEach(key => {
+      // quality_{metric} pattern
+      const qualityMatch = key.match(/^quality_(.+)$/);
+      if (qualityMatch && !key.includes('_delta') && !key.includes('_ci_') && !key.includes('_significant')) {
+        const metric = qualityMatch[1];
+        if (typeof row[key] === 'number') {
+          metrics[metric] = row[key];
+        }
+      }
+      
+      // quality_delta_{metric} pattern
+      const deltaMatch = key.match(/^quality_delta_(.+)$/);
+      if (deltaMatch && !key.includes('_ci_') && !key.includes('_significant')) {
+        const metric = deltaMatch[1];
+        if (typeof row[key] === 'number') {
+          metrics[`delta_${metric}`] = row[key];
+        }
+      }
+    });
+
+    // 2) Nested objects: quality: {metric: value}, quality_delta: {metric: value}
+    if (row.quality && typeof row.quality === 'object') {
+      Object.entries(row.quality as Record<string, any>).forEach(([metric, value]) => {
+        if (typeof value === 'number') metrics[metric] = value;
+      });
+    }
+    if (row.quality_delta && typeof row.quality_delta === 'object') {
+      Object.entries(row.quality_delta as Record<string, any>).forEach(([metric, value]) => {
+        if (typeof value === 'number') metrics[`delta_${metric}`] = value;
+      });
+    }
+  });
+
+  // Enrich each cluster
+  const enrichedClusters = clusters.map(cluster => {
+    const clusterId = cluster.id;
+    const modelMap = clusterModelMetrics.get(clusterId);
+    
+    if (!modelMap || modelMap.size === 0) {
+      return cluster;
+    }
+
+    // Build quality_by_model and quality_delta_by_model objects
+    const qualityByModel: Record<string, Record<string, number>> = {};
+    const qualityDeltaByModel: Record<string, Record<string, number>> = {};
+    
+    modelMap.forEach((metrics, model) => {
+      qualityByModel[model] = {};
+      qualityDeltaByModel[model] = {};
+      
+      Object.entries(metrics).forEach(([key, value]) => {
+        if (key.startsWith('delta_')) {
+          const metric = key.substring(6); // Remove 'delta_' prefix
+          qualityDeltaByModel[model][metric] = value;
+        } else {
+          qualityByModel[model][key] = value;
+        }
+      });
+    });
+
+    // Add to cluster meta
+    return {
+      ...cluster,
+      meta: {
+        ...(cluster.meta || {}),
+        quality_by_model: qualityByModel,
+        quality_delta_by_model: qualityDeltaByModel,
+      }
+    };
+  });
+  
+  // Log sample enriched cluster for debugging
+  if (enrichedClusters.length > 0) {
+    const sample = enrichedClusters[0];
+    console.log('🔧 Sample enriched cluster:', {
+      id: sample.id,
+      label: sample.label,
+      quality_by_model: sample.meta?.quality_by_model,
+      quality_delta_by_model: sample.meta?.quality_delta_by_model,
+    });
+  }
+  
+  return enrichedClusters;
 }
 
 class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error?: Error}> {
@@ -125,6 +242,7 @@ function App() {
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'table'|'properties'|'clusters'|'metrics'>('table');
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
+  const [clusterSearchQuery, setClusterSearchQuery] = useState<string>('');
   
   // Results loading indicator
   const [isLoadingResults, setIsLoadingResults] = useState<boolean>(false);
@@ -137,6 +255,7 @@ function App() {
   // Results mode (when loading full_dataset.json)
   const [isResultsMode, setIsResultsMode] = useState<boolean>(false);
   const [resultsMetrics, setResultsMetrics] = useState<{ model_cluster_scores?: any; cluster_scores?: any; model_scores?: any } | null>(null);
+  // Removed explainBusy (no separate panel submit)
   const [backendAvailable, setBackendAvailable] = useState<boolean>(false);
 
   // -------- Display Settings ---------
@@ -205,7 +324,9 @@ function App() {
   const [mappingValid, setMappingValid] = useState(false);
   const [mappingErrors, setMappingErrors] = useState<string[]>([]); // reserved for future validation UI
   const [filterNotice, setFilterNotice] = useState<string | null>(null);
-  // Removed server/browser folder/file state and inputs
+  
+  // Ref for results folder picker
+  const resultsInputRef = useRef<HTMLInputElement>(null);
 
   // Backend availability check on mount
   React.useEffect(() => {
@@ -380,11 +501,328 @@ function App() {
     }
   }, [resetUiStateForNewSource, applyAutoMappingFromColumns]);
 
+  // Load results from local folder
+  const onLoadResultsLocal = React.useCallback(async (files: FileList) => {
+    resetUiStateForNewSource('results');
+    setIsLoadingResults(true);
+    setResultsLoadingMessage('Loading results from local folder...');
+
+    try {
+      // Parse all JSON/JSONL files from the folder
+      const fileArray = Array.from(files);
+      const jsonFiles = fileArray.filter(f => f.name.endsWith('.json') || f.name.endsWith('.jsonl'));
+      
+      console.log('📁 All files in folder:', fileArray.map(f => f.name));
+      console.log('📄 JSON/JSONL files found:', jsonFiles.map(f => f.name));
+
+      if (jsonFiles.length === 0) {
+        throw new Error('No JSON or JSONL files found in selected folder');
+      }
+
+      let conversations: any[] = [];
+      let properties: any[] = [];
+      let clusters: any[] = [];
+      let metrics: any = null;
+
+      // Load each file based on name
+      for (const file of jsonFiles) {
+        const text = await file.text();
+        const name = file.name.toLowerCase();
+
+        console.log(`🔍 Processing file: ${file.name} (${text.length} bytes)`);
+
+        try {
+          if (name === 'conversation.jsonl') {
+            // New primary format: conversation.jsonl
+            const lines = text.split('\n').filter(l => l.trim());
+            conversations = lines.map(line => JSON.parse(line));
+            console.log(`✅ Loaded ${conversations.length} conversations from ${file.name}`);
+            console.log(`📊 Sample conversation:`, conversations[0]);
+          } else if (name === 'full_dataset.json' || name === 'conversations.json') {
+            // Only load if we don't already have conversations from conversation.jsonl
+            if (conversations.length > 0) {
+              console.log(`⏭️ Skipping ${file.name} - already loaded conversations from conversation.jsonl`);
+              continue;
+            }
+
+            const data = JSON.parse(text);
+
+            // Handle different data structures
+            if (Array.isArray(data)) {
+              conversations = data;
+            } else if (data && typeof data === 'object') {
+              // Extract conversations
+              if (Array.isArray(data.conversations)) {
+                conversations = data.conversations;
+              } else if (Array.isArray(data.data)) {
+                conversations = data.data;
+              } else if (Array.isArray(data.rows)) {
+                conversations = data.rows;
+              } else if (Array.isArray(data.results)) {
+                conversations = data.results;
+              } else {
+                // If it's a single object, wrap it in an array
+                conversations = [data];
+              }
+              
+              // Also extract properties and clusters from full_dataset.json
+              if (Array.isArray(data.properties) && properties.length === 0) {
+                properties = data.properties;
+                console.log(`✅ Loaded ${properties.length} properties from ${file.name}`);
+              }
+              if (Array.isArray(data.clusters) && clusters.length === 0) {
+                clusters = data.clusters;
+                console.log(`✅ Loaded ${clusters.length} clusters from ${file.name}`);
+              }
+            }
+            
+            console.log(`✅ Loaded ${conversations.length} conversations from ${file.name}`);
+            console.log(`📊 Sample conversation:`, conversations[0]);
+            console.log(`📊 Sample conversation keys:`, Object.keys(conversations[0] || {}));
+          } else if (name === 'properties.jsonl') {
+            // New primary format: properties.jsonl
+            const lines = text.split('\n').filter(l => l.trim());
+            properties = lines.map(line => JSON.parse(line));
+            console.log(`✅ Loaded ${properties.length} properties from ${file.name}`);
+          } else if (name === 'parsed_properties.jsonl') {
+            // Legacy format fallback
+            if (properties.length === 0) {
+              const lines = text.split('\n').filter(l => l.trim());
+              properties = lines.map(line => JSON.parse(line));
+              console.log(`✅ Loaded ${properties.length} properties from ${file.name} (legacy format)`);
+            }
+          } else if (name === 'clusters.jsonl') {
+            // New primary format: clusters.jsonl
+            const lines = text.split('\n').filter(l => l.trim());
+            clusters = lines.map(line => JSON.parse(line));
+            console.log(`✅ Loaded ${clusters.length} clusters from ${file.name}`);
+          } else if (name === 'model_cluster_scores_df.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            const scores = lines.map(line => JSON.parse(line));
+            if (!metrics) metrics = {};
+            metrics.model_cluster_scores = scores;
+            console.log(`✅ Loaded ${scores.length} model_cluster_scores from ${file.name}`);
+          } else if (name === 'cluster_scores_df.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            const scores = lines.map(line => JSON.parse(line));
+            if (!metrics) metrics = {};
+            metrics.cluster_scores = scores;
+            console.log(`✅ Loaded ${scores.length} cluster_scores from ${file.name}`);
+          } else if (name === 'model_scores_df.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            const scores = lines.map(line => JSON.parse(line));
+            if (!metrics) metrics = {};
+            metrics.model_scores = scores;
+            console.log(`✅ Loaded ${scores.length} model_scores from ${file.name}`);
+          } else {
+            console.log(`⚠️ Skipping unrecognized file: ${file.name}`);
+          }
+        } catch (e) {
+          console.error(`❌ Failed to parse ${file.name}:`, e);
+          throw new Error(`Failed to parse ${file.name}: ${e}`);
+        }
+      }
+
+      if (conversations.length === 0) {
+        throw new Error('No conversation data found. Expected file named "conversation.jsonl", "full_dataset.json", or "conversations.json"');
+      }
+
+      // Set up conversations with three-layer data structure
+      console.log('🔧 Processing conversations...');
+      const columns = inferColumns(conversations);
+      console.log('📋 Detected columns:', columns);
+
+      // Detect method from columns
+      const detectedMethod = detectMethodFromColumns(columns);
+      console.log('🎯 Detected method:', detectedMethod);
+      setMethod(detectedMethod);
+
+      // Layer 1: originalRows - keep raw format for PropertiesTab enrichment
+      setOriginalRows(conversations);
+      setAvailableColumns(columns);
+
+      // Layer 2: operationalRows - map to backend format with score objects
+      // conversation.jsonl already has scores as objects, so just add __index
+      const operational = conversations.map((conv, idx) => ({
+        __index: idx,
+        question_id: conv.question_id,
+        prompt: conv.prompt,
+
+        // Single model fields
+        ...(conv.model && {
+          model: conv.model,
+          model_response: conv.model_response,
+          score: conv.score  // Already an object in conversation.jsonl
+        }),
+
+        // Side-by-side fields
+        ...(conv.model_a && {
+          model_a: conv.model_a,
+          model_b: conv.model_b,
+          model_a_response: conv.model_a_response,
+          model_b_response: conv.model_b_response,
+          score_a: conv.score_a,  // Already an object
+          score_b: conv.score_b   // Already an object
+        })
+      }));
+
+      console.log('🔧 DEBUG: Setting operationalRows:', {
+        count: operational.length,
+        sampleRow: operational[0],
+        method: detectedMethod,
+        hasScores: operational[0]?.score || operational[0]?.score_a || operational[0]?.score_b
+      });
+      setOperationalRows(operational);
+
+      // Layer 3: currentRows - flatten scores for DataTable display
+      const modelNames = detectedMethod === 'side_by_side' && operational.length > 0
+        ? { modelA: operational[0]?.model_a, modelB: operational[0]?.model_b }
+        : undefined;
+
+      const { rows: flattened, columns: flattenedColumns } = flattenScores(operational, detectedMethod, modelNames);
+      console.log('📊 DEBUG: After flattening:', {
+        outputRows: flattened.length,
+        sampleOutputRow: flattened[0],
+        columns: flattenedColumns,
+        scoreColumns: flattenedColumns.filter(c => c.startsWith('score_'))
+      });
+      setCurrentRows(flattened);
+
+      // Load properties (no pre-enrichment needed - PropertiesTab handles at render time)
+      if (properties.length > 0) {
+        const indexedProperties = properties.map((prop, idx) => ({
+          ...prop,
+          __index: idx
+        }));
+        setPropertiesRows(indexedProperties);
+        console.log(`✅ Loaded ${properties.length} properties`);
+      }
+
+      // Load metrics and enrich clusters
+      if (Object.keys(metrics).length > 0) {
+        // Normalize metrics column names: quality_{metric}_delta -> quality_delta_{metric}
+        const normalizedMetrics = normalizeMetricsColumnNames(metrics);
+        console.log('✅ Normalized metrics:', Object.keys(normalizedMetrics));
+        setResultsMetrics(normalizedMetrics);
+
+        // Enrich clusters with quality data from metrics
+        if (clusters.length > 0 && normalizedMetrics.model_cluster_scores) {
+          const enrichedClusters = enrichClustersWithQualityData(
+            clusters,
+            normalizedMetrics.model_cluster_scores
+          );
+          setClusters(enrichedClusters);
+          console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with quality data)`);
+        } else if (clusters.length > 0) {
+          setClusters(clusters);
+          console.log(`✅ Loaded ${clusters.length} clusters (no metrics to enrich)`);
+        }
+      } else if (clusters.length > 0) {
+        // No metrics available
+        setClusters(clusters);
+        console.log(`✅ Loaded ${clusters.length} clusters (no metrics)`);
+      }
+
+      // Switch to appropriate tab based on loaded data
+      if (clusters.length > 0) {
+        setActiveTab('clusters');
+        setActiveSection('clustering');
+        console.log('📊 Switched to Clusters tab');
+      } else if (properties.length > 0) {
+        setActiveTab('properties');
+        console.log('📊 Switched to Properties tab');
+      } else {
+        console.log('📊 Staying on Data tab');
+      }
+
+      console.log('✅ Results loaded successfully:', {
+        conversations: conversations.length,
+        properties: properties.length,
+        clusters: clusters.length,
+        hasMetrics: !!metrics
+      });
+
+    } catch (e: any) {
+      console.error('❌ Failed to load results:', e);
+      setResultsError(String(e?.message || e));
+    } finally {
+      setIsLoadingResults(false);
+      setResultsLoadingMessage('');
+    }
+  }, [resetUiStateForNewSource, processDataWithMapping]);
+
   // Removed local results folder loader (unused)
 
   // Removed server file loader
 
   // Removed server results loader
+
+  // Client-side pairing: convert tidy rows to side-by-side format
+  function pairTidyToSideBySide(rows: Record<string, any>[], mapping: ColumnMapping): Record<string, any>[] {
+    const modelColumn = mapping.selectedModels!.column;
+    const modelA = mapping.selectedModels!.modelA;
+    const modelB = mapping.selectedModels!.modelB;
+    
+    // Filter to only rows with modelA or modelB
+    const filteredRows = rows.filter(r => {
+      const m = String(r[modelColumn] || '');
+      return m === modelA || m === modelB;
+    });
+    
+    // Group by question_id (or prompt if missing)
+    const groups = new Map<string, Record<string, any>[]>();
+    filteredRows.forEach(row => {
+      const qid = row['question_id'] != null && row['question_id'] !== '' 
+        ? String(row['question_id']) 
+        : String(row[mapping.promptCol] || '');
+      if (!groups.has(qid)) groups.set(qid, []);
+      groups.get(qid)!.push(row);
+    });
+    
+    // Build side-by-side rows: keep only groups with exactly 2 rows (one per model)
+    const pairedRows: Record<string, any>[] = [];
+    let pairIndex = 0;
+    
+    groups.forEach((groupRows, qid) => {
+      const rowA = groupRows.find(r => String(r[modelColumn]) === modelA);
+      const rowB = groupRows.find(r => String(r[modelColumn]) === modelB);
+      
+      if (rowA && rowB) {
+        const sbsRow: Record<string, any> = {
+          __index: pairIndex++,
+          question_id: qid,
+          prompt: rowA[mapping.promptCol] || rowB[mapping.promptCol] || '',
+          model_a: modelA,
+          model_b: modelB,
+          model_a_response: rowA[mapping.responseCols[0]] || '',
+          model_b_response: rowB[mapping.responseCols[0]] || '',
+        };
+        
+        // Build score_a and score_b from selected score columns
+        if (mapping.scoreCols.length > 0) {
+          const buildScore = (r: Record<string, any>) => {
+            const s: Record<string, number> = {};
+            for (const col of mapping.scoreCols) {
+              const v = r[col];
+              if (typeof v === 'number' && Number.isFinite(v)) {
+                const k = col.replace(/^(score_)?/i, '').replace(/_?score$/i, '') || 'value';
+                s[k] = v;
+              }
+            }
+            return Object.keys(s).length > 0 ? s : undefined;
+          };
+          const scoreA = buildScore(rowA);
+          const scoreB = buildScore(rowB);
+          if (scoreA) sbsRow.score_a = scoreA;
+          if (scoreB) sbsRow.score_b = scoreB;
+        }
+        
+        pairedRows.push(sbsRow);
+      }
+    });
+    
+    return pairedRows;
+  }
 
   // New function to process data with flexible column mapping
   function processDataWithMapping(rows: Record<string, any>[], mapping: ColumnMapping) {
@@ -398,8 +836,9 @@ function App() {
       const opRow: Record<string, any> = { __index: index };
 
       // Ensure every operational row has a stable question_id used by backend joins
-      // Match backend data_objects convention: use the row index as string
-      opRow.question_id = String(index);
+      // Prefer existing question_id if present; otherwise fallback to row index
+      const existingQid = row['question_id'];
+      opRow.question_id = existingQid != null && existingQid !== '' ? String(existingQid) : String(index);
       
       // Map prompt column
       if (mapping.promptCol && row[mapping.promptCol] !== undefined) {
@@ -529,7 +968,12 @@ function App() {
       sampleInputRow: rowsAfterFilter[0],
       method: mapping.method
     });
-    const { rows: flattenedRows, columns: flattenedColumns } = flattenScores(rowsAfterFilter, mapping.method);
+    // Extract model names for side-by-side score labeling
+    const modelNames = mapping.method === 'side_by_side' && rowsAfterFilter.length > 0
+      ? { modelA: rowsAfterFilter[0]?.model_a, modelB: rowsAfterFilter[0]?.model_b }
+      : undefined;
+    
+    const { rows: flattenedRows, columns: flattenedColumns } = flattenScores(rowsAfterFilter, mapping.method, modelNames);
     console.log('📊 DEBUG: After flattening:', {
       outputRows: flattenedRows.length,
       sampleOutputRow: flattenedRows[0],
@@ -537,14 +981,50 @@ function App() {
       scoreColumns: flattenedColumns.filter(c => c.startsWith('score_'))
     });
     setCurrentRows(flattenedRows);
+
+    // If user chose two models in single_model mapping, promote to side_by_side by calling backend later
+    setColumnMapping(prev => ({ ...mapping }));
   }
 
   // Handle column mapping changes from the selector
   const handleMappingChange = useCallback((mapping: ColumnMapping) => {
     if (mappingValid && originalRows.length > 0) {
-      processDataWithMapping(originalRows, mapping);
-      setShowColumnSelector(false);
-      setSidebarExpanded(false); // Close sidebar when data is loaded
+      // If user selected two models under side_by_side (tidy path), pair client-side
+      if (mapping.method === 'side_by_side' && mapping.selectedModels && mapping.selectedModels.modelA && mapping.selectedModels.modelB && mapping.selectedModels.modelA !== mapping.selectedModels.modelB) {
+        const pairedRows = pairTidyToSideBySide(originalRows, mapping);
+        
+        console.log('[handleMappingChange] Paired tidy to side-by-side:', { 
+          pairs: pairedRows.length, 
+          sample: pairedRows[0],
+          modelA: mapping.selectedModels.modelA,
+          modelB: mapping.selectedModels.modelB 
+        });
+        
+        if (pairedRows.length === 0) {
+          setResultsError(`No matching pairs found for models "${mapping.selectedModels.modelA}" and "${mapping.selectedModels.modelB}". Ensure both models answered the same prompts.`);
+          return;
+        }
+        
+        // Set method and operational rows to the paired side-by-side data
+        setMethod('side_by_side');
+        setColumnMapping(mapping);
+        setOperationalRows(pairedRows);
+        
+        // Flatten for display with actual model names
+        const { rows: flattened } = flattenScores(pairedRows, 'side_by_side', {
+          modelA: mapping.selectedModels.modelA,
+          modelB: mapping.selectedModels.modelB
+        });
+        setCurrentRows(flattened);
+        
+        setShowColumnSelector(false);
+        setSidebarExpanded(false);
+      } else {
+        // Standard processing for single_model or legacy side_by_side
+        processDataWithMapping(originalRows, mapping);
+        setShowColumnSelector(false);
+        setSidebarExpanded(false);
+      }
     }
   }, [mappingValid, originalRows]);
 
@@ -555,6 +1035,7 @@ function App() {
   }, []);
 
   const onView = useCallback((row: Record<string, any>, preserveEvidence = false) => {
+    console.log('[App] onView called with preserveEvidence:', preserveEvidence);
     if (method === "single_model") {
       const messages = ensureOpenAIFormat(String(row?.["prompt"] ?? ""), row?.["model_response"]);
       setSelectedTrace({ type: "single", messages });
@@ -573,13 +1054,16 @@ function App() {
     setSelectedRow(row);
     setDrawerOpen(true);
     if (!preserveEvidence) {
-    setSelectedEvidence(null);
-    setEvidenceTargetModel(undefined);
+      console.log('[App] onView - Clearing evidence (preserveEvidence=false)');
+      setSelectedEvidence(null);
+      setEvidenceTargetModel(undefined);
       setSelectedProperty(null); // Clear property context when viewing from main table
+    } else {
+      console.log('[App] onView - Preserving evidence (preserveEvidence=true)');
     }
   }, [method]);
 
-  const responseKeys = useMemo(() => 
+  const responseKeys = useMemo(() =>
     method === "single_model"
       ? ["model_response"]
       : method === "side_by_side"
@@ -598,22 +1082,31 @@ function App() {
     if (currentRows.length === 0) return [];
     const allColumns = Object.keys(currentRows[0]);
     
+    // For side-by-side, hide the internal model/response columns and show a view button instead
+    const hiddenSbsColumns = method === 'side_by_side' 
+      ? ['model_a', 'model_b', 'model_a_response', 'model_b_response']
+      : [];
+    
+    const visibleColumns = allColumns.filter(c => !hiddenSbsColumns.includes(c));
+    
     // Order: index → prompt → response columns → remaining
-    const indexCol = allColumns.filter((c) => c === '__index');
-    const promptFirst = allColumns.filter((c) => c === 'prompt');
-    const resp = allColumns.filter((c) => responseKeys.includes(c));
-    const remaining = allColumns.filter((c) => c !== '__index' && c !== 'prompt' && !responseKeys.includes(c));
+    const indexCol = visibleColumns.filter((c) => c === '__index');
+    const promptFirst = visibleColumns.filter((c) => c === 'prompt');
+    const resp = visibleColumns.filter((c) => responseKeys.includes(c));
+    const remaining = visibleColumns.filter((c) => c !== '__index' && c !== 'prompt' && !responseKeys.includes(c));
     
     const result = [...indexCol, ...promptFirst, ...resp, ...remaining];
     console.log('🔗 DEBUG allowedColumns (from currentRows - FIXED):', {
       currentRowsCount: currentRows.length,
       allColumns,
+      hiddenSbsColumns,
+      visibleColumns,
       result,
       scoreColumns: allColumns.filter(c => c.startsWith('score_')),
       sampleCurrentRow: currentRows[0]
     });
     return result;
-  }, [currentRows, responseKeys]);
+  }, [currentRows, responseKeys, method]);
 
   // -------- Data Operations Chain ---------
   const [operationChain, setOperationChain] = useState<DataOperation[]>([]);
@@ -667,31 +1160,23 @@ function App() {
         return cache.get(col)!;
       }
       const s = new Set<string>();
-      operationalRows.forEach(r => { const v = r?.[col]; if (v !== undefined && v !== null) s.add(String(v)); });
+      currentRows.forEach(r => { const v = r?.[col]; if (v !== undefined && v !== null) s.add(String(v)); });
       const result = Array.from(s).sort();
       cache.set(col, result);
       return result;
     };
-  }, [operationalRows]);
+  }, [currentRows]);
 
   // Apply the entire operation chain to operational data
   const applyOperationChain = useCallback(async (operations: DataOperation[]) => {
     console.log('🔄 Applying operation chain:', operations);
-    
+
     // Start from operational data (with score dicts)
     let opData = [...operationalRows];
-    
-    // Apply non-sort operations on operational data
+
+    // Apply custom operations on operational data (backend needs score dicts)
     for (const operation of operations) {
-      if (operation.type === 'filter') {
-        const filterOp = operation as any;
-        opData = opData.filter(row => {
-          const rowValue = String(row[filterOp.column] || '');
-          const matchesValues = filterOp.values.includes(rowValue);
-          return filterOp.negated ? !matchesValues : matchesValues;
-        });
-        console.log(`🔍 Filter ${filterOp.column}: ${opData.length} rows`);
-      } else if (operation.type === 'custom') {
+      if (operation.type === 'custom') {
         const customOp = operation as any;
         try {
           const res = await dfCustom({ rows: opData, code: customOp.code });
@@ -706,22 +1191,38 @@ function App() {
         }
       }
     }
-    
+
     // Always flatten for UI display
-    const { rows: flattenedRows } = flattenScores(opData, method);
+    const modelNames = method === 'side_by_side' && opData.length > 0
+      ? { modelA: opData[0]?.model_a, modelB: opData[0]?.model_b }
+      : undefined;
+    const { rows: flattenedRows } = flattenScores(opData, method, modelNames);
     let displayData = flattenedRows;
-    
+
+    // Apply filter operations on flattened data (so score_* columns can be filtered)
+    for (const operation of operations) {
+      if (operation.type === 'filter') {
+        const filterOp = operation as any;
+        displayData = displayData.filter(row => {
+          const rowValue = String(row[filterOp.column] ?? '');
+          const matchesValues = filterOp.values.includes(rowValue);
+          return filterOp.negated ? !matchesValues : matchesValues;
+        });
+        console.log(`🔍 Filter ${filterOp.column}: ${displayData.length} rows`);
+      }
+    }
+
     // Apply sort operations on flattened data (so score_* columns sort correctly)
     const sortOp = operations.find(op => op.type === 'sort') as any | undefined;
     if (sortOp) {
       displayData = [...displayData].sort((a, b) => {
         let aVal = a[sortOp.column];
         let bVal = b[sortOp.column];
-        
+
         if (aVal == null && bVal == null) return 0;
         if (aVal == null) return sortOp.direction === 'asc' ? 1 : -1;
         if (bVal == null) return sortOp.direction === 'asc' ? -1 : 1;
-        
+
         const aNum = Number(aVal);
         const bNum = Number(bVal);
         if (!isNaN(aNum) && !isNaN(bNum)) {
@@ -734,7 +1235,7 @@ function App() {
       });
       console.log(`🔄 Sort ${sortOp.column} ${sortOp.direction}: ${displayData.length} rows`);
     }
-    
+
     console.log(`Final result (flattened): ${displayData.length} rows`);
     setCurrentRows(displayData);
   }, [operationalRows, method]);
@@ -749,7 +1250,10 @@ function App() {
   }, [operationChain, applyOperationChain]);
 
   const resetAll = useCallback(() => {
-    const { rows: flattened } = flattenScores(operationalRows, method);
+    const modelNames = method === 'side_by_side' && operationalRows.length > 0
+      ? { modelA: operationalRows[0]?.model_a, modelB: operationalRows[0]?.model_b }
+      : undefined;
+    const { rows: flattened } = flattenScores(operationalRows, method, modelNames);
     setCurrentRows(flattened);
     setOperationChain([]);
     setGroupBy(null);
@@ -1073,15 +1577,9 @@ function App() {
               setGroupPreview([]);
             }
           }}
-          showCustomCode={true}
-          customCodeValue={customCode}
-          onCustomCodeChange={(value) => handleCustomCodeChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)}
-          onCustomCodeRun={runCustom}
-          onReset={resetAll}
-          customCodeError={customError}
         />
         </Box>
-        <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
+        <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
           <Box sx={{ backgroundColor: '#F3F4F6', p: 2, borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 1 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: `auto 2fr 1fr 1fr repeat(${Math.max(allowedColumns.length - 3, 0)}, 1fr)`, gap: 2, alignItems: 'center', minWidth: 960 }}>
               <Box sx={{ width: 24 }} />
@@ -1092,6 +1590,7 @@ function App() {
                      col === 'prompt' ? 'PROMPT' :
                      col === 'model' ? 'MODEL' :
                      col === 'model_response' ? 'RESPONSE' :
+                     col === 'model_responses' ? 'MODEL RESPONSES' :
                      col === 'model_a' ? 'MODEL A' :
                      col === 'model_b' ? 'MODEL B' :
                      col === 'model_a_response' ? 'RESPONSE A' :
@@ -1162,7 +1661,7 @@ function App() {
                                 const isPrompt = col === 'prompt';
                                 return (
                                   <Typography variant="body2" sx={{ maxWidth: 200, textAlign: isNumeric ? 'center' : 'left' }}>
-                                    {isPrompt ? (<FormattedCell text={String(value || '')} isPrompt={true} />) : (<TruncatedCell text={String(value || '')} />)}
+                                    {isPrompt ? (<FormattedCell text={String(value ?? '')} isPrompt={true} />) : (<TruncatedCell text={String(value ?? '')} />)}
                                   </Typography>
                                 );
                               })()
@@ -1183,7 +1682,7 @@ function App() {
                                 const isPrompt = col === 'prompt';
                                 return (
                                   <Typography variant="body2" sx={{ maxWidth: 200, textAlign: isNumeric ? 'center' : 'left' }}>
-                                    {isPrompt ? (<FormattedCell text={String(value || '')} isPrompt={true} />) : (<TruncatedCell text={String(value || '')} />)}
+                                    {isPrompt ? (<FormattedCell text={String(value ?? '')} isPrompt={true} />) : (<TruncatedCell text={String(value ?? '')} />)}
                                   </Typography>
                                 );
                               })()
@@ -1258,12 +1757,6 @@ function App() {
               setGroupPreview([]);
             }
           }}
-          showCustomCode={true}
-          customCodeValue={customCode}
-          onCustomCodeChange={(value) => handleCustomCodeChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)}
-          onCustomCodeRun={runCustom}
-          onReset={resetAll}
-          customCodeError={customError}
         />
         </Box>
       <DataTable
@@ -1286,7 +1779,7 @@ function App() {
     if (activeTab !== 'properties') return null;
     if (propertiesRows.length === 0) {
       return (
-        <Box sx={{ p: 2, border: '1px solid #E5E7EB', borderRadius: 2, background: '#FFFFFF' }}>
+        <Box sx={{ p: 2, border: '1px solid #E5E7EB', borderRadius: 0.5, background: '#FFFFFF' }}>
           <Typography variant="body1" color="text.secondary">
             No properties available yet. Run "Extract on selected" or "Run on all traces" from the sidebar.
           </Typography>
@@ -1296,7 +1789,7 @@ function App() {
     return (
       <PropertiesTab
         rows={propertiesRows}
-        originalData={operationalRows}
+        originalData={originalRows}
         onOpenProperty={(prop) => {
           // Use operationalRows (with consolidated score objects) instead of currentRows (flattened)
           // Prefer direct index if present
@@ -1333,11 +1826,14 @@ function App() {
           const ev = Array.isArray(rawEvidence)
             ? rawEvidence
             : rawEvidence ? [rawEvidence] : [];
-          
+
+          console.log('[App] onOpenProperty - Setting evidence:', ev);
+          console.log('[App] onOpenProperty - Evidence target model:', (prop as any).model);
+
           setSelectedEvidence(ev);
           setEvidenceTargetModel((prop as any).model);
           setSelectedProperty(prop);
-          
+
           if (row) {
             onView(row, true);
           }
@@ -1363,18 +1859,32 @@ function App() {
   const onRequestRecomputeCb = useCallback((included_property_ids?: string[]) => {
     (async () => {
       try {
+        // Detect score columns from operationalRows
+        const scoreColumns = operationalRows[0] ? Object.keys(operationalRows[0]).filter(k => k.startsWith('score_')) : [];
+        
         const res = await recomputeClusterMetrics({
           clusters,
           properties: propertiesRows,
           operationalRows,
           included_property_ids,
+          score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
         });
-        setClusters(res.clusters || []);
+        
+        // Re-enrich clusters with quality data from cached metrics
+        let updatedClusters = res.clusters || [];
+        if (resultsMetrics?.model_cluster_scores) {
+          updatedClusters = enrichClustersWithQualityData(
+            updatedClusters, 
+            resultsMetrics.model_cluster_scores
+          );
+        }
+        
+        setClusters(updatedClusters);
       } catch (e) {
         console.error('recompute (filters) failed', e);
       }
     })();
-  }, [clusters, propertiesRows, operationalRows]);
+  }, [clusters, propertiesRows, operationalRows, resultsMetrics]);
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -1426,7 +1936,29 @@ function App() {
             >
               Load Demo Data
             </Button>
-            {/* Server browsing removed */}
+            <Button
+              variant="outlined"
+              color="primary"
+              size="small"
+              component="label"
+            >
+              Load Results
+              <input
+                ref={resultsInputRef}
+                type="file"
+                hidden
+                /* @ts-ignore - webkitdirectory is not in TypeScript types but widely supported */
+                webkitdirectory=""
+                directory=""
+                multiple
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (files && files.length > 0) {
+                    void onLoadResultsLocal(files);
+                  }
+                }}
+              />
+            </Button>
             {availableColumns.length > 0 && !showColumnSelector && (
               <Button 
                 variant="outlined" 
@@ -1604,9 +2136,44 @@ function App() {
             getOperationalRows={getOperationalRowsCb}
             getPropertiesRows={getPropertiesRowsCb}
             onClustersUpdated={(data) => {
-              setClusters(data.clusters || []);
+              console.log('🟢 App.tsx onClustersUpdated received:', data);
+              
+              // Enrich clusters with per-model quality data from metrics
+              let enrichedClusters = data.clusters || [];
+              if (data.metrics?.model_cluster_scores) {
+                const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
+                enrichedClusters = enrichClustersWithQualityData(
+                  data.clusters || [], 
+                  normalizedMetrics.model_cluster_scores
+                );
+              }
+              
+              setClusters(enrichedClusters);
               setTotalConversationsByModel(data.total_conversations_by_model || null);
               setTotalUniqueConversations(data.total_unique_conversations || null);
+
+              // Save metrics so they appear in the Metrics tab
+              if (data.metrics) {
+                console.log('🟢 Raw metrics from backend:', data.metrics);
+                console.log('🟢 model_cluster_scores length:', data.metrics.model_cluster_scores?.length);
+                console.log('🟢 Sample row before normalization:', data.metrics.model_cluster_scores?.[0]);
+
+                if (data.metrics.model_cluster_scores?.[0]) {
+                  console.log('🟢 Sample row keys:', Object.keys(data.metrics.model_cluster_scores[0]));
+                  console.log('🟢 Quality columns:', Object.keys(data.metrics.model_cluster_scores[0]).filter(k => k.startsWith('quality_')));
+                }
+
+                // Normalize column names: quality_{metric}_delta -> quality_delta_{metric}
+                const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
+                console.log('🟢 After normalization:', normalizedMetrics.model_cluster_scores?.[0]);
+
+                setResultsMetrics(normalizedMetrics);
+                
+                // Automatically switch to metrics section to show the metrics panel
+                setActiveSection('metrics');
+              } else {
+                console.warn('⚠️ No metrics in clustering response!');
+              }
             }}
           />
           {(isResultsMode || !backendAvailable) && (
@@ -1667,6 +2234,7 @@ function App() {
         {showColumnSelector && (
           <ColumnSelector
             columns={availableColumns}
+            rows={originalRows}
             onMappingChange={handleMappingChange}
             onValidationChange={handleValidationChange}
             autoDetectedMapping={autoDetectedMapping || undefined}
@@ -1736,6 +2304,8 @@ function App() {
               totalUniqueConversations={totalUniqueConversations}
               getPropertiesRows={getPropertiesRowsCb}
               onRequestRecompute={onRequestRecomputeCb}
+              externalSearchQuery={clusterSearchQuery}
+              modelClusterScores={resultsMetrics?.model_cluster_scores}
               onOpenPropertyById={(pid) => {
               // Find property row in propertiesRows and open in the right drawer
               const prop = propertiesRows.find((p: any) => String(p.id) === String(pid));
@@ -1807,6 +2377,11 @@ function App() {
                     
                     return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
                   });
+                }}
+                onNavigateToCluster={(clusterName) => {
+                  setClusterSearchQuery(clusterName);
+                  setActiveTab('clusters');
+                  setHasViewedClusters(true);
                 }}
                 debug={true}
                 showBenchmark={true}
@@ -1885,13 +2460,16 @@ function App() {
                 )}
               </>
             )}
-            {selectedTrace?.type === "single" && (
-              <ConversationTrace
-                messages={selectedTrace.messages}
-                highlights={selectedEvidence || undefined}
-                rawResponse={selectedRow?.model_response}
-              />
-            )}
+            {selectedTrace?.type === "single" && (() => {
+              console.log('[App] Rendering ConversationTrace with highlights:', selectedEvidence);
+              return (
+                <ConversationTrace
+                  messages={selectedTrace.messages}
+                  highlights={selectedEvidence || undefined}
+                  rawResponse={selectedRow?.model_response}
+                />
+              );
+            })()}
             {selectedTrace?.type === "sbs" && (
               <SideBySideTrace
                 messagesA={selectedTrace.messagesA}
@@ -1924,8 +2502,6 @@ function App() {
           }}
         />
       )}
-
-      {/* Server browsing dialogs removed */}
     </Box>
   );
 }

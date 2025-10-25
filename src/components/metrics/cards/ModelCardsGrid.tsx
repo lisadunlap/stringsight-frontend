@@ -17,12 +17,14 @@ interface ModelCardsGridProps {
   cards: ModelCardData[];
   filters: MetricsFilters;
   qualityMetrics: string[];
+  onNavigateToCluster?: (clusterName: string) => void;
 }
 
 export function ModelCardsGrid({
   cards,
   filters,
-  qualityMetrics
+  qualityMetrics,
+  onNavigateToCluster
 }: ModelCardsGridProps) {
   
   if (cards.length === 0) {
@@ -51,6 +53,7 @@ export function ModelCardsGrid({
             card={card}
             filters={filters}
             qualityMetrics={qualityMetrics}
+            onNavigateToCluster={onNavigateToCluster}
           />
         </Box>
       ))}

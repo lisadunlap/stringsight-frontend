@@ -42,20 +42,61 @@ export async function detectAndValidate(file: File): Promise<DetectResponse> {
   return res.json();
 }
 
-// Removed readPath and listPath (server file browsing removed from UI)
-
-// Removed resultsLoad (server results loading removed from UI)
+/**
+ * Read a file from the server (for server-side file browsing)
+ */
+export async function readPath(path: string): Promise<{ data: any[]; method: Method }> {
+  const res = await fetch(`${API_BASE}/read-path`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
 
 /**
- * Stream properties data progressively using JSONL endpoint.
- * This allows rendering results as they arrive instead of waiting for the full response.
+ * List directory contents on the server
  */
-// Removed streaming helpers for server-side results
+export async function listPath(path: string): Promise<{ 
+  files: string[]; 
+  dirs: string[]; 
+  parent: string | null; 
+  current: string;
+  error?: string;
+}> {
+  const res = await fetch(`${API_BASE}/list-path`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
 
 /**
- * Stream conversations data progressively using JSONL endpoint.
+ * Load pre-computed results from a server directory
  */
-// Removed streaming helpers for server-side results
+export async function resultsLoad(resultsDir: string): Promise<{
+  conversations: any[];
+  properties: any[];
+  clusters?: any[];
+  metrics?: {
+    model_cluster_scores?: any[];
+    cluster_scores?: any[];
+    model_scores?: any[];
+  };
+  total_conversations_by_model?: Record<string, number>;
+  total_unique_conversations?: number;
+}> {
+  const res = await fetch(`${API_BASE}/results/load`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ results_dir: resultsDir })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
 
 // DataFrame ops
 export async function dfSelect(body: { rows: any[]; include?: Record<string, any[]>; exclude?: Record<string, any[]>; }) {
@@ -225,6 +266,7 @@ export async function runClustering(body: {
   operationalRows: any[];
   properties: any[];
   params: { minClusterSize?: number | null; embeddingModel: string; groupBy?: 'none' | 'category' | 'behavior_type'; summarizationModel?: string; matchingModel?: string };
+  score_columns?: string[];
 }) {
   const res = await fetch(`${API_BASE}/cluster/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(await res.text());
@@ -245,6 +287,7 @@ export async function recomputeClusterMetrics(body: {
   properties: any[];
   operationalRows: any[];
   included_property_ids?: string[];
+  score_columns?: string[];
 }) {
   const res = await fetch(`${API_BASE}/cluster/metrics`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(await res.text());

@@ -42,19 +42,19 @@ export function TagChips({
   const colorForTag = (label: string) => {
     const norm = label.trim().toLowerCase();
     if (norm === 'style') {
-      return { text: '#6d28d9', bg: '#faf5ff', border: '#ede9fe' };
+      return { text: '#9C27B0', bg: '#F3E5F5', border: '#E1BEE7' }; // Purple
     }
     if (norm === 'positive') {
-      return { text: '#28a745', bg: '#28a7451A', border: '#28a74533' };
+      return { text: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' }; // Green
     }
     if (norm === 'negative (non-critical)' || norm === 'negative non-critical' || norm === 'negative (non critical)') {
-      return { text: '#ff7f0e', bg: '#ff7f0e1A', border: '#ff7f0e33' };
+      return { text: '#CA8A04', bg: '#FEF9C3', border: '#FDE047' }; // Yellow
     }
     if (norm === 'negative (critical)' || norm === 'negative critical') {
-      return { text: '#dc3545', bg: '#dc35451A', border: '#dc354533' };
+      return { text: '#DC2626', bg: '#FEE2E2', border: '#FECACA' }; // Red
     }
-    // default
-    return { text: '#4c6ef5', bg: '#4c6ef51A', border: '#4c6ef533' };
+    // default - grey for any other groups
+    return { text: '#6B7280', bg: '#F3F4F6', border: '#D1D5DB' }; // Grey
   };
 
   return (

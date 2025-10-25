@@ -53,6 +53,9 @@ interface MetricsTabProps {
   showBenchmark?: boolean;
   showClusterPlots?: boolean;
   showModelCards?: boolean;
+  
+  /** Callback to navigate to a cluster in the Clusters tab */
+  onNavigateToCluster?: (clusterName: string) => void;
 }
 
 export function MetricsTab({ 
@@ -62,7 +65,8 @@ export function MetricsTab({
   debug = false,
   showBenchmark = true,
   showClusterPlots = true,
-  showModelCards = true
+  showModelCards = true,
+  onNavigateToCluster
 }: MetricsTabProps) {
 
   // Process the existing resultsData instead of fetching from API
@@ -81,7 +85,13 @@ export function MetricsTab({
     }
 
     // Server now always returns JSONL format (array of objects)
-    const modelClusterScores = resultsData.model_cluster_scores || [];
+    const allModelClusterScores = resultsData.model_cluster_scores || [];
+    
+    // Filter out outlier clusters (case-insensitive check for cluster names starting with "outliers")
+    const modelClusterScores = allModelClusterScores.filter((row: any) => {
+      const clusterName = row.cluster ? String(row.cluster).toLowerCase() : '';
+      return !clusterName.startsWith('outliers');
+    });
     
     // Extract models, clusters, and groups
     const models = [...new Set(modelClusterScores.map((row: any) => row.model))].sort();
@@ -293,6 +303,7 @@ export function MetricsTab({
           showBenchmark={showBenchmark}
           showClusterPlots={showClusterPlots}
           showModelCards={showModelCards}
+          onNavigateToCluster={onNavigateToCluster}
         />
       </Box>
     </Fade>

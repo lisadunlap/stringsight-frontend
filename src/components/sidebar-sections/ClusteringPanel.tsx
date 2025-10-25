@@ -44,17 +44,55 @@ export default function ClusteringPanel({ hasAnyProperties, getOperationalRows, 
 
   const handleClusterProperties = async () => {
     if (!hasAnyProperties) return;
-    
+
     setBusy(true);
     try {
       const operationalRows = getOperationalRows();
       const properties = getPropertiesRows();
+
+      // Debug: check if operationalRows have score data
+      console.log('🔍 Sending to backend:');
+      console.log('  - operationalRows count:', operationalRows.length);
+      console.log('  - properties count:', properties.length);
+      console.log('  - Sample operational row:', operationalRows[0]);
+      console.log('  - Sample row keys:', operationalRows[0] ? Object.keys(operationalRows[0]) : []);
+      console.log('  - Sample row score:', operationalRows[0]?.score);
+      console.log('  - Sample row score type:', typeof operationalRows[0]?.score);
+      console.log('  - Sample row score_a:', operationalRows[0]?.score_a);
+      console.log('  - Sample row score_b:', operationalRows[0]?.score_b);
+      
+      // Check if scores are nested objects or flat columns
+      if (operationalRows[0]?.score && typeof operationalRows[0].score === 'object') {
+        console.log('  - Score is nested object with keys:', Object.keys(operationalRows[0].score));
+      }
+      
+      // Check for flattened score columns (e.g., score_helpfulness)
+      // Backend needs to know which columns contain quality metrics
+      const scoreColumns = operationalRows[0] ? Object.keys(operationalRows[0]).filter(k => k.startsWith('score_')) : [];
+      console.log('  - Score-related columns found:', scoreColumns);
+
       const body = {
         operationalRows,
         properties,
         params: { minClusterSize, embeddingModel, groupBy, summarizationModel, matchingModel },
+        score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
       };
       const res = await runClustering(body as any);
+      console.log('🔵 Clustering response:', res);
+      console.log('🔵 Metrics in response:', res.metrics);
+      
+      // Detailed metrics logging
+      if (res.metrics?.model_cluster_scores) {
+        console.log('🔵 model_cluster_scores sample:', res.metrics.model_cluster_scores[0]);
+        console.log('🔵 model_cluster_scores columns:', res.metrics.model_cluster_scores[0] ? Object.keys(res.metrics.model_cluster_scores[0]) : []);
+        console.log('🔵 Quality-related columns:', res.metrics.model_cluster_scores[0] 
+          ? Object.keys(res.metrics.model_cluster_scores[0]).filter(k => k.includes('quality'))
+          : []
+        );
+      } else {
+        console.warn('⚠️ No model_cluster_scores in metrics response!');
+      }
+      
       onClustersUpdated(res);
     } catch (error) {
       console.error('Clustering failed:', error);

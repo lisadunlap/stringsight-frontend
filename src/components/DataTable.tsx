@@ -178,7 +178,7 @@ const DataTable = React.memo(function DataTable({
           Showing rows {String(startIdx + 1)}–{String(endIdx)} of {rows.length.toLocaleString()} rows.
         </Box>
       )}
-      <TableContainer sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
+      <TableContainer sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
         <Table size="small">
         <TableHead sx={{ backgroundColor: '#F3F4F6' }}>
           {table.getHeaderGroups().map((hg) => (

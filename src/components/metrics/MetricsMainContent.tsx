@@ -37,6 +37,7 @@ interface MetricsMainContentProps {
   showBenchmark?: boolean;
   showClusterPlots?: boolean;
   showModelCards?: boolean;
+  onNavigateToCluster?: (clusterName: string) => void;
 }
 
 export function MetricsMainContent({
@@ -47,7 +48,8 @@ export function MetricsMainContent({
   summary,
   showBenchmark = true,
   showClusterPlots = true,
-  showModelCards = true
+  showModelCards = true,
+  onNavigateToCluster
 }: MetricsMainContentProps) {
 
   // Apply filters to the data
@@ -205,6 +207,7 @@ export function MetricsMainContent({
             filters={filters}
             qualityMetrics={qualityMetrics}
             totalBattles={modelClusterData.total_battles}
+            onNavigateToCluster={onNavigateToCluster}
           />
           <Divider />
         </>

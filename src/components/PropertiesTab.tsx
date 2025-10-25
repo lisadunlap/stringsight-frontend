@@ -28,8 +28,6 @@ export default function PropertiesTab({
   const [pendingNegated, setPendingNegated] = React.useState<boolean>(false);
   const [filters, setFilters] = React.useState<Filter[]>([]);
   const [groupBy, setGroupBy] = React.useState<string | null>(null);
-  const [customCode, setCustomCode] = React.useState<string>('');
-  const [customError, setCustomError] = React.useState<string | null>(null);
 
   // Enrich properties with model_response from original data for display
   const enrichedRows = React.useMemo(() => {
@@ -45,9 +43,22 @@ export default function PropertiesTab({
     const responseMap = new Map<string, any>();
     originalData.forEach((row) => {
       const qid = String(row?.question_id || '');
-      const model = String(row?.model || '');
-      const key = `${qid}|${model}`;
-      responseMap.set(key, row?.model_response);
+
+      // Single model: direct model field
+      if (row?.model) {
+        const key = `${qid}|${row.model}`;
+        responseMap.set(key, row.model_response);
+      }
+
+      // Side-by-side: create separate entries for model_a and model_b
+      if (row?.model_a) {
+        const keyA = `${qid}|${row.model_a}`;
+        responseMap.set(keyA, row.model_a_response);
+      }
+      if (row?.model_b) {
+        const keyB = `${qid}|${row.model_b}`;
+        responseMap.set(keyB, row.model_b_response);
+      }
     });
 
     console.log('[PropertiesTab] Built response map with', responseMap.size, 'entries');
@@ -200,25 +211,6 @@ export default function PropertiesTab({
     setFilters(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Custom code handler
-  const handleCustomCodeChange = React.useCallback((value: string) => {
-    setCustomCode(value);
-    setCustomError(null);
-  }, []);
-
-  const runCustomCode = React.useCallback(() => {
-    if (!customCode.trim()) return;
-    
-    try {
-      // For now, just show a placeholder message since we'd need backend integration
-      // In a real implementation, this would send the pandas code to the backend
-      setCustomError('Custom pandas code execution not yet implemented for properties');
-      console.log('Properties custom code:', customCode);
-    } catch (e: any) {
-      setCustomError(String(e?.message || e));
-    }
-  }, [customCode]);
-
   const resetAll = React.useCallback(() => {
     setQuery('');
     setFilters([]);
@@ -226,8 +218,6 @@ export default function PropertiesTab({
     setPendingValues([]);
     setPendingNegated(false);
     setGroupBy(null);
-    setCustomCode('');
-    setCustomError(null);
   }, []);
 
   // Helper function to format column names for display
@@ -343,26 +333,21 @@ export default function PropertiesTab({
         groupByOptions={availableColumns}
         groupByValue={groupBy}
         onGroupByChange={setGroupBy}
-        showCustomCode={true}
-        customCodeValue={customCode}
-        onCustomCodeChange={handleCustomCodeChange}
-        onCustomCodeRun={runCustomCode}
         onReset={resetAll}
-        customCodeError={customError}
       />
       
       {/* Render grouped or ungrouped table */}
       {groupedData ? (
         // Grouped view
-        <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
+        <Box sx={{ border: '1px solid #C7D2FE', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
           {groupedData.map((group, groupIndex) => (
             <Accordion key={groupIndex} sx={{ '&:before': { display: 'none' }, boxShadow: 'none', border: 'none' }}>
               <AccordionSummary 
                 expandIcon={<ExpandMoreIcon />}
                 sx={{ 
-                  backgroundColor: '#F9FAFB', 
-                  borderBottom: '1px solid #E5E7EB',
-                  '&:hover': { backgroundColor: '#F3F4F6' }
+                  backgroundColor: '#F5F3FF', 
+                  borderBottom: '1px solid #C7D2FE',
+                  '&:hover': { backgroundColor: '#EDE9FE' }
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
@@ -378,7 +363,7 @@ export default function PropertiesTab({
               </AccordionSummary>
               <AccordionDetails sx={{ p: 0 }}>
                 <Table size="small">
-                  <TableHead sx={{ backgroundColor: '#F3F4F6' }}>
+                  <TableHead sx={{ backgroundColor: '#EEF2FF' }}>
                     <TableRow>
                       {availableColumns.map((column) => (
                         <TableCell 
@@ -429,7 +414,7 @@ export default function PropertiesTab({
                   if (totalPages <= 1) return null;
                   const currentPage = getGroupPage(key);
                   return (
-                    <Box sx={{ p: 1, display: 'flex', justifyContent: 'center', borderTop: '1px solid #E5E7EB' }}>
+                    <Box sx={{ p: 1, display: 'flex', justifyContent: 'center', borderTop: '1px solid #C7D2FE' }}>
                       <Pagination size="small" page={currentPage} count={totalPages} onChange={(_, p) => setGroupPage(key, p)} />
                     </Box>
                   );
@@ -441,9 +426,9 @@ export default function PropertiesTab({
       ) : (
         // Ungrouped view
         <>
-          <TableContainer sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
+          <TableContainer sx={{ border: '1px solid #C7D2FE', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
             <Table size="small">
-              <TableHead sx={{ backgroundColor: '#F3F4F6' }}>
+              <TableHead sx={{ backgroundColor: '#EEF2FF' }}>
                 <TableRow>
                   {availableColumns.map((column) => (
                     <TableCell 

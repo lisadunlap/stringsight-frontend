@@ -27,13 +27,15 @@ interface ModelCardsSectionProps {
   filters: MetricsFilters;
   qualityMetrics: string[];
   totalBattles: number;
+  onNavigateToCluster?: (clusterName: string) => void;
 }
 
 export function ModelCardsSection({
   data,
   filters,
   qualityMetrics,
-  totalBattles
+  totalBattles,
+  onNavigateToCluster
 }: ModelCardsSectionProps) {
   
   // Group data by model and create card data
@@ -91,6 +93,7 @@ export function ModelCardsSection({
           cards={modelCards}
           filters={filters}
           qualityMetrics={qualityMetrics}
+          onNavigateToCluster={onNavigateToCluster}
         />
       </Box>
     </Box>

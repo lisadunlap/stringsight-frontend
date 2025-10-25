@@ -21,10 +21,12 @@ export interface ColumnMapping {
   modelCols: string[];
   scoreCols: string[];
   method: 'single_model' | 'side_by_side';
+  selectedModels?: { column: string; modelA: string; modelB: string };
 }
 
 interface ColumnSelectorProps {
   columns: string[];
+  rows: Record<string, any>[];
   onMappingChange: (mapping: ColumnMapping) => void;
   onValidationChange: (isValid: boolean, errors: string[]) => void;
   autoDetectedMapping?: ColumnMapping;
@@ -32,6 +34,7 @@ interface ColumnSelectorProps {
 
 export function ColumnSelector({ 
   columns, 
+  rows,
   onMappingChange, 
   onValidationChange,
   autoDetectedMapping 
@@ -75,11 +78,13 @@ export function ColumnSelector({
     }
     
     if (currentMapping.method === 'side_by_side') {
-      if (currentMapping.responseCols.length !== 2) {
-        errors.push('Side-by-side comparison requires exactly 2 response columns');
+      const hasLegacySbs = currentMapping.responseCols.length === 2;
+      const hasTidyPair = Boolean(currentMapping.selectedModels && currentMapping.modelCols.length >= 1 && currentMapping.responseCols.length >= 1);
+      if (!hasLegacySbs && !hasTidyPair) {
+        errors.push('For side-by-side: either select exactly 2 response columns (legacy), or choose a model column and select Model A/B.');
       }
-      if (currentMapping.modelCols.length > 0 && currentMapping.modelCols.length !== 2) {
-        errors.push('Side-by-side comparison requires exactly 2 model columns (or none)');
+      if (hasLegacySbs && currentMapping.modelCols.length > 0 && currentMapping.modelCols.length !== 2) {
+        errors.push('Legacy side-by-side requires exactly 2 model columns when specified');
       }
     } else {
       if (currentMapping.responseCols.length > 1) {
@@ -87,6 +92,15 @@ export function ColumnSelector({
       }
       if (currentMapping.modelCols.length > 1) {
         errors.push('Single model format should have at most 1 model column');
+      }
+    }
+    // Optional pair validation only for side-by-side tidy path
+    if (currentMapping.method === 'side_by_side' && currentMapping.selectedModels) {
+      const { modelA, modelB } = currentMapping.selectedModels;
+      if (!modelA || !modelB) {
+        errors.push('Please select both Model A and Model B or clear the selection.');
+      } else if (modelA === modelB) {
+        errors.push('Model A and Model B must be different');
       }
     }
     
@@ -120,7 +134,7 @@ export function ColumnSelector({
   const handleModelChange = (event: any) => {
     const value = typeof event.target.value === 'string' ? [event.target.value] : event.target.value;
     const maxCols = mapping.method === 'side_by_side' ? 2 : 1;
-    setMapping(prev => ({ ...prev, modelCols: value.slice(0, maxCols) }));
+    setMapping(prev => ({ ...prev, modelCols: value.slice(0, maxCols), selectedModels: undefined }));
     setUseAutoDetection(false);
   };
 
@@ -140,6 +154,15 @@ export function ColumnSelector({
   const getAvailableColumns = (excludeColumns: string[] = []) => {
     return columns.filter(col => !excludeColumns.includes(col));
   };
+
+  // Compute unique model names for the currently selected model column
+  const availableModels = React.useMemo(() => {
+    const col = mapping.modelCols[0];
+    if (!col) return [] as string[];
+    const s = new Set<string>();
+    rows.forEach(r => { const v = r?.[col]; if (v !== null && v !== undefined) s.add(String(v)); });
+    return Array.from(s).sort();
+  }, [mapping.modelCols, rows]);
 
   const renderChips = (selectedCols: string[], color: 'primary' | 'secondary' = 'primary', onDelete?: (col: string) => void) => {
     return selectedCols.map(col => (
@@ -236,7 +259,7 @@ export function ColumnSelector({
         </Select>
         <FormHelperText>
           {mapping.method === 'side_by_side' 
-            ? 'Select exactly 2 columns containing model responses (Model A, Model B)'
+            ? 'Option A: select exactly 2 response columns (legacy). Option B: select a model column below and choose Model A/B.'
             : 'Column containing the model response'
           }
         </FormHelperText>
@@ -272,6 +295,52 @@ export function ColumnSelector({
           }
         </FormHelperText>
       </FormControl>
+
+      {/* Model A/B pickers only when method is side_by_side (tidy path) */}
+      {mapping.method === 'side_by_side' && mapping.modelCols[0] && (
+        <>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Compare Two Models (Optional)</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
+            <FormControl fullWidth>
+              <InputLabel>Model A</InputLabel>
+              <Select
+                value={mapping.selectedModels?.modelA || ''}
+                label="Model A"
+                onChange={(e) => {
+                  const modelA = String(e.target.value);
+                  setMapping(prev => ({ ...prev, selectedModels: { column: prev.modelCols[0], modelA, modelB: prev.selectedModels?.modelB || '' } }));
+                  setUseAutoDetection(false);
+                }}
+              >
+                {availableModels.map(m => (
+                  <MenuItem key={m} value={m}>{m}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Model B</InputLabel>
+              <Select
+                value={mapping.selectedModels?.modelB || ''}
+                label="Model B"
+                onChange={(e) => {
+                  const modelB = String(e.target.value);
+                  setMapping(prev => ({ ...prev, selectedModels: { column: prev.modelCols[0], modelA: prev.selectedModels?.modelA || '', modelB } }));
+                  setUseAutoDetection(false);
+                }}
+              >
+                {availableModels.map(m => (
+                  <MenuItem key={m} value={m}>{m}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+          {mapping.selectedModels?.modelA && mapping.selectedModels?.modelB && mapping.selectedModels.modelA === mapping.selectedModels.modelB && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Model A and Model B should be different.
+            </Alert>
+          )}
+        </>
+      )}
 
       {/* Score Columns */}
       <FormControl fullWidth sx={{ mb: 2 }}>
@@ -341,19 +410,47 @@ export function ColumnSelector({
 
       {/* Persistent footer action */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+        {(() => {
+          const isLegacySbs = mapping.method === 'side_by_side' && mapping.responseCols.length === 2;
+          const isTidySbs = mapping.method === 'side_by_side' 
+            && mapping.responseCols.length >= 1 
+            && mapping.modelCols.length >= 1 
+            && Boolean(mapping.selectedModels?.modelA) 
+            && Boolean(mapping.selectedModels?.modelB) 
+            && mapping.selectedModels!.modelA !== mapping.selectedModels!.modelB;
+          const sideBySideOk = mapping.method !== 'side_by_side' || isLegacySbs || isTidySbs;
+          const legacySbsModelColsOk = !(mapping.method === 'side_by_side' && isLegacySbs && mapping.modelCols.length > 0 && mapping.modelCols.length !== 2);
+          const singleOk = mapping.method !== 'single_model' || (mapping.responseCols.length === 1 && mapping.modelCols.length <= 1);
+          var disable = !mapping.promptCol 
+            || mapping.responseCols.length === 0 
+            || !singleOk 
+            || !sideBySideOk 
+            || !legacySbsModelColsOk 
+            || errors.length > 0;
+          return null;
+        })()}
         <Button
           variant="contained"
           color="primary"
           onClick={() => onMappingChange(mapping)}
-          disabled={
-            !mapping.promptCol ||
-            mapping.responseCols.length === 0 ||
-            (mapping.method === 'side_by_side' && mapping.responseCols.length !== 2) ||
-            (mapping.method === 'side_by_side' && mapping.modelCols.length > 0 && mapping.modelCols.length !== 2) ||
-            (mapping.method === 'single_model' && mapping.responseCols.length !== 1) ||
-            (mapping.method === 'single_model' && mapping.modelCols.length > 1) ||
-            errors.length > 0
-          }
+          disabled={(() => {
+            const isLegacySbs = mapping.method === 'side_by_side' && mapping.responseCols.length === 2;
+            const isTidySbs = mapping.method === 'side_by_side' 
+              && mapping.responseCols.length >= 1 
+              && mapping.modelCols.length >= 1 
+              && Boolean(mapping.selectedModels?.modelA) 
+              && Boolean(mapping.selectedModels?.modelB) 
+              && mapping.selectedModels!.modelA !== mapping.selectedModels!.modelB;
+            const sideBySideOk = mapping.method !== 'side_by_side' || isLegacySbs || isTidySbs;
+            const legacySbsModelColsOk = !(mapping.method === 'side_by_side' && isLegacySbs && mapping.modelCols.length > 0 && mapping.modelCols.length !== 2);
+            const singleOk = mapping.method !== 'single_model' || (mapping.responseCols.length === 1 && mapping.modelCols.length <= 1);
+            return !mapping.promptCol
+              || mapping.responseCols.length === 0
+              || !singleOk
+              || !sideBySideOk
+              || !legacySbsModelColsOk
+              || errors.length > 0;
+          })()}
         >
           Done
         </Button>

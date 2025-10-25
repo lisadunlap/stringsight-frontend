@@ -50,6 +50,37 @@ export default function PropertyTraceHeader({
       );
     }
 
+    // Handle behavior_type with specific colors
+    if (key === 'behavior_type') {
+      const valueStr = String(value);
+      let chipBgColor = '#6b7280'; // Default grey
+
+      if (valueStr === 'Style') {
+        chipBgColor = '#a855f7'; // Purple
+      } else if (valueStr === 'Negative (non-critical)') {
+        chipBgColor = '#f97316'; // Orange
+      } else if (valueStr === 'Negative (critical)') {
+        chipBgColor = '#ef4444'; // Red
+      } else if (valueStr === 'Positive') {
+        chipBgColor = '#22c55e'; // Green
+      }
+
+      return (
+        <Chip
+          key={key}
+          label={`${key.replace(/_/g, ' ')}: ${valueStr}`}
+          size="small"
+          sx={{
+            fontSize: '0.7rem',
+            backgroundColor: chipBgColor,
+            color: '#ffffff',
+            fontWeight: 500,
+            border: 'none'
+          }}
+        />
+      );
+    }
+
     // Handle strings and numbers as chips
     return (
       <Chip

@@ -124,7 +124,7 @@ function mapNormalizedToOriginal(
 function findBestMatch(
   haystack: string,
   needle: string,
-  minSimilarity: number = 0.75
+  minSimilarity: number = 0.85
 ): { start: number; end: number } | null {
   const normalizedNeedle = normalizeForMatching(needle);
   const normalizedHaystack = normalizeForMatching(haystack);
@@ -133,6 +133,11 @@ function findBestMatch(
   const exactIdx = normalizedHaystack.indexOf(normalizedNeedle);
   if (exactIdx !== -1) {
     return mapNormalizedToOriginal(haystack, exactIdx, normalizedNeedle.length);
+  }
+
+  // Only use fuzzy matching for longer strings (at least 20 characters)
+  if (normalizedNeedle.length < 20) {
+    return null;
   }
 
   // Fallback: sliding window with word-based fuzzy similarity
@@ -293,6 +298,8 @@ function applyHighlightToChildren(children: React.ReactNode, highlights?: string
 
 export function ConversationTrace({ messages, highlights, rawResponse }: { messages: Message[]; highlights?: string[]; rawResponse?: any }) {
   const [prettyPrintEnabled, setPrettyPrintEnabled] = useState(true);
+
+  console.log('[ConversationTrace] Rendering with highlights:', highlights);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>

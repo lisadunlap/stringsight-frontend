@@ -28,7 +28,7 @@ const FilterSummary: React.FC<FilterSummaryProps> = ({
   const getOperationTypeLabel = (type: string) => {
     switch (type) {
       case 'filter': return 'Filter';
-      case 'custom': return 'Pandas';
+      case 'custom': return 'Custom';
       case 'sort': return 'Sort';
       default: return 'Unknown';
     }
