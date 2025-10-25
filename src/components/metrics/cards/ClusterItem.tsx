@@ -27,13 +27,15 @@ interface ClusterItemProps {
   rank: number;
   qualityMetric: string;
   onNavigateToCluster?: (clusterName: string) => void;
+  onViewExample?: (cluster: ModelClusterRow) => void;
 }
 
 export function ClusterItem({
   cluster,
   rank,
   qualityMetric,
-  onNavigateToCluster
+  onNavigateToCluster,
+  onViewExample
 }: ClusterItemProps) {
   const theme = useTheme();
 
@@ -92,21 +94,35 @@ export function ClusterItem({
         {cluster.metadata && (
           <TagChips metadata={cluster.metadata} />
         )}
-        
-        {/* Navigate Button */}
-        <Button
-          size="small"
-          variant="outlined"
-          endIcon={<ArrowForwardIcon />}
-          onClick={() => onNavigateToCluster?.(cluster.cluster)}
-          sx={{
-            alignSelf: 'flex-start',
-            textTransform: 'none',
-            fontSize: '0.75rem'
-          }}
-        >
-          View in Clusters
-        </Button>
+
+        {/* Action Buttons */}
+        <Stack direction="row" spacing={1}>
+          <Button
+            size="small"
+            variant="outlined"
+            endIcon={<ArrowForwardIcon />}
+            onClick={() => onNavigateToCluster?.(cluster.cluster)}
+            sx={{
+              textTransform: 'none',
+              fontSize: '0.75rem'
+            }}
+          >
+            View in Clusters
+          </Button>
+          {cluster.examples && cluster.examples.length > 0 && (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => onViewExample?.(cluster)}
+              sx={{
+                textTransform: 'none',
+                fontSize: '0.75rem'
+              }}
+            >
+              View Example
+            </Button>
+          )}
+        </Stack>
       </Stack>
     </Box>
   );

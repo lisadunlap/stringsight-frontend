@@ -11,20 +11,22 @@ import {
   Grid
 } from '@mui/material';
 import { ModelCard } from './ModelCard';
-import type { MetricsFilters, ModelCardData } from '../../../types/metrics';
+import type { MetricsFilters, ModelCardData, ModelClusterRow } from '../../../types/metrics';
 
 interface ModelCardsGridProps {
   cards: ModelCardData[];
   filters: MetricsFilters;
   qualityMetrics: string[];
   onNavigateToCluster?: (clusterName: string) => void;
+  onViewExample?: (cluster: ModelClusterRow) => void;
 }
 
 export function ModelCardsGrid({
   cards,
   filters,
   qualityMetrics,
-  onNavigateToCluster
+  onNavigateToCluster,
+  onViewExample
 }: ModelCardsGridProps) {
   
   if (cards.length === 0) {
@@ -54,6 +56,7 @@ export function ModelCardsGrid({
             filters={filters}
             qualityMetrics={qualityMetrics}
             onNavigateToCluster={onNavigateToCluster}
+            onViewExample={onViewExample}
           />
         </Box>
       ))}

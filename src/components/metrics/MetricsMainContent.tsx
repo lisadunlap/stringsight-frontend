@@ -24,7 +24,8 @@ import type {
   MetricsFilters,
   ModelClusterPayload,
   ModelBenchmarkPayload,
-  MetricsSummary
+  MetricsSummary,
+  ModelClusterRow
 } from '../../types/metrics';
 
 interface MetricsMainContentProps {
@@ -38,6 +39,7 @@ interface MetricsMainContentProps {
   showClusterPlots?: boolean;
   showModelCards?: boolean;
   onNavigateToCluster?: (clusterName: string) => void;
+  onViewExample?: (cluster: ModelClusterRow) => void;
 }
 
 export function MetricsMainContent({
@@ -49,7 +51,8 @@ export function MetricsMainContent({
   showBenchmark = true,
   showClusterPlots = true,
   showModelCards = true,
-  onNavigateToCluster
+  onNavigateToCluster,
+  onViewExample
 }: MetricsMainContentProps) {
 
   // Apply filters to the data
@@ -208,6 +211,7 @@ export function MetricsMainContent({
             qualityMetrics={qualityMetrics}
             totalBattles={modelClusterData.total_battles}
             onNavigateToCluster={onNavigateToCluster}
+            onViewExample={onViewExample}
           />
           <Divider />
         </>

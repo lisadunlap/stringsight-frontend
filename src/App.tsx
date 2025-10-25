@@ -80,19 +80,21 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
 
   console.log('🔧 Enriching', clusters.length, 'clusters with quality data from', modelClusterScores.length, 'metric rows');
 
-  // Build a map of cluster_id -> model -> metrics
+  // Build a map of cluster identifier -> model -> metrics
+  // Note: metrics file may use 'cluster' (label) or 'cluster_id'
   const clusterModelMetrics = new Map<string | number, Map<string, Record<string, number>>>();
-  
-  modelClusterScores.forEach(row => {
-    const clusterId = row.cluster_id;
-    const model = row.model;
-    if (clusterId == null || !model) return;
 
-    if (!clusterModelMetrics.has(clusterId)) {
-      clusterModelMetrics.set(clusterId, new Map());
+  modelClusterScores.forEach(row => {
+    // Try both cluster_id and cluster (label) for matching
+    const clusterKey = row.cluster_id ?? row.cluster;
+    const model = row.model;
+    if (clusterKey == null || !model) return;
+
+    if (!clusterModelMetrics.has(clusterKey)) {
+      clusterModelMetrics.set(clusterKey, new Map());
     }
-    
-    const modelMap = clusterModelMetrics.get(clusterId)!;
+
+    const modelMap = clusterModelMetrics.get(clusterKey)!;
     if (!modelMap.has(model)) {
       modelMap.set(model, {});
     }
@@ -136,29 +138,40 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
 
   // Enrich each cluster
   const enrichedClusters = clusters.map(cluster => {
-    const clusterId = cluster.id;
-    const modelMap = clusterModelMetrics.get(clusterId);
-    
+    // Try matching by both id and label (metrics file uses label as 'cluster')
+    let modelMap = clusterModelMetrics.get(cluster.id);
     if (!modelMap || modelMap.size === 0) {
+      modelMap = clusterModelMetrics.get(cluster.label);
+    }
+
+    if (!modelMap || modelMap.size === 0) {
+      console.log(`⚠️ No metrics found for cluster id=${cluster.id} label=${cluster.label}`);
       return cluster;
     }
 
     // Build quality_by_model and quality_delta_by_model objects
     const qualityByModel: Record<string, Record<string, number>> = {};
     const qualityDeltaByModel: Record<string, Record<string, number>> = {};
-    
+
+    console.log('🔧 DEBUG: modelMap size:', modelMap.size);
     modelMap.forEach((metrics, model) => {
+      console.log(`🔧 DEBUG: Processing model ${model}, metrics:`, metrics);
       qualityByModel[model] = {};
       qualityDeltaByModel[model] = {};
-      
+
       Object.entries(metrics).forEach(([key, value]) => {
         if (key.startsWith('delta_')) {
           const metric = key.substring(6); // Remove 'delta_' prefix
           qualityDeltaByModel[model][metric] = value;
+          console.log(`  → Added delta: ${metric} = ${value}`);
         } else {
           qualityByModel[model][key] = value;
+          console.log(`  → Added quality: ${key} = ${value}`);
         }
       });
+
+      console.log(`🔧 DEBUG: After split - qualityByModel[${model}]:`, qualityByModel[model]);
+      console.log(`🔧 DEBUG: After split - qualityDeltaByModel[${model}]:`, qualityDeltaByModel[model]);
     });
 
     // Add to cluster meta
@@ -175,12 +188,9 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
   // Log sample enriched cluster for debugging
   if (enrichedClusters.length > 0) {
     const sample = enrichedClusters[0];
-    console.log('🔧 Sample enriched cluster:', {
-      id: sample.id,
-      label: sample.label,
-      quality_by_model: sample.meta?.quality_by_model,
-      quality_delta_by_model: sample.meta?.quality_delta_by_model,
-    });
+    console.log('🔧 Sample enriched cluster:', sample);
+    console.log('🔧 Sample quality_delta_by_model:', sample.meta?.quality_delta_by_model);
+    console.log('🔧 Sample quality_by_model:', sample.meta?.quality_by_model);
   }
   
   return enrichedClusters;
@@ -695,29 +705,83 @@ function App() {
         console.log(`✅ Loaded ${properties.length} properties`);
       }
 
-      // Load metrics and enrich clusters
-      if (Object.keys(metrics).length > 0) {
-        // Normalize metrics column names: quality_{metric}_delta -> quality_delta_{metric}
-        const normalizedMetrics = normalizeMetricsColumnNames(metrics);
-        console.log('✅ Normalized metrics:', Object.keys(normalizedMetrics));
-        setResultsMetrics(normalizedMetrics);
+      // Load or compute metrics and enrich clusters
+      if (clusters.length > 0) {
+        if (Object.keys(metrics).length > 0) {
+          // Use pre-computed metrics if available
+          const normalizedMetrics = normalizeMetricsColumnNames(metrics);
+          console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
+          setResultsMetrics(normalizedMetrics);
 
-        // Enrich clusters with quality data from metrics
-        if (clusters.length > 0 && normalizedMetrics.model_cluster_scores) {
-          const enrichedClusters = enrichClustersWithQualityData(
-            clusters,
-            normalizedMetrics.model_cluster_scores
-          );
-          setClusters(enrichedClusters);
-          console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with quality data)`);
-        } else if (clusters.length > 0) {
+          if (normalizedMetrics.model_cluster_scores) {
+            const enrichedClusters = enrichClustersWithQualityData(
+              clusters,
+              normalizedMetrics.model_cluster_scores
+            );
+            setClusters(enrichedClusters);
+            console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with pre-computed metrics)`);
+          }
+        } else if (conversations.length > 0 && properties.length > 0) {
+          // Compute metrics on-the-fly from raw data
+          console.log('🔢 Computing metrics on-the-fly from conversations + properties + clusters');
+          console.log('🔢 Data available:', {
+            conversations: conversations.length,
+            operational: operational.length,
+            properties: properties.length,
+            clusters: clusters.length
+          });
+
+          try {
+            const { computeClusterMetrics } = await import('./lib/clusterMetrics');
+
+            const clusterMetrics = computeClusterMetrics(
+              operational, // Use operational rows which have score objects
+              properties,
+              clusters
+            );
+
+            console.log('🔢 Computed metrics for clusters:', clusterMetrics.length);
+            console.log('🔢 Sample cluster metrics:', clusterMetrics[0]);
+
+            // Enrich clusters with computed metrics
+            const enrichedClusters = clusters.map(cluster => {
+              const metrics = clusterMetrics.find(m => String(m.cluster_id) === String(cluster.id));
+              if (!metrics) {
+                console.warn('⚠️ No metrics found for cluster:', cluster.id);
+                return cluster;
+              }
+
+              console.log(`📊 Enriching cluster ${cluster.label} with:`, {
+                quality_delta_by_model: metrics.quality_delta_by_model,
+                total_unique_conversations: metrics.total_unique_conversations
+              });
+
+              return {
+                ...cluster,
+                meta: {
+                  ...cluster.meta,
+                  proportion_overall: metrics.proportion_overall,
+                  proportion_by_model: metrics.proportion_by_model,
+                  quality_by_model: metrics.quality_by_model,
+                  quality_delta_by_model: metrics.quality_delta_by_model,
+                  total_unique_conversations: metrics.total_unique_conversations
+                }
+              };
+            });
+
+            setClusters(enrichedClusters);
+            console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with computed metrics)`);
+            console.log('✅ Sample enriched cluster meta:', enrichedClusters[0]?.meta);
+          } catch (error) {
+            console.error('❌ Error computing cluster metrics:', error);
+            setClusters(clusters);
+            console.log(`⚠️ Loaded ${clusters.length} clusters without metrics due to error`);
+          }
+        } else {
+          // No metrics and can't compute - load clusters without enrichment
           setClusters(clusters);
-          console.log(`✅ Loaded ${clusters.length} clusters (no metrics to enrich)`);
+          console.log(`✅ Loaded ${clusters.length} clusters (no metrics available)`);
         }
-      } else if (clusters.length > 0) {
-        // No metrics available
-        setClusters(clusters);
-        console.log(`✅ Loaded ${clusters.length} clusters (no metrics)`);
       }
 
       // Switch to appropriate tab based on loaded data
@@ -2397,24 +2461,25 @@ function App() {
               <MetricsTab
                 resultsData={resultsMetrics}
                 filters={metricsFilters}
+                totalUniqueConversations={totalUniqueConversations}
                 onDataProcessed={(data) => {
                   setMetricsAvailableModels(data.availableModels);
                   setMetricsAvailableGroups(data.availableGroups);
                   setMetricsAvailableQualityMetrics(data.availableQualityMetrics);
                   setMetricsSummary(data.summary);
-                  
+
                   // Auto-select defaults if not set
                   setMetricsFilters(prev => {
                     const updates: Partial<MetricsFilters> = {};
-                    
+
                     if (!prev.qualityMetric && data.availableQualityMetrics.length > 0) {
                       updates.qualityMetric = data.availableQualityMetrics[0];
                     }
-                    
+
                     if (prev.selectedModels.length === 0 && data.availableModels.length > 0) {
                       updates.selectedModels = data.availableModels;
                     }
-                    
+
                     return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
                   });
                 }}
@@ -2422,6 +2487,107 @@ function App() {
                   setClusterSearchQuery(clusterName);
                   setActiveTab('clusters');
                   setHasViewedClusters(true);
+                }}
+                onViewExample={(cluster) => {
+                  // Randomly select an example from the cluster
+                  if (!cluster.examples || cluster.examples.length === 0) return;
+
+                  const randomIndex = Math.floor(Math.random() * cluster.examples.length);
+                  const selectedExample = cluster.examples[randomIndex];
+
+                  console.log('[App] onViewExample - Selected example:', selectedExample);
+                  console.log('[App] onViewExample - Cluster model:', cluster.model);
+
+                  // Example format: [question_id, {predicted_text: "..."}, {property_description: "..."}]
+                  const questionId = selectedExample[0];
+                  const propertyData = selectedExample[2]; // Third element contains property_description
+                  const propertyDescription = propertyData?.property_description;
+
+                  console.log('[App] onViewExample - Looking for property:', {
+                    questionId,
+                    model: cluster.model,
+                    propertyDescription,
+                    totalProperties: propertiesRows.length
+                  });
+
+                  // Find the matching property in propertiesRows
+                  const prop = propertiesRows.find((p: any) => {
+                    const matchesQid = String(p.question_id) === String(questionId);
+                    const matchesModel = String(p.model) === String(cluster.model);
+                    const matchesDescription = String(p.property_description) === String(propertyDescription);
+
+                    // Debug: log properties that match on question_id
+                    if (matchesQid) {
+                      console.log('[App] onViewExample - Found property with matching qid:', {
+                        qid: p.question_id,
+                        model: p.model,
+                        description: p.property_description,
+                        matchesModel,
+                        matchesDescription
+                      });
+                    }
+
+                    return matchesQid && matchesModel && matchesDescription;
+                  });
+
+                  if (!prop) {
+                    console.warn('[App] onViewExample - Could not find property for example');
+                    console.warn('[App] onViewExample - First 3 properties:', propertiesRows.slice(0, 3));
+                    return;
+                  }
+
+                  // Find the corresponding row in operationalRows (same as onOpenPropertyById)
+                  const idx = (prop as any).__index ?? (prop as any).row_index;
+                  let row: any | null = null;
+                  if (idx != null) {
+                    row = operationalRows.find(r => Number(r?.__index) === Number(idx)) || null;
+                  }
+                  if (!row) {
+                    const qid = (prop as any).question_id;
+                    const modelName = String((prop as any).model || '');
+                    row = operationalRows.find(r => {
+                      const rq = r?.question_id;
+                      if (method === 'single_model') {
+                        return rq === qid && String(r?.model || '') === modelName;
+                      } else if (method === 'side_by_side') {
+                        return rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName);
+                      }
+                      return false;
+                    }) || null;
+                  }
+
+                  if (!row) {
+                    console.warn('[App] onViewExample - Could not find row for property');
+                    return;
+                  }
+
+                  // Process evidence (same logic as onOpenPropertyById)
+                  const rawEvidence = (prop as any).evidence;
+                  let ev: string[] = [];
+
+                  if (Array.isArray(rawEvidence)) {
+                    ev = rawEvidence;
+                  } else if (rawEvidence && typeof rawEvidence === 'string') {
+                    // Parse comma-separated quoted strings
+                    ev = rawEvidence
+                      .split(',')
+                      .map(s => s.trim())
+                      .map(s => s.replace(/^["']|["']$/g, ''))
+                      .filter(s => s.length > 0);
+                  } else if (rawEvidence) {
+                    ev = [String(rawEvidence)];
+                  }
+
+                  console.log('[App] onViewExample - Setting evidence:', ev);
+                  console.log('[App] onViewExample - Property:', prop);
+
+                  // Set property context and evidence
+                  setSelectedEvidence(ev);
+                  setEvidenceTargetModel((prop as any).model);
+                  setSelectedProperty(prop);
+
+                  // Open the trace with preserveEvidence=true
+                  onView(row, true);
                 }}
                 debug={true}
                 showBenchmark={true}

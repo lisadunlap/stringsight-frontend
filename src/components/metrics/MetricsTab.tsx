@@ -25,19 +25,19 @@ import {
   Fade 
 } from '@mui/material';
 import { MetricsMainContent } from './MetricsMainContent';
-import type { MetricsFilters, MetricsSummary, ModelClusterPayload, ModelBenchmarkPayload } from '../../types/metrics';
+import type { MetricsFilters, MetricsSummary, ModelClusterPayload, ModelBenchmarkPayload, ModelClusterRow } from '../../types/metrics';
 
 interface MetricsTabProps {
   /** Pre-loaded results data */
   resultsData: {
     model_cluster_scores?: any;
-    cluster_scores?: any; 
+    cluster_scores?: any;
     model_scores?: any;
   };
-  
+
   /** Filters controlled by the sidebar */
   filters: MetricsFilters;
-  
+
   /** Callback to update available data for sidebar */
   onDataProcessed?: (data: {
     availableModels: string[];
@@ -45,7 +45,7 @@ interface MetricsTabProps {
     availableQualityMetrics: string[];
     summary: MetricsSummary | null;
   }) => void;
-  
+
   /** Whether to show debug information */
   debug?: boolean;
 
@@ -53,20 +53,28 @@ interface MetricsTabProps {
   showBenchmark?: boolean;
   showClusterPlots?: boolean;
   showModelCards?: boolean;
-  
+
   /** Callback to navigate to a cluster in the Clusters tab */
   onNavigateToCluster?: (clusterName: string) => void;
+
+  /** Callback to view a random example from a cluster */
+  onViewExample?: (cluster: ModelClusterRow) => void;
+
+  /** Total unique conversations (from backend clustering response) */
+  totalUniqueConversations?: number | null;
 }
 
-export function MetricsTab({ 
-  resultsData, 
+export function MetricsTab({
+  resultsData,
   filters,
   onDataProcessed,
   debug = false,
   showBenchmark = true,
   showClusterPlots = true,
   showModelCards = true,
-  onNavigateToCluster
+  onNavigateToCluster,
+  onViewExample,
+  totalUniqueConversations
 }: MetricsTabProps) {
 
   // Process the existing resultsData instead of fetching from API
@@ -116,21 +124,9 @@ export function MetricsTab({
       });
     });
 
-    // Calculate actual battle count (unique conversations) from examples
-    const uniqueConversations = new Set<string>();
-    modelClusterScores.forEach((row: any) => {
-      if (row.examples && Array.isArray(row.examples)) {
-        row.examples.forEach((example: any) => {
-          if (example && Array.isArray(example) && example[0]) {
-            uniqueConversations.add(String(example[0])); // conversation_id is first element
-          }
-        });
-      }
-    });
-
     // Detect confidence intervals from data
     const hasConfidenceIntervals = modelClusterScores.some((row: any) => {
-      return row.proportion_ci_lower !== undefined || 
+      return row.proportion_ci_lower !== undefined ||
              row.proportion_ci_upper !== undefined ||
              Object.keys(row).some(key => key.includes('_ci_lower') || key.includes('_ci_upper'));
     });
@@ -151,7 +147,7 @@ export function MetricsTab({
       source: 'json' as const,
       models: models.length,
       clusters: clusters.length,
-      total_battles: uniqueConversations.size, // Use actual conversation count, not property count
+      total_battles: totalUniqueConversations || 0, // Use value from parent (backend clustering response)
       quality_metrics: qualityMetrics.size,
       quality_metric_names: Array.from(qualityMetrics),
       has_confidence_intervals: hasConfidenceIntervals,
@@ -186,7 +182,7 @@ export function MetricsTab({
       error: null,
       refetch: () => Promise.resolve()
     };
-  }, [resultsData]);
+  }, [resultsData, totalUniqueConversations]);
 
   const {
     summary,
@@ -304,6 +300,7 @@ export function MetricsTab({
           showClusterPlots={showClusterPlots}
           showModelCards={showModelCards}
           onNavigateToCluster={onNavigateToCluster}
+          onViewExample={onViewExample}
         />
       </Box>
     </Fade>

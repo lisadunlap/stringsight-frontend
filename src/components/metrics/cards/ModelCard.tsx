@@ -25,13 +25,15 @@ interface ModelCardProps {
   filters: MetricsFilters;
   qualityMetrics: string[];
   onNavigateToCluster?: (clusterName: string) => void;
+  onViewExample?: (cluster: ModelClusterRow) => void;
 }
 
 export function ModelCard({
   card,
   filters,
   qualityMetrics,
-  onNavigateToCluster
+  onNavigateToCluster,
+  onViewExample
 }: ModelCardProps) {
   const theme = useTheme();
 
@@ -68,6 +70,7 @@ export function ModelCard({
                 rank={index + 1}
                 qualityMetric={filters.qualityMetric}
                 onNavigateToCluster={onNavigateToCluster}
+                onViewExample={onViewExample}
               />
             ))}
             

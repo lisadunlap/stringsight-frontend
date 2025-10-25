@@ -25,11 +25,9 @@ export function flattenScores(rows: Record<string, any>[], method: Method, model
         const col = `${prefix}_${k}`;
         const v = val && typeof val === "object" ? val[k] : undefined;
         (row as any)[col] = v;
-        console.log(`✅ DEBUG: Created column "${col}" with value:`, v);
       }
       delete (row as any)[field];
     }
-    console.log(`🗑️ DEBUG: Deleted original field "${field}"`);
   }
 
   if (method === "single_model") {

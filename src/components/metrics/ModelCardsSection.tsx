@@ -28,6 +28,7 @@ interface ModelCardsSectionProps {
   qualityMetrics: string[];
   totalBattles: number;
   onNavigateToCluster?: (clusterName: string) => void;
+  onViewExample?: (cluster: ModelClusterRow) => void;
 }
 
 export function ModelCardsSection({
@@ -35,7 +36,8 @@ export function ModelCardsSection({
   filters,
   qualityMetrics,
   totalBattles,
-  onNavigateToCluster
+  onNavigateToCluster,
+  onViewExample
 }: ModelCardsSectionProps) {
   
   // Group data by model and create card data
@@ -94,6 +96,7 @@ export function ModelCardsSection({
           filters={filters}
           qualityMetrics={qualityMetrics}
           onNavigateToCluster={onNavigateToCluster}
+          onViewExample={onViewExample}
         />
       </Box>
     </Box>

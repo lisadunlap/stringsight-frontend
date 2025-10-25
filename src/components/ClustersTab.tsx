@@ -44,52 +44,72 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
 
     return clusters.map(cluster => {
       const clusterLabel = cluster.label || cluster.cluster_label || String(cluster.id);
-      
+
       // Find all metrics rows for this cluster
-      const clusterMetrics = modelClusterScores.filter((m: any) => 
+      const clusterMetrics = modelClusterScores.filter((m: any) =>
         m.cluster === clusterLabel || String(m.cluster_id) === String(cluster.id)
       );
-      
+
       // Build proportion_by_model, quality_by_model, and quality_delta_by_model
       const proportionByModel: Record<string, number> = {};
       const qualityByModel: Record<string, any> = {};
       const qualityDeltaByModel: Record<string, any> = {};
-      
+      let proportionOverall: number | undefined = undefined;
+
       clusterMetrics.forEach((m: any) => {
         const model = m.model;
         if (model) {
           proportionByModel[model] = m.proportion;
-          
+
+          // Capture overall proportion if available (should be same across models for a cluster)
+          if (m.proportion_overall !== undefined && proportionOverall === undefined) {
+            proportionOverall = m.proportion_overall;
+          }
+
           // Extract quality scores and deltas
           const qualityScores: Record<string, number> = {};
           const qualityDeltas: Record<string, number> = {};
-          
+
           Object.keys(m).forEach(key => {
-            if (key.startsWith('quality_')) {
+            if (key.startsWith('quality_delta_')) {
+              // Pattern: quality_delta_Helpfulness -> Helpfulness
+              const metricName = key.replace('quality_delta_', '');
+              if (!key.includes('_ci_') && !key.includes('_significant')) {
+                qualityDeltas[metricName] = m[key];
+              }
+            } else if (key.startsWith('quality_')) {
+              // Pattern: quality_Helpfulness -> Helpfulness OR quality_helpfulness_delta (old format)
               if (key.endsWith('_delta')) {
-                // Extract delta: quality_helpfulness_delta -> helpfulness
+                // Old format: quality_helpfulness_delta -> helpfulness
                 const metricName = key.replace('quality_', '').replace('_delta', '');
                 qualityDeltas[metricName] = m[key];
-              } else if (!key.includes('_ci_') && !key.endsWith('_significant')) {
-                // Extract base score: quality_helpfulness -> helpfulness
+              } else if (!key.includes('_ci_') && !key.includes('_significant')) {
+                // Base score: quality_Helpfulness -> Helpfulness
                 const metricName = key.replace('quality_', '');
                 qualityScores[metricName] = m[key];
               }
             }
           });
-          
+
           qualityByModel[model] = qualityScores;
           qualityDeltaByModel[model] = qualityDeltas;
         }
       });
-      
+
+      // Calculate unique conversation count from proportion_overall * totalUniqueConversations
+      const clusterConversationCount = (proportionOverall !== undefined && totalUniqueConversations)
+        ? Math.round(proportionOverall * totalUniqueConversations)
+        : cluster.meta?.total_unique_conversations;
+
       return {
         ...cluster,
         meta: {
           ...cluster.meta,
           proportion_by_model: proportionByModel,
           quality_by_model: qualityByModel,
-          quality_delta_by_model: qualityDeltaByModel
+          quality_delta_by_model: qualityDeltaByModel,
+          total_unique_conversations: clusterConversationCount,
+          proportion_overall: proportionOverall ?? cluster.meta?.proportion_overall
         }
       };
     });
@@ -440,6 +460,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         const overallProp: number | undefined = meta.proportion_overall;
         const group: string | undefined = meta.group;
         const perModelProps: Record<string, number> = meta.proportion_by_model || {};
+        const clusterUniqueConversations: number | undefined = meta.total_unique_conversations;
 
         const accordion = (
           <Accordion key={c.id ?? idx} sx={{ '&:before': { display: 'none' }, boxShadow: 'none', borderBottom: '1px solid #E5E7EB' }}>
@@ -475,21 +496,18 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                 </Box>
                 {/* Chips: size (with overall proportion) and group */}
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Tooltip title="Count of conversations in this cluster (overall proportion across all models)">
+                  <Tooltip title="Number of unique conversations in this cluster and their percentage of total conversations">
                     <Box sx={{ color: '#6B7280', fontSize: 12 }}>
                       {(() => {
-                        const clusterSize = c.size ?? 0;
-                        const clusterSizeText = clusterSize.toLocaleString();
-                        const overallPropText = overallProp !== undefined ? `(${formatPercent(overallProp)})` : '';
-                        
-                        // Calculate unique conversations percentage if we have the data
-                        let conversationCountText = '';
-                        if (totalUniqueConversations && totalUniqueConversations > 0) {
-                          const conversationPct = (clusterSize / totalUniqueConversations) * 100;
-                          conversationCountText = `${clusterSize} conversations (${conversationPct.toFixed(1)}%)`;
+                        // Prioritize showing conversation count
+                        if (clusterUniqueConversations !== undefined && clusterUniqueConversations > 0) {
+                          const propText = overallProp !== undefined ? ` (${formatPercent(overallProp)})` : '';
+                          return `${clusterUniqueConversations.toLocaleString()} conversations${propText}`;
                         }
-                        
-                        return `${conversationCountText}`;
+
+                        // Fallback: show property count if conversation count not available
+                        const clusterSize = c.size ?? 0;
+                        return `${clusterSize.toLocaleString()} properties`;
                       })()}
                     </Box>
                   </Tooltip>
@@ -533,108 +551,111 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
             </AccordionSummary>
             <AccordionDetails sx={{ background: '#FAFAFA' }}>
               <Box sx={{ p: 2 }}>
-                {/* Per-model proportions */}
-                {perModelProps && Object.keys(perModelProps).length > 0 && (
-                  <Box sx={{ mb: 2 }}>
-                    <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
-                      <Typography variant="subtitle2" sx={{ color: '#334155' }}>Per-model proportions</Typography>
-                      <Tooltip title="Fraction of each model's conversations that appear in this cluster">
-                        <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
-                      </Tooltip>
-                    </Stack>
-                    {(() => {
-                      // Sort entries: non-zero values first (by descending value), then zero values alphabetically
-                      const entries = Object.entries(perModelProps).sort((a, b) => {
-                        const aVal = Number(a[1]);
-                        const bVal = Number(b[1]);
-                        
-                        // If both are zero, sort alphabetically
-                        if (aVal === 0 && bVal === 0) {
-                          return a[0].localeCompare(b[0]);
-                        }
-                        // If one is zero and one isn't, non-zero comes first
-                        if (aVal === 0) return 1;
-                        if (bVal === 0) return -1;
-                        // Both non-zero, sort by value descending
-                        return bVal - aVal;
-                      });
-                      const x = entries.map(([m]) => m);
-                      const y = entries.map(([, v]) => Number(v));
-                      return (
-                        <Plot
-                          data={[{
-                            type: 'bar' as const, x, y,
-                            marker: { color: '#3B82F6' },
-                            hovertemplate: `%{x}: %{y:.${decimals}f}<extra></extra>`,
-                            text: y.map(v => v.toFixed(decimals)),
-                            textposition: 'outside' as const,
-                            cliponaxis: false
-                          }]}
-                          layout={{
-                            height: 320,
-                            margin: { l: 50, r: 10, t: 10, b: 110 },
-                            xaxis: { tickangle: -30, automargin: true },
-                            yaxis: { title: { text: 'Proportion' }, rangemode: 'tozero', tickformat: `.${decimals}f` },
-                            showlegend: false,
-                            paper_bgcolor: '#FAFAFA',
-                            plot_bgcolor: '#FAFAFA'
-                          }}
-                          config={{ displayModeBar: false, responsive: true }}
-                          style={{ width: '100%' }}
-                        />
-                      );
-                    })()}
-                  </Box>
-                )}
-
-                {/* Per-model quality delta - grouped by metric */}
-                {meta.quality_delta_by_model && Object.keys(meta.quality_delta_by_model).length > 0 && (
-                    <Box sx={{ mb: 2 }}>
+                {/* Plots container - side by side layout */}
+                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                  {/* Per-model proportions */}
+                  {perModelProps && Object.keys(perModelProps).length > 0 && (
+                    <Box sx={{ flex: 1, minWidth: 400 }}>
                       <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
-                        <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Delta per Model</Typography>
-                        <Tooltip title="Quality delta for each model, grouped by metric">
+                        <Typography variant="subtitle2" sx={{ color: '#334155' }}>Per-model proportions</Typography>
+                        <Tooltip title="Fraction of each model's conversations that appear in this cluster">
                           <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
                         </Tooltip>
                       </Stack>
                       {(() => {
-                        const qualityDeltaByModel: Record<string, Record<string, number>> = meta.quality_delta_by_model;
-                      const models = Object.keys(qualityDeltaByModel);
-                      const metricKeys = Array.from(new Set(models.flatMap(m => Object.keys(qualityDeltaByModel[m] || {}))));
-                      const palette = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#14B8A6'];
-                      
-                      // Create traces where each metric is a separate bar group
-                      const traces = metricKeys.map((metric, i) => ({
-                        type: 'bar' as const,
-                        name: metric,
-                        x: models,
-                        y: models.map(m => Number((qualityDeltaByModel[m] || {})[metric] || 0)),
-                        marker: { color: palette[i % palette.length] },
-                        hovertemplate: `${metric} · %{x}: %{y:.${decimals}f}<extra></extra>`,
-                        text: models.map(m => Number((qualityDeltaByModel[m] || {})[metric] || 0).toFixed(decimals)),
-                        textposition: 'outside' as const,
-                        cliponaxis: false
-                      }));
-                      
-                      return (
-                        <Plot
-                          data={traces}
-                          layout={{
-                            barmode: 'group',
-                            height: 360,
-                            margin: { l: 50, r: 10, t: 10, b: 110 },
-                            xaxis: { title: { text: 'Model' }, tickangle: -30, automargin: true },
-                            yaxis: { title: { text: 'Quality Δ' }, tickformat: `.${decimals}f` },
-                            paper_bgcolor: '#FAFAFA',
-                            plot_bgcolor: '#FAFAFA',
-                            legend: { orientation: 'h', y: -0.3, x: 0.5, xanchor: 'center' }
-                          }}
-                          config={{ displayModeBar: false, responsive: true }}
-                          style={{ width: '100%' }}
-                        />
-                      );
-                    })()}
-                  </Box>
-                )}
+                        // Sort entries: non-zero values first (by descending value), then zero values alphabetically
+                        const entries = Object.entries(perModelProps).sort((a, b) => {
+                          const aVal = Number(a[1]);
+                          const bVal = Number(b[1]);
+
+                          // If both are zero, sort alphabetically
+                          if (aVal === 0 && bVal === 0) {
+                            return a[0].localeCompare(b[0]);
+                          }
+                          // If one is zero and one isn't, non-zero comes first
+                          if (aVal === 0) return 1;
+                          if (bVal === 0) return -1;
+                          // Both non-zero, sort by value descending
+                          return bVal - aVal;
+                        });
+                        const x = entries.map(([m]) => m);
+                        const y = entries.map(([, v]) => Number(v));
+                        return (
+                          <Plot
+                            data={[{
+                              type: 'bar' as const, x, y,
+                              marker: { color: '#3B82F6' },
+                              hovertemplate: `%{x}: %{y:.${decimals}f}<extra></extra>`,
+                              text: y.map(v => v.toFixed(decimals)),
+                              textposition: 'outside' as const,
+                              cliponaxis: false
+                            }]}
+                            layout={{
+                              height: 320,
+                              margin: { l: 70, r: 10, t: 10, b: 110 },
+                              xaxis: { tickangle: -30, automargin: true },
+                              yaxis: { title: { text: 'Proportion', standoff: 15 }, rangemode: 'tozero', tickformat: `.${decimals}f` },
+                              showlegend: false,
+                              paper_bgcolor: '#FAFAFA',
+                              plot_bgcolor: '#FAFAFA'
+                            }}
+                            config={{ displayModeBar: false, responsive: true }}
+                            style={{ width: '100%' }}
+                          />
+                        );
+                      })()}
+                    </Box>
+                  )}
+
+                  {/* Per-model quality delta - grouped by metric */}
+                  {meta.quality_delta_by_model && Object.keys(meta.quality_delta_by_model).length > 0 && (
+                      <Box sx={{ flex: 1, minWidth: 400 }}>
+                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
+                          <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Delta per Model</Typography>
+                          <Tooltip title="Quality delta for each model, grouped by metric">
+                            <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
+                          </Tooltip>
+                        </Stack>
+                        {(() => {
+                          const qualityDeltaByModel: Record<string, Record<string, number>> = meta.quality_delta_by_model;
+                          const models = Object.keys(qualityDeltaByModel);
+                          const metricKeys = Array.from(new Set(models.flatMap(m => Object.keys(qualityDeltaByModel[m] || {}))));
+                          const palette = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#14B8A6'];
+
+                        // Create traces where each metric is a separate bar group
+                        const traces = metricKeys.map((metric, i) => ({
+                          type: 'bar' as const,
+                          name: metric,
+                          x: models,
+                          y: models.map(m => Number((qualityDeltaByModel[m] || {})[metric] || 0)),
+                          marker: { color: palette[i % palette.length] },
+                          hovertemplate: `${metric} · %{x}: %{y:.${decimals}f}<extra></extra>`,
+                          text: models.map(m => Number((qualityDeltaByModel[m] || {})[metric] || 0).toFixed(decimals)),
+                          textposition: 'outside' as const,
+                          cliponaxis: false
+                        }));
+
+                        return (
+                          <Plot
+                            data={traces}
+                            layout={{
+                              barmode: 'group',
+                              height: 320,
+                              margin: { l: 70, r: 10, t: 60, b: 110 },
+                              xaxis: { tickangle: -30, automargin: true },
+                              yaxis: { title: { text: 'Quality Δ', standoff: 15 }, tickformat: `.${decimals}f` },
+                              paper_bgcolor: '#FAFAFA',
+                              plot_bgcolor: '#FAFAFA',
+                              legend: { orientation: 'h', y: 1.15, x: 0.5, xanchor: 'center', yanchor: 'bottom' }
+                            }}
+                            config={{ displayModeBar: false, responsive: true }}
+                            style={{ width: '100%' }}
+                          />
+                        );
+                      })()}
+                    </Box>
+                  )}
+                </Box>
 
                 <Typography variant="subtitle2" sx={{ mb: 1, color: '#334155' }}>Properties</Typography>
                 {(() => {
