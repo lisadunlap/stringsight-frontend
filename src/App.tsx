@@ -689,12 +689,9 @@ function App() {
       setCurrentRows(flattened);
 
       // Load properties (no pre-enrichment needed - PropertiesTab handles at render time)
+      // Don't add __index since property index doesn't match conversation index
       if (properties.length > 0) {
-        const indexedProperties = properties.map((prop, idx) => ({
-          ...prop,
-          __index: idx
-        }));
-        setPropertiesRows(indexedProperties);
+        setPropertiesRows(properties);
         console.log(`✅ Loaded ${properties.length} properties`);
       }
 
@@ -1802,14 +1799,24 @@ function App() {
             // Fallback: match on question_id and model
             const qid = (prop as any).question_id;
             const modelName = String((prop as any).model || '');
+
+            console.log('[App] Searching for conversation with:', { qid, modelName, method });
+            console.log('[App] Sample operationalRows[0]:', operationalRows[0]);
+            console.log('[App] Total operationalRows:', operationalRows.length);
+
             row = operationalRows.find(r => {
               const rq = r?.question_id;
-              if (method === 'single_model') {
-                return rq === qid && String(r?.model || '') === modelName;
-              } else if (method === 'side_by_side') {
-                return rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName);
+              const matches = method === 'single_model'
+                ? rq === qid && String(r?.model || '') === modelName
+                : method === 'side_by_side'
+                  ? rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName)
+                  : false;
+
+              if (matches) {
+                console.log('[App] Found match!', { rq, qid, model: r?.model || r?.model_a });
               }
-              return false;
+
+              return matches;
             }) || null;
           }
           
@@ -1823,11 +1830,28 @@ function App() {
           
           // Process evidence
           const rawEvidence = (prop as any).evidence;
-          const ev = Array.isArray(rawEvidence)
-            ? rawEvidence
-            : rawEvidence ? [rawEvidence] : [];
+          let ev: string[] = [];
 
-          console.log('[App] onOpenProperty - Setting evidence:', ev);
+          if (Array.isArray(rawEvidence)) {
+            // Already an array
+            ev = rawEvidence;
+          } else if (rawEvidence && typeof rawEvidence === 'string') {
+            // Parse comma-separated quoted strings: "\"text1\", \"text2\", \"text3\""
+            // Split by comma and remove quotes
+            ev = rawEvidence
+              .split(',')
+              .map(s => s.trim())
+              .map(s => s.replace(/^["']|["']$/g, '')) // Remove leading/trailing quotes
+              .filter(s => s.length > 0);
+          } else if (rawEvidence) {
+            // Single value, wrap in array
+            ev = [String(rawEvidence)];
+          }
+
+          console.log('[App] onOpenProperty - Raw evidence:', rawEvidence);
+          console.log('[App] onOpenProperty - Parsed evidence array:', ev);
+          console.log('[App] onOpenProperty - Evidence count:', ev.length);
+          console.log('[App] onOpenProperty - First evidence item:', ev[0]);
           console.log('[App] onOpenProperty - Evidence target model:', (prop as any).model);
 
           setSelectedEvidence(ev);
@@ -2336,10 +2360,26 @@ function App() {
               
               // Process evidence (same logic as PropertiesTab)
               const rawEvidence = (prop as any).evidence;
-              const ev = Array.isArray(rawEvidence)
-                ? rawEvidence
-                : rawEvidence ? [rawEvidence] : [];
-              
+              let ev: string[] = [];
+
+              if (Array.isArray(rawEvidence)) {
+                // Already an array
+                ev = rawEvidence;
+              } else if (rawEvidence && typeof rawEvidence === 'string') {
+                // Parse comma-separated quoted strings: "\"text1\", \"text2\", \"text3\""
+                ev = rawEvidence
+                  .split(',')
+                  .map(s => s.trim())
+                  .map(s => s.replace(/^["']|["']$/g, '')) // Remove leading/trailing quotes
+                  .filter(s => s.length > 0);
+              } else if (rawEvidence) {
+                // Single value, wrap in array
+                ev = [String(rawEvidence)];
+              }
+
+              console.log('[App] onOpenPropertyById - Raw evidence:', rawEvidence);
+              console.log('[App] onOpenPropertyById - Parsed evidence:', ev);
+
               setSelectedEvidence(ev);
               setEvidenceTargetModel((prop as any).model);
               setSelectedProperty(prop);
