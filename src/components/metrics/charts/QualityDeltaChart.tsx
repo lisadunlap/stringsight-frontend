@@ -270,7 +270,7 @@ export function QualityDeltaChart({
           bargap: 0.2,
           bargroupgap: 0.1,
           yaxis: {
-            tickformat: '+.2f',
+            tickformat: '+.3~f',
             range: yRange,
             zeroline: true
           },

@@ -52,28 +52,28 @@ export function ClusterPlotsSection({
       <Stack spacing={4} sx={{ mt: 3, width: '100%' }}>
         {/* Frequency Chart Only */}
         <Box sx={{ width: '100%' }}>
-          <Paper elevation={1} sx={{ p: 3, height: 520, width: '100%' }}>
+          <Box sx={{ p: 0, height: 520, width: '100%' }}>
             <FrequencyChart
               data={data}
               filters={filters}
               topClusters={topClusters}
               showCI={showCI}
-              height={470}
+              height={520}
             />
-          </Paper>
+          </Box>
         </Box>
 
         {/* Quality Δ Chart Only */}
-        <Box sx={{ width: '100%' }}>
-          <Paper elevation={1} sx={{ p: 3, height: 520, width: '100%' }}>
+        <Box sx={{ width: '100%', mt: 4 }}>
+          <Box sx={{ p: 0, height: 520, width: '100%' }}>
             <QualityDeltaChart
               data={data}
               filters={filters}
-                topClusters={topClusters}
-                showCI={showCI}
-                height={470}
-              />
-            </Paper>
+              topClusters={topClusters}
+              showCI={showCI}
+              height={520}
+            />
+          </Box>
         </Box>
       </Stack>
     </Box>

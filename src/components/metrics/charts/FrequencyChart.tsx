@@ -174,7 +174,7 @@ export function FrequencyChart({
           bargap: 0.2,
           bargroupgap: 0.1,
           yaxis: {
-            tickformat: '.1%',
+            tickformat: '.3~%',
             range: [0, Math.max(1, Math.max(...plotData.flatMap(trace => trace.y)) * 1.1)]
           },
           xaxis: {

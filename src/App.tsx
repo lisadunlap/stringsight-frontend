@@ -277,7 +277,7 @@ function App() {
     selectedGroups: [],
     qualityMetric: '',
     sortBy: 'proportion_delta_desc',
-    topN: 15,
+    topN: 5,
     significanceOnly: false,
     showCI: false,
   });
@@ -297,7 +297,7 @@ function App() {
         selectedGroups: [],
         qualityMetric: '',
         sortBy: 'proportion_delta_desc',
-        topN: 15,
+        topN: 5,
         significanceOnly: false,
         showCI: false,
       });
