@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import { BenchmarkSection } from './BenchmarkSection';
 import { ClusterPlotsSection } from './ClusterPlotsSection';
-import { ModelCardsSection } from './ModelCardsSection';
+import { TopClustersSummary } from './TopClustersSummary';
 import type {
   MetricsFilters,
   ModelClusterPayload,
@@ -205,13 +205,10 @@ export function MetricsMainContent({
       {/* Model Cards Section */}
       {showModelCards && (
         <>
-          <ModelCardsSection
+          <TopClustersSummary
             data={filteredData}
             filters={filters}
-            qualityMetrics={qualityMetrics}
-            totalBattles={modelClusterData.total_battles}
             onNavigateToCluster={onNavigateToCluster}
-            onViewExample={onViewExample}
           />
           <Divider />
         </>

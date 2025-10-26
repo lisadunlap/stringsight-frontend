@@ -130,12 +130,18 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
   const [sortBy, setSortBy] = React.useState<'freqAsc' | 'freqDesc' | 'qualAsc' | 'qualDesc'>('freqDesc');
   const debouncedApplyRef = React.useRef<number | null>(null);
 
-  // Update search when externalSearchQuery changes
+  // Track which accordion is expanded
+  const [expandedKey, setExpandedKey] = React.useState<string | number | null>(null);
+
+  // Update search when externalSearchQuery changes and expand the first match
   React.useEffect(() => {
     if (externalSearchQuery !== undefined && externalSearchQuery !== search) {
       setSearch(externalSearchQuery);
+      const q = String(externalSearchQuery).trim().toLowerCase();
+      const match = (enrichedClusters || []).find(c => String(c.label || '').toLowerCase().includes(q));
+      if (match) setExpandedKey(match.id ?? String(match.label || ''));
     }
-  }, [externalSearchQuery]);
+  }, [externalSearchQuery, enrichedClusters]);
 
   const allModels = React.useMemo<string[]>(() => {
     // Prefer stable model list from properties if available
@@ -463,7 +469,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         const clusterUniqueConversations: number | undefined = meta.total_unique_conversations;
 
         const accordion = (
-          <Accordion key={c.id ?? idx} sx={{ '&:before': { display: 'none' }, boxShadow: 'none', borderBottom: '1px solid #E5E7EB' }}>
+          <Accordion key={c.id ?? idx} expanded={(expandedKey === (c.id ?? String(c.label || '')))} onChange={(_, isExpanded) => setExpandedKey(isExpanded ? (c.id ?? String(c.label || '')) : null)} sx={{ '&:before': { display: 'none' }, boxShadow: 'none', borderBottom: '1px solid #E5E7EB' }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { my: 1 } }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, width: '100%' }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>

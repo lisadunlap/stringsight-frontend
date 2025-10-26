@@ -252,6 +252,7 @@ function App() {
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'table'|'properties'|'clusters'|'metrics'>('table');
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
+  const [clusterSearchQuery, setClusterSearchQuery] = useState<string>('');
   
   // Results loading indicator
   const [isLoadingResults, setIsLoadingResults] = useState<boolean>(false);
@@ -308,11 +309,11 @@ function App() {
     }
   }, [resultsMetrics]);
 
-  // Auto-switch to clusters when clustering completes
+  // Auto-switch to metrics when clustering completes in UI-run mode
   const hasAutoSwitchedToClustersRef = useRef<boolean>(false);
   React.useEffect(() => {
     if (!isResultsMode && !hasAutoSwitchedToClustersRef.current && clusters && clusters.length > 0) {
-      setActiveTab('clusters');
+      setActiveTab('metrics');
       hasAutoSwitchedToClustersRef.current = true;
     }
   }, [clusters, isResultsMode]);
@@ -716,7 +717,7 @@ function App() {
               clusters,
               normalizedMetrics.model_cluster_scores
             );
-            setClusters(enrichedClusters);
+            setClusters(ensureExamplesArray(enrichedClusters));
             console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with pre-computed metrics)`);
           }
         } else if (conversations.length > 0 && properties.length > 0) {
@@ -767,23 +768,26 @@ function App() {
               };
             });
 
-            setClusters(enrichedClusters);
+            setClusters(ensureExamplesArray(enrichedClusters));
             console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with computed metrics)`);
             console.log('✅ Sample enriched cluster meta:', enrichedClusters[0]?.meta);
           } catch (error) {
             console.error('❌ Error computing cluster metrics:', error);
-            setClusters(clusters);
+            setClusters(ensureExamplesArray(clusters));
             console.log(`⚠️ Loaded ${clusters.length} clusters without metrics due to error`);
           }
         } else {
           // No metrics and can't compute - load clusters without enrichment
-          setClusters(clusters);
+          setClusters(ensureExamplesArray(clusters));
           console.log(`✅ Loaded ${clusters.length} clusters (no metrics available)`);
         }
       }
 
       // Switch to appropriate tab based on loaded data
-      if (clusters.length > 0) {
+      if (clusters.length > 0 && Object.keys(metrics).length > 0) {
+        setActiveTab('metrics');
+        console.log('📊 Switched to Metrics tab');
+      } else if (clusters.length > 0) {
         setActiveTab('clusters');
         console.log('📊 Switched to Clusters tab');
       } else if (properties.length > 0) {
@@ -1964,12 +1968,21 @@ function App() {
           );
         }
         
-        setClusters(updatedClusters);
+        setClusters(ensureExamplesArray(updatedClusters));
       } catch (e) {
         console.error('recompute (filters) failed', e);
       }
     })();
   }, [clusters, propertiesRows, operationalRows, resultsMetrics]);
+
+  // Utility: Guarantee examples is always an array when setting clusters
+  const ensureExamplesArray = (clusters) => (clusters || []).map(c => ({ ...c, examples: c.examples || [] }));
+
+  // View Clusters navigation handler
+  const handleNavigateToCluster = (clusterName: string) => {
+    setClusterSearchQuery(clusterName);
+    setActiveTab('clusters');
+  };
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -2200,55 +2213,57 @@ function App() {
               if (data.metrics?.model_cluster_scores) {
                 const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
                 console.log('🔧 Enriching clusters with quality data from model_cluster_scores');
+                console.log('🔧 First model_cluster_scores row:', normalizedMetrics.model_cluster_scores[0]);
+                console.log('🔧 Does first row have examples?', normalizedMetrics.model_cluster_scores[0]?.examples);
+                console.log('🔧 Total model_cluster_scores rows:', normalizedMetrics.model_cluster_scores.length);
+                
                 enrichedClusters = enrichClustersWithQualityData(
                   data.clusters || [],
                   normalizedMetrics.model_cluster_scores
                 );
                 console.log('🔧 Sample enriched cluster meta:', enrichedClusters[0]?.meta);
+
+                // Build a map of examples by cluster label (metrics rows group by 'cluster' label)
+                const examplesByCluster = new Map<string, any[]>();
+                normalizedMetrics.model_cluster_scores.forEach((row: any, index: number) => {
+                  const labelKey = String(row.cluster ?? '');
+                  const hasExamples = Array.isArray(row.examples) && row.examples.length > 0;
+                  if (index < 3) {
+                    console.log(`🔧 Row ${index} - Cluster: "${labelKey}", Examples: ${hasExamples ? row.examples.length : 0}`);
+                  }
+                  if (!hasExamples) return;
+                  const existing = examplesByCluster.get(labelKey) || [];
+                  examplesByCluster.set(labelKey, existing.concat(row.examples));
+                });
+
+                console.log('🔧 Total clusters with examples:', examplesByCluster.size);
+
+                // Enrich clusters with examples from model_cluster_scores (label match)
+                enrichedClusters = enrichedClusters.map(cluster => {
+                  const labelKey = cluster.cluster_label || cluster.label || cluster.cluster || '';
+                  const examples = examplesByCluster.get(String(labelKey)) || [];
+                  console.log(`🔧 Adding ${examples.length} examples to cluster "${labelKey}"`);
+                  return {
+                    ...cluster,
+                    examples
+                  };
+                });
               }
 
-              setClusters(enrichedClusters);
+              // Set clusters once with all enrichments (quality + examples)
+              setClusters(ensureExamplesArray(enrichedClusters));
               setTotalConversationsByModel(data.total_conversations_by_model || null);
               setTotalUniqueConversations(data.total_unique_conversations || null);
 
               // Save metrics so they appear in the Metrics tab
-              // Enrich model_cluster_scores with examples from clusters
               if (data.metrics) {
                 const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
-
-                // Build a map of cluster name -> cluster object for quick lookup
-                const clusterMap = new Map<string, any>();
-                enrichedClusters.forEach(cluster => {
-                  const clusterLabel = cluster.cluster_label || cluster.label || cluster.cluster;
-                  clusterMap.set(clusterLabel, cluster);
-                });
-
-                console.log('🔧 Cluster map keys:', Array.from(clusterMap.keys()));
-                console.log('🔧 Sample cluster from map:', clusterMap.get(Array.from(clusterMap.keys())[0]));
-
-                // Enrich model_cluster_scores with examples
-                if (normalizedMetrics.model_cluster_scores) {
-                  normalizedMetrics.model_cluster_scores = normalizedMetrics.model_cluster_scores.map(row => {
-                    const clusterName = row.cluster;
-                    const clusterData = clusterMap.get(clusterName);
-                    console.log(`🔧 Enriching row for cluster "${clusterName}":`, {
-                      found: !!clusterData,
-                      examplesCount: clusterData?.examples?.length || 0
-                    });
-                    return {
-                      ...row,
-                      examples: clusterData?.examples || []
-                    };
-                  });
-                  console.log('🔧 Enriched model_cluster_scores sample:', normalizedMetrics.model_cluster_scores[0]);
-                }
-
                 setResultsMetrics(normalizedMetrics);
               }
             }}
             onNavigateToMetrics={() => {
-              // Navigate to clusters tab to view clustering results
-              setActiveTab('clusters');
+              // Navigate to metrics tab to view clustering results
+              setActiveTab('metrics');
             }}
             onOpenTrace={(row) => {
               // Format trace data properly based on method (same as onView function)
@@ -2417,6 +2432,7 @@ function App() {
               getPropertiesRows={getPropertiesRowsCb}
               onRequestRecompute={onRequestRecomputeCb}
               modelClusterScores={resultsMetrics?.model_cluster_scores}
+              externalSearchQuery={clusterSearchQuery}
               onOpenPropertyById={(pid) => {
                 // Find property row in propertiesRows and open in the right drawer
                 const prop = propertiesRows.find((p: any) => String(p.id) === String(pid));
@@ -2500,10 +2516,7 @@ function App() {
                     return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
                   });
                 }}
-                onNavigateToCluster={(clusterName) => {
-                  // Cluster navigation removed - clusters tab no longer exists
-                  console.log('Navigate to cluster:', clusterName);
-                }}
+                onNavigateToCluster={handleNavigateToCluster}
                 onViewExample={(cluster) => {
                   // Randomly select an example from the cluster
                   if (!cluster.examples || cluster.examples.length === 0) return;

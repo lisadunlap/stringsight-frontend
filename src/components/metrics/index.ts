@@ -12,7 +12,7 @@ export { MetricsMainContent } from './MetricsMainContent';
 // Section components
 export { BenchmarkSection } from './BenchmarkSection';
 export { ClusterPlotsSection } from './ClusterPlotsSection';
-export { ModelCardsSection } from './ModelCardsSection';
+export { TopClustersSummary } from './TopClustersSummary';
 
 // Types (re-export for convenience)
 export type {
