@@ -72,9 +72,6 @@ export default function PropertyCard({ property, conversation, method, onOpenCon
               {property.unexpected_behavior && (
                 <Chip label="Unexpected behavior" size="small" color="warning" variant="outlined" />
               )}
-              {property.contains_errors && (
-                <Chip label="Contains errors" size="small" color="error" variant="outlined" />
-              )}
             </Stack>
             {evidenceList.length > 0 && (
               <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>

@@ -94,7 +94,7 @@ export default function PropertiesTab({
     const allKeysArray = Array.from(allKeys);
     
     // Columns to exclude
-    const excludedColumns = new Set(['id', 'meta', 'raw_response', 'row_index', '__index']);
+    const excludedColumns = new Set(['id', 'meta', 'raw_response', 'row_index', '__index', 'contains_errors']);
     
     // Filter out excluded columns and columns with all NaN/null values
     const validColumns = allKeysArray.filter(col => {

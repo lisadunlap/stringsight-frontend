@@ -1,18 +1,22 @@
 import React, { useRef } from 'react';
-import { 
-  Box, 
-  Stack, 
-  Typography, 
-  TextField, 
-  Button, 
-  Autocomplete, 
-  Accordion, 
-  AccordionSummary, 
-  AccordionDetails, 
-  LinearProgress 
+import {
+  Box,
+  Stack,
+  Typography,
+  TextField,
+  Button,
+  Autocomplete,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  LinearProgress,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel } from '../../lib/api';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering } from '../../lib/api';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
 
@@ -20,20 +24,35 @@ interface PropertyExtractionPanelProps {
   method: Method;
   getSelectedRow: () => Record<string, any> | null;
   getAllRows: () => Record<string, any>[];
+  getOperationalRows: () => any[];
+  getPropertiesRows: () => any[];
   onPropertiesMerged: (props: any[]) => void;
   onSelectEvidence: (evidence: string[], targetModel?: string) => void;
   onBatchLoaded: (rows: any[]) => void;
   onBatchStart?: () => void;
-  onBatchStatus?: (progress: number, state: string | null) => void;
+  onBatchStatus?: (progress: number, state: string | null, stage?: 'extraction' | 'clustering', details?: string) => void;
   onBatchDone?: () => void;
-  onOpenTrace?: (row: Record<string, any>) => void; // Add callback to open trace viewer
-  onCloseTrace?: () => void; // Add callback to close trace viewer
+  onOpenTrace?: (row: Record<string, any>) => void;
+  onCloseTrace?: () => void;
+  onClustersUpdated?: (data: {
+    clusters: any[];
+    total_conversations_by_model?: Record<string, number>;
+    total_unique_conversations?: number;
+    metrics?: {
+      model_cluster_scores: any[];
+      cluster_scores: any[];
+      model_scores: any[];
+    };
+  }) => void;
+  onNavigateToMetrics?: () => void;
 }
 
 export default function PropertyExtractionPanel({
   method,
   getSelectedRow,
   getAllRows,
+  getOperationalRows,
+  getPropertiesRows,
   onPropertiesMerged,
   onSelectEvidence,
   onBatchLoaded,
@@ -42,6 +61,8 @@ export default function PropertyExtractionPanel({
   onBatchDone,
   onOpenTrace,
   onCloseTrace,
+  onClustersUpdated,
+  onNavigateToMetrics,
 }: PropertyExtractionPanelProps) {
   const resultsRef = useRef<HTMLDivElement>(null);
   const [promptOptions, setPromptOptions] = React.useState<{ name: string; label: string; has_task_description: boolean; preview: string; default_task_description_single?: string | null; default_task_description_sbs?: string | null; }[]>([]);
@@ -71,10 +92,20 @@ export default function PropertyExtractionPanel({
   const [jobProgress, setJobProgress] = React.useState<number>(0);
   const [jobState, setJobState] = React.useState<string | null>(null);
 
+  // Clustering configuration
+  const [minClusterSize, setMinClusterSize] = React.useState<number>(5);
+  const [embeddingModel, setEmbeddingModel] = React.useState<string>('openai/text-embedding-3-small');
+  const [embeddingModels, setEmbeddingModels] = React.useState<string[]>([]);
+  const [groupBy, setGroupBy] = React.useState<'none'|'category'|'behavior_type'>('behavior_type');
+  const [summarizationModel, setSummarizationModel] = React.useState<string>('gpt-4o');
+  const [matchingModel, setMatchingModel] = React.useState<string>('gpt-4o-mini');
+  const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
+  const [currentStage, setCurrentStage] = React.useState<'extraction' | 'clustering' | null>(null);
+
   const selectedPromptMeta = promptOptions.find(p => p.name === selectedPrompt);
   const canTaskDescribe = selectedPromptMeta?.has_task_description || false;
 
-  // Load prompts on mount
+  // Load prompts and embedding models on mount
   React.useEffect(() => {
     let mounted = true;
     (async () => {
@@ -85,6 +116,15 @@ export default function PropertyExtractionPanel({
         if (mounted) setPromptOptions(filtered);
       } catch (e: any) {
         if (mounted) setErrorMsg(`Failed to load prompts: ${String(e?.message || e)}`);
+      }
+
+      // Load embedding models for clustering
+      try {
+        const embRes = await getEmbeddingModels();
+        if (mounted) setEmbeddingModels(embRes.models || []);
+        if (mounted && embRes.models && embRes.models.length > 0) setEmbeddingModel(embRes.models[0]);
+      } catch (_) {
+        // Ignore; keep default
       }
     })();
     return () => { mounted = false; };
@@ -210,11 +250,19 @@ export default function PropertyExtractionPanel({
     onCloseTrace?.();
 
     setBusy(true);
+    setCurrentStage('extraction');
     onBatchStart?.();
+
+    let extractedProperties: any[] = [];
+
     try {
       setErrorMsg(null);
       setJobProgress(0);
       setJobState('queued');
+
+      // STAGE 1: Property Extraction
+      onBatchStatus?.(0, 'queued', 'extraction', 'Starting property extraction...');
+
       const startRes = await extractJobStart({
         rows,
         method,
@@ -228,26 +276,26 @@ export default function PropertyExtractionPanel({
         sample_size: sampleSize || undefined,
       });
       setJobId(startRes.job_id);
-      onBatchStart?.();
+
       await new Promise<void>((resolve, reject) => {
         const t = setInterval(async () => {
           try {
             const s = await extractJobStatus(startRes.job_id);
             setJobState(s.state);
             setJobProgress(s.progress || 0);
-            onBatchStatus?.(s.progress || 0, s.state);
+            onBatchStatus?.(s.progress || 0, s.state, 'extraction', 'Extracting properties...');
             if (s.state === 'done') {
               clearInterval(t);
               const r = await extractJobResult(startRes.job_id);
-              (onBatchLoaded as any)?.(r.properties || []);
-              onBatchDone?.();
+              extractedProperties = r.properties || [];
+              (onBatchLoaded as any)?.(extractedProperties);
               resolve();
             } else if (s.state === 'cancelled') {
               clearInterval(t);
               const r = await extractJobResult(startRes.job_id);
-              (onBatchLoaded as any)?.(r.properties || []);
-              setErrorMsg(`Job cancelled. Retrieved ${r.properties?.length || 0} partial results.`);
-              onBatchDone?.();
+              extractedProperties = r.properties || [];
+              (onBatchLoaded as any)?.(extractedProperties);
+              setErrorMsg(`Job cancelled. Retrieved ${extractedProperties.length} partial results.`);
               resolve();
             } else if (s.state === 'error') {
               clearInterval(t);
@@ -259,8 +307,28 @@ export default function PropertyExtractionPanel({
           }
         }, 1000);
       });
-    } finally {
+
       setBusy(false);
+      setCurrentStage(null);
+
+      // Small delay to let properties render in the UI
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // STAGE 2: Clustering (automatically run after extraction with the extracted properties)
+      if (extractedProperties.length > 0) {
+        console.log('🎯 Starting clustering with', extractedProperties.length, 'extracted properties');
+        await runClusteringWithProperties(extractedProperties);
+        console.log('✅ Clustering completed successfully');
+      } else {
+        console.warn('⚠️ No properties extracted, skipping clustering');
+      }
+
+      onBatchDone?.();
+    } catch (error) {
+      console.error('Batch extraction failed:', error);
+      setErrorMsg(String(error));
+      setBusy(false);
+      setCurrentStage(null);
     }
   }
 
@@ -271,6 +339,79 @@ export default function PropertyExtractionPanel({
       setJobState('cancelled');
     } catch (e: any) {
       setErrorMsg(`Failed to cancel: ${String(e?.message || e)}`);
+    }
+  }
+
+  async function runClusteringWithProperties(extractedProperties?: any[]) {
+    const operationalRows = getOperationalRows();
+    const properties = extractedProperties || getPropertiesRows();
+
+    if (properties.length === 0) {
+      console.warn('No properties available for clustering');
+      return;
+    }
+
+    setClusteringBusy(true);
+    setCurrentStage('clustering');
+
+    try {
+      console.log('🔍 Starting clustering with properties:', properties.length);
+      console.log('🔍 Sample property:', properties[0]);
+      console.log('🔍 Operational rows count:', operationalRows.length);
+
+      // Determine which properties to cluster based on groupBy
+      const propertiesToCluster = properties.map((prop: any) => {
+        const groupKey = groupBy && groupBy !== 'none' ? prop[groupBy] : undefined;
+        return groupKey ? `${groupKey}: ${prop.property_description || ''}` : prop.property_description || '';
+      });
+
+      onBatchStatus?.(0, 'clustering', 'clustering', `Clustering ${properties.length} properties...`);
+
+      const scoreColumns = operationalRows[0] ? Object.keys(operationalRows[0]).filter(k => k.startsWith('score_')) : [];
+
+      const body = {
+        operationalRows,
+        properties,
+        params: { minClusterSize, embeddingModel, groupBy, summarizationModel, matchingModel },
+        score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
+      };
+
+      console.log('🔍 Clustering request body:', {
+        operationalRowsCount: body.operationalRows.length,
+        propertiesCount: body.properties.length,
+        params: body.params,
+        score_columns: body.score_columns
+      });
+
+      const res = await runClustering(body as any);
+      console.log('🔵 Clustering response:', res);
+      console.log('🔵 Response type:', typeof res);
+      console.log('🔵 Response keys:', res ? Object.keys(res) : 'null/undefined');
+
+      if (!res) {
+        throw new Error('Clustering API returned undefined response');
+      }
+
+      if (onClustersUpdated) {
+        onClustersUpdated(res);
+      }
+
+      // Navigate to clusters tab after clustering completes
+      if (onNavigateToMetrics) {
+        console.log('📊 Navigating to Clusters tab');
+        onNavigateToMetrics();
+      } else {
+        console.warn('⚠️ onNavigateToMetrics callback not provided');
+      }
+
+      onBatchStatus?.(1, 'done', 'clustering', 'Clustering complete');
+    } catch (error) {
+      console.error('Clustering failed:', error);
+      setErrorMsg(`Clustering failed: ${String(error)}`);
+      onBatchStatus?.(0, 'error', 'clustering', `Clustering failed: ${String(error)}`);
+    } finally {
+      setClusteringBusy(false);
+      setCurrentStage(null);
     }
   }
 
@@ -398,6 +539,73 @@ export default function PropertyExtractionPanel({
         </AccordionDetails>
       </Accordion>
 
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="subtitle2">Clustering Settings</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack spacing={2}>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              After extraction, properties will be automatically clustered and metrics computed.
+            </Typography>
+
+            <TextField
+              size="small"
+              label="Min cluster size"
+              type="number"
+              value={minClusterSize}
+              onChange={(e) => setMinClusterSize(Number(e.target.value))}
+              inputProps={{ min: 1, max: 100 }}
+              helperText="Minimum number of properties required to form a cluster"
+            />
+
+            <FormControl size="small">
+              <InputLabel id="embedding-model-label">Embedding model</InputLabel>
+              <Select
+                labelId="embedding-model-label"
+                value={embeddingModel}
+                label="Embedding model"
+                onChange={(e) => setEmbeddingModel(String(e.target.value))}
+              >
+                {(embeddingModels.length ? embeddingModels : [embeddingModel]).map(m => (
+                  <MenuItem key={m} value={m}>{m}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small">
+              <InputLabel id="group-by-label">Group by</InputLabel>
+              <Select
+                labelId="group-by-label"
+                value={groupBy}
+                label="Group by"
+                onChange={(e) => setGroupBy(e.target.value as any)}
+              >
+                <MenuItem value={'none'}>None</MenuItem>
+                <MenuItem value={'category'}>category</MenuItem>
+                <MenuItem value={'behavior_type'}>behavior_type</MenuItem>
+              </Select>
+            </FormControl>
+
+            <TextField
+              size="small"
+              label="Summarization model"
+              value={summarizationModel}
+              onChange={(e) => setSummarizationModel(e.target.value)}
+              helperText="Model used for cluster label summarization"
+            />
+
+            <TextField
+              size="small"
+              label="Matching model"
+              value={matchingModel}
+              onChange={(e) => setMatchingModel(e.target.value)}
+              helperText="Model used for cluster/property matching"
+            />
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+
       {/* View Selected Response Button */}
       <Button
         variant="outlined"
@@ -419,18 +627,22 @@ export default function PropertyExtractionPanel({
         })()}
       </Button>
 
-      {busy && (
+      {(busy || clusteringBusy) && (
         <Box sx={{ width: '100%', mb: 2 }}>
           <Typography variant="body2" sx={{ color: 'primary.main', mb: 0.5 }}>
-            {jobState ? `Batch: ${jobState} • ${Math.round((jobProgress||0)*100)}%` : 'Running extraction…'}
+            {currentStage === 'extraction' && jobState
+              ? `Extracting properties: ${jobState} • ${Math.round((jobProgress||0)*100)}%`
+              : currentStage === 'clustering'
+              ? `Clustering properties...`
+              : 'Processing...'}
           </Typography>
           {/* Indeterminate until first progress update (> 0), then determinate */}
           <LinearProgress
-            variant={(jobProgress||0) > 0 ? 'determinate' : 'indeterminate'}
+            variant={(jobProgress||0) > 0 && currentStage === 'extraction' ? 'determinate' : 'indeterminate'}
             value={(jobProgress||0)*100}
           />
           {/* Cancel button for batch jobs */}
-          {jobId && jobState && !['done', 'error', 'cancelled'].includes(jobState) && (
+          {jobId && jobState && currentStage === 'extraction' && !['done', 'error', 'cancelled'].includes(jobState) && (
             <Button
               size="small"
               variant="outlined"
@@ -445,10 +657,10 @@ export default function PropertyExtractionPanel({
       )}
 
       <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column' }}>
-          <Button 
-            variant="contained" 
-            onClick={runExtractSingle} 
-            disabled={busy || !methodValid || !getSelectedRow()}
+          <Button
+            variant="contained"
+            onClick={runExtractSingle}
+            disabled={busy || clusteringBusy || !methodValid || !getSelectedRow()}
             sx={{ width: '100%' }}
           >
             {(() => {
@@ -458,14 +670,14 @@ export default function PropertyExtractionPanel({
               return index !== undefined ? `Extract on Row ${index}` : 'Extract on selected';
             })()}
           </Button>
-          <Button 
-            variant="outlined" 
-            onClick={runExtractBatch} 
-            disabled={busy || !methodValid}
+          <Button
+            variant="outlined"
+            onClick={runExtractBatch}
+            disabled={busy || clusteringBusy || !methodValid}
             sx={{ width: '100%' }}
           >
-            {sampleSize && sampleSize > 0 
-              ? `Run on sample (${sampleSize} prompts)` 
+            {sampleSize && sampleSize > 0
+              ? `Run on sample (${sampleSize} prompts)`
               : `Run on all traces (${getAllRows().length})`}
           </Button>
         </Box>
@@ -527,7 +739,9 @@ export default function PropertyExtractionPanel({
                 </AccordionSummary>
                 <AccordionDetails>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 0.5, columnGap: 1 }}>
-                    {Object.entries(p).map(([k, v]) => (
+                    {Object.entries(p)
+                      .filter(([k]) => !['raw_response', 'contains_errors', 'meta'].includes(k))
+                      .map(([k, v]) => (
                       <React.Fragment key={k}>
                         <Typography variant="caption" sx={{ color: 'text.secondary' }}>{k}</Typography>
                         <Typography variant="caption" sx={{ color: 'text.primary' }}>

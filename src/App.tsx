@@ -23,8 +23,8 @@ import PermanentIconSidebar, { type SidebarSection } from "./components/Permanen
 import ExpandedSidebar from "./components/ExpandedSidebar";
 import DataStatsPanel from "./components/sidebar-sections/DataStatsPanel";
 import PropertyExtractionPanel from "./components/sidebar-sections/PropertyExtractionPanel";
-import ClusteringPanel from "./components/sidebar-sections/ClusteringPanel";
-// recomputeClusterMetrics imported above
+// ClusteringPanel removed - clustering now integrated into PropertyExtractionPanel
+// ClustersTab kept for viewing cluster results
 import ClustersTab from "./components/ClustersTab";
 import MetricsPanel from "./components/sidebar-sections/MetricsPanel";
 import type { MetricsFilters, MetricsSummary } from "./types/metrics";
@@ -252,7 +252,6 @@ function App() {
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'table'|'properties'|'clusters'|'metrics'>('table');
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
-  const [clusterSearchQuery, setClusterSearchQuery] = useState<string>('');
   
   // Results loading indicator
   const [isLoadingResults, setIsLoadingResults] = useState<boolean>(false);
@@ -309,11 +308,10 @@ function App() {
     }
   }, [resultsMetrics]);
 
-  // Auto-switch to Clustering section only the first time clusters appear
+  // Auto-switch to clusters when clustering completes
   const hasAutoSwitchedToClustersRef = useRef<boolean>(false);
   React.useEffect(() => {
     if (!isResultsMode && !hasAutoSwitchedToClustersRef.current && clusters && clusters.length > 0) {
-      setActiveSection('clustering');
       setActiveTab('clusters');
       hasAutoSwitchedToClustersRef.current = true;
     }
@@ -787,7 +785,6 @@ function App() {
       // Switch to appropriate tab based on loaded data
       if (clusters.length > 0) {
         setActiveTab('clusters');
-        setActiveSection('clustering');
         console.log('📊 Switched to Clusters tab');
       } else if (properties.length > 0) {
         setActiveTab('properties');
@@ -1989,9 +1986,16 @@ function App() {
         </Box>
       )}
       <AppBar position="fixed">
-        <Toolbar sx={{ gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
-            <Box component="img" src="/icon.png" alt="StringSight icon" sx={{ width: 24, height: 24 }} />
+        <Toolbar sx={{ gap: 0, pl: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', ml: -1 }}>
+            <Box
+              component="img"
+              src="/icon.png"
+              alt="StringSight icon"
+              sx={{ width: 40, height: 40 }}
+            />
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, ml: 1 }}>
             <Typography variant="h6">StringSight</Typography>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center">
@@ -2102,6 +2106,8 @@ function App() {
               return (drawerOpen && selectedRow) ? selectedRow : selectedRowForExtraction;
             }}
             getAllRows={() => currentRows}
+            getOperationalRows={getOperationalRowsCb}
+            getPropertiesRows={getPropertiesRowsCb}
             onPropertiesMerged={(props) => {
               const newMap = new Map(propertiesByKey);
               props.forEach(p => {
@@ -2168,11 +2174,82 @@ function App() {
               setActiveTab('properties'); // Switch to properties tab to see results
             }}
             onBatchStart={() => setBatchRunning(true)}
-            onBatchStatus={(progress, state) => {
+            onBatchStatus={(progress, state, stage, details) => {
               setBatchProgress(progress);
               setBatchState(state);
+              // Could use stage and details for enhanced UI feedback
+              console.log(`Batch status: ${stage} - ${state} - ${details}`);
             }}
             onBatchDone={() => setBatchRunning(false)}
+            onClustersUpdated={(data) => {
+              console.log('🟢 App.tsx onClustersUpdated received:', data);
+              console.log('🟢 Data type:', typeof data);
+              console.log('🟢 Data keys:', data ? Object.keys(data) : 'null/undefined');
+              console.log('🟢 Sample cluster:', data?.clusters?.[0]);
+              console.log('🟢 Sample cluster meta:', data?.clusters?.[0]?.meta);
+              console.log('🟢 Metrics:', data?.metrics);
+              console.log('🟢 Sample model_cluster_scores:', data?.metrics?.model_cluster_scores?.[0]);
+
+              if (!data) {
+                console.error('❌ onClustersUpdated received undefined/null data');
+                return;
+              }
+
+              // Enrich clusters with per-model quality data from metrics
+              let enrichedClusters = data.clusters || [];
+              if (data.metrics?.model_cluster_scores) {
+                const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
+                console.log('🔧 Enriching clusters with quality data from model_cluster_scores');
+                enrichedClusters = enrichClustersWithQualityData(
+                  data.clusters || [],
+                  normalizedMetrics.model_cluster_scores
+                );
+                console.log('🔧 Sample enriched cluster meta:', enrichedClusters[0]?.meta);
+              }
+
+              setClusters(enrichedClusters);
+              setTotalConversationsByModel(data.total_conversations_by_model || null);
+              setTotalUniqueConversations(data.total_unique_conversations || null);
+
+              // Save metrics so they appear in the Metrics tab
+              // Enrich model_cluster_scores with examples from clusters
+              if (data.metrics) {
+                const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
+
+                // Build a map of cluster name -> cluster object for quick lookup
+                const clusterMap = new Map<string, any>();
+                enrichedClusters.forEach(cluster => {
+                  const clusterLabel = cluster.cluster_label || cluster.label || cluster.cluster;
+                  clusterMap.set(clusterLabel, cluster);
+                });
+
+                console.log('🔧 Cluster map keys:', Array.from(clusterMap.keys()));
+                console.log('🔧 Sample cluster from map:', clusterMap.get(Array.from(clusterMap.keys())[0]));
+
+                // Enrich model_cluster_scores with examples
+                if (normalizedMetrics.model_cluster_scores) {
+                  normalizedMetrics.model_cluster_scores = normalizedMetrics.model_cluster_scores.map(row => {
+                    const clusterName = row.cluster;
+                    const clusterData = clusterMap.get(clusterName);
+                    console.log(`🔧 Enriching row for cluster "${clusterName}":`, {
+                      found: !!clusterData,
+                      examplesCount: clusterData?.examples?.length || 0
+                    });
+                    return {
+                      ...row,
+                      examples: clusterData?.examples || []
+                    };
+                  });
+                  console.log('🔧 Enriched model_cluster_scores sample:', normalizedMetrics.model_cluster_scores[0]);
+                }
+
+                setResultsMetrics(normalizedMetrics);
+              }
+            }}
+            onNavigateToMetrics={() => {
+              // Navigate to clusters tab to view clustering results
+              setActiveTab('clusters');
+            }}
             onOpenTrace={(row) => {
               // Format trace data properly based on method (same as onView function)
               if (method === "single_model") {
@@ -2217,66 +2294,7 @@ function App() {
           )}
           </Box>
         )}
-        {activeSection === 'clustering' && (
-          <Box sx={{ position: 'relative' }}>
-          <ClusteringPanel 
-            hasAnyProperties={propertiesRows.length > 0}
-            getOperationalRows={getOperationalRowsCb}
-            getPropertiesRows={getPropertiesRowsCb}
-            onClustersUpdated={(data) => {
-              console.log('🟢 App.tsx onClustersUpdated received:', data);
-              
-              // Enrich clusters with per-model quality data from metrics
-              let enrichedClusters = data.clusters || [];
-              if (data.metrics?.model_cluster_scores) {
-                const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
-                enrichedClusters = enrichClustersWithQualityData(
-                  data.clusters || [], 
-                  normalizedMetrics.model_cluster_scores
-                );
-              }
-              
-              setClusters(enrichedClusters);
-              setTotalConversationsByModel(data.total_conversations_by_model || null);
-              setTotalUniqueConversations(data.total_unique_conversations || null);
-
-              // Save metrics so they appear in the Metrics tab
-              if (data.metrics) {
-                console.log('🟢 Raw metrics from backend:', data.metrics);
-                console.log('🟢 model_cluster_scores length:', data.metrics.model_cluster_scores?.length);
-                console.log('🟢 Sample row before normalization:', data.metrics.model_cluster_scores?.[0]);
-
-                if (data.metrics.model_cluster_scores?.[0]) {
-                  console.log('🟢 Sample row keys:', Object.keys(data.metrics.model_cluster_scores[0]));
-                  console.log('🟢 Quality columns:', Object.keys(data.metrics.model_cluster_scores[0]).filter(k => k.startsWith('quality_')));
-                }
-
-                // Normalize column names: quality_{metric}_delta -> quality_delta_{metric}
-                const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
-                console.log('🟢 After normalization:', normalizedMetrics.model_cluster_scores?.[0]);
-
-                setResultsMetrics(normalizedMetrics);
-                
-                // Automatically switch to metrics section to show the metrics panel
-                setActiveSection('metrics');
-              } else {
-                console.warn('⚠️ No metrics in clustering response!');
-              }
-            }}
-          />
-          {(isResultsMode || !backendAvailable) && (
-            <Box sx={{ position: 'absolute', inset: 0, zIndex: (theme) => theme.zIndex.modal + 1, bgcolor: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, pointerEvents: 'all' }}>
-              <Box sx={{ bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 4, border: '1px solid #EA580C', textAlign: 'center' }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {isResultsMode
-                    ? 'Clustering disabled in results mode. Upload raw data to re-cluster.'
-                    : 'Backend not connected. Set VITE_BACKEND to your backend URL to enable clustering.'}
-                </Typography>
-              </Box>
-            </Box>
-          )}
-          </Box>
-        )}
+        {/* Clustering section removed - now integrated into Property Extraction */}
         {activeSection === 'metrics' && (
           <MetricsPanel
             filters={metricsFilters}
@@ -2374,9 +2392,15 @@ function App() {
             indicatorColor="primary"
           >
             <Tab value="table" label="Data" />
-            <Tab value="properties" label={`Properties${propertiesRows.length ? ` (${propertiesRows.length})` : ''}`} />
-            <Tab value="clusters" label={`Clusters${clusters.length ? ` (${clusters.length})` : ''}`} />
-            <Tab value="metrics" label="Metrics" />
+            {propertiesRows.length > 0 && (
+              <Tab value="properties" label={`Properties (${propertiesRows.length})`} />
+            )}
+            {clusters.length > 0 && (
+              <Tab value="clusters" label={`Clusters (${clusters.length})`} />
+            )}
+            {resultsMetrics && (
+              <Tab value="metrics" label="Metrics" />
+            )}
           </Tabs>
         </Box>
 
@@ -2386,72 +2410,65 @@ function App() {
         {activeTab === 'properties' ? propertiesContent : null}
         {(activeTab === 'clusters' || hasViewedClusters) && (
           <Box sx={{ display: activeTab === 'clusters' ? 'block' : 'none' }}>
-            <ClustersTab 
+            <ClustersTab
               clusters={clusters}
               totalConversationsByModel={totalConversationsByModel}
               totalUniqueConversations={totalUniqueConversations}
               getPropertiesRows={getPropertiesRowsCb}
               onRequestRecompute={onRequestRecomputeCb}
-              externalSearchQuery={clusterSearchQuery}
               modelClusterScores={resultsMetrics?.model_cluster_scores}
               onOpenPropertyById={(pid) => {
-              // Find property row in propertiesRows and open in the right drawer
-              const prop = propertiesRows.find((p: any) => String(p.id) === String(pid));
-              if (!prop) return;
-              
-              const idx = (prop as any).__index ?? (prop as any).row_index;
-              let row: any | null = null;
-              if (idx != null) {
-                row = operationalRows.find(r => Number(r?.__index) === Number(idx)) || null;
-              }
-              if (!row) {
-                const qid = (prop as any).question_id;
-                const modelName = String((prop as any).model || '');
-                row = operationalRows.find(r => {
-                  const rq = r?.question_id;
-                  if (method === 'single_model') {
-                    return rq === qid && String(r?.model || '') === modelName;
-                  } else if (method === 'side_by_side') {
-                    return rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName);
-                  }
-                  return false;
-                }) || null;
-              }
-              
-              if (!row) {
-                console.warn('[App] Could not locate row for property', { prop, idx, method });
-              }
-              
-              // Process evidence (same logic as PropertiesTab)
-              const rawEvidence = (prop as any).evidence;
-              let ev: string[] = [];
+                // Find property row in propertiesRows and open in the right drawer
+                const prop = propertiesRows.find((p: any) => String(p.id) === String(pid));
+                if (!prop) return;
 
-              if (Array.isArray(rawEvidence)) {
-                // Already an array
-                ev = rawEvidence;
-              } else if (rawEvidence && typeof rawEvidence === 'string') {
-                // Parse comma-separated quoted strings: "\"text1\", \"text2\", \"text3\""
-                ev = rawEvidence
-                  .split(',')
-                  .map(s => s.trim())
-                  .map(s => s.replace(/^["']|["']$/g, '')) // Remove leading/trailing quotes
-                  .filter(s => s.length > 0);
-              } else if (rawEvidence) {
-                // Single value, wrap in array
-                ev = [String(rawEvidence)];
-              }
+                const idx = (prop as any).__index ?? (prop as any).row_index;
+                let row: any | null = null;
+                if (idx != null) {
+                  row = operationalRows.find(r => Number(r?.__index) === Number(idx)) || null;
+                }
+                if (!row) {
+                  const qid = (prop as any).question_id;
+                  const modelName = String((prop as any).model || '');
+                  row = operationalRows.find(r => {
+                    const rq = r?.question_id;
+                    if (method === 'single_model') {
+                      return rq === qid && String(r?.model || '') === modelName;
+                    } else if (method === 'side_by_side') {
+                      return rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName);
+                    }
+                    return false;
+                  }) || null;
+                }
 
-              console.log('[App] onOpenPropertyById - Raw evidence:', rawEvidence);
-              console.log('[App] onOpenPropertyById - Parsed evidence:', ev);
+                if (!row) {
+                  console.warn('[App] Could not locate row for property', { prop, idx, method });
+                }
 
-              setSelectedEvidence(ev);
-              setEvidenceTargetModel((prop as any).model);
-              setSelectedProperty(prop);
-              
-              if (row) {
-                onView(row, true);
-              }
-            }}
+                // Process evidence (same logic as PropertiesTab)
+                const rawEvidence = (prop as any).evidence;
+                let ev: string[] = [];
+
+                if (Array.isArray(rawEvidence)) {
+                  ev = rawEvidence;
+                } else if (rawEvidence && typeof rawEvidence === 'string') {
+                  ev = rawEvidence
+                    .split(',')
+                    .map(s => s.trim())
+                    .map(s => s.replace(/^["']|["']$/g, ''))
+                    .filter(s => s.length > 0);
+                } else if (rawEvidence) {
+                  ev = [String(rawEvidence)];
+                }
+
+                setSelectedEvidence(ev);
+                setEvidenceTargetModel((prop as any).model);
+                setSelectedProperty(prop);
+
+                if (row) {
+                  onView(row, true);
+                }
+              }}
             />
           </Box>
         )}
@@ -2484,9 +2501,8 @@ function App() {
                   });
                 }}
                 onNavigateToCluster={(clusterName) => {
-                  setClusterSearchQuery(clusterName);
-                  setActiveTab('clusters');
-                  setHasViewedClusters(true);
+                  // Cluster navigation removed - clusters tab no longer exists
+                  console.log('Navigate to cluster:', clusterName);
                 }}
                 onViewExample={(cluster) => {
                   // Randomly select an example from the cluster

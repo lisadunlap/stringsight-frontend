@@ -3,11 +3,10 @@ import { Box, IconButton, Tooltip } from '@mui/material';
 import {
   TableView as DataViewIcon,
   FindInPage as PropertyExtractionIcon,
-  ScatterPlot as ClusteringIcon,
   Analytics as MetricsIcon
 } from '@mui/icons-material';
 
-export type SidebarSection = 'data' | 'extraction' | 'clustering' | 'metrics';
+export type SidebarSection = 'data' | 'extraction' | 'metrics';
 
 interface PermanentIconSidebarProps {
   activeSection: SidebarSection;
@@ -77,21 +76,14 @@ export default function PermanentIconSidebar({ activeSection, onSectionChange }:
         active={activeSection === 'data'}
         onClick={() => onSectionChange('data')}
       />
-      
+
       <IconButtonItem
         icon={<PropertyExtractionIcon />}
-        tooltip="Property Extraction"
+        tooltip="Property Extraction & Clustering"
         active={activeSection === 'extraction'}
         onClick={() => onSectionChange('extraction')}
       />
-      
-      <IconButtonItem
-        icon={<ClusteringIcon />}
-        tooltip="Clustering"
-        active={activeSection === 'clustering'}
-        onClick={() => onSectionChange('clustering')}
-      />
-      
+
       <IconButtonItem
         icon={<MetricsIcon />}
         tooltip="Metrics"
