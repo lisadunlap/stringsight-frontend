@@ -20,6 +20,8 @@ import {
 import { BenchmarkSection } from './BenchmarkSection';
 import { ClusterPlotsSection } from './ClusterPlotsSection';
 import { TopClustersSummary } from './TopClustersSummary';
+import { MetricsInsightsOverview } from './MetricsInsightsOverview';
+import { FrequencyChartAlt } from './charts/FrequencyChartAlt';
 import type {
   MetricsFilters,
   ModelClusterPayload,
@@ -56,16 +58,16 @@ export function MetricsMainContent({
 }: MetricsMainContentProps) {
 
   // Apply filters to the data
-  const { filteredData, topClusters } = useMemo(() => {
+  const { filteredData, topClusters, baseFilteredData } = useMemo(() => {
     let filtered = [...modelClusterData.data];
-    
+
     // Filter by selected models
     if (filters.selectedModels.length > 0) {
-      filtered = filtered.filter(row => 
+      filtered = filtered.filter(row =>
         filters.selectedModels.includes(row.model)
       );
     }
-    
+
     // Filter by selected groups
     if (filters.selectedGroups.length > 0) {
       filtered = filtered.filter(row => {
@@ -73,21 +75,24 @@ export function MetricsMainContent({
         return group && filters.selectedGroups.includes(group);
       });
     }
-    
+
     // Filter by significance (if enabled)
     if (filters.significanceOnly) {
       filtered = filtered.filter(row => {
         // Check proportion significance
         if (row.proportion_delta_significant) return true;
-        
+
         // Check quality significance for current metric
         const qualitySigKey = `quality_delta_${filters.qualityMetric}_significant`;
         if (row[qualitySigKey as keyof typeof row]) return true;
-        
+
         return false;
       });
     }
-    
+
+    // Save the base filtered data (before topN filtering) for BehaviorMapOverview
+    const baseFiltered = filtered;
+
     // STEP 1: Find top N clusters globally (before applying topN row limit)
     // Group by cluster and compute ranking metric
     const clusterStats = filtered.reduce((acc, row) => {
@@ -175,9 +180,10 @@ export function MetricsMainContent({
       return ascending ? aVal - bVal : bVal - aVal;
     });
     
-    return { 
-      filteredData: clusterFiltered, 
-      topClusters: topClusterNames 
+    return {
+      filteredData: clusterFiltered,
+      topClusters: topClusterNames,
+      baseFilteredData: baseFiltered
     };
   }, [modelClusterData.data, filters]);
 
@@ -195,13 +201,32 @@ export function MetricsMainContent({
   }
 
   return (
-    <Box sx={{ 
-      height: '100%', 
+    <Box sx={{
+      height: '100%',
       width: '100%',
-      overflow: 'auto', 
+      overflow: 'auto',
       p: 3,
       '& > *': { mb: 4 }
     }}>
+      {/* Insights Overview */}
+      <MetricsInsightsOverview
+        data={baseFilteredData}
+        filters={filters}
+        qualityMetrics={qualityMetrics}
+        onNavigateToCluster={onNavigateToCluster}
+      />
+      <Divider />
+
+      {/* Frequency by Cluster List View */}
+      <FrequencyChartAlt
+        data={baseFilteredData}
+        filters={filters}
+        topClusters={topClusters}
+        showCI={filters.showCI && (summary?.has_confidence_intervals || false)}
+        onNavigateToCluster={onNavigateToCluster}
+      />
+      <Divider />
+
       {/* Model Cards Section */}
       {showModelCards && (
         <>
@@ -233,6 +258,7 @@ export function MetricsMainContent({
           qualityMetrics={qualityMetrics}
           showCI={filters.showCI && (summary?.has_confidence_intervals || false)}
           topClusters={topClusters}
+          onNavigateToCluster={onNavigateToCluster}
         />
       )}
     </Box>

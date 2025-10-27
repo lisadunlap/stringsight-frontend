@@ -19,8 +19,8 @@ import type {
   QualityMetricsResponse
 } from '../../types/metrics';
 
-// API base URL - adjust based on your setup
-const API_BASE_URL = 'http://localhost:8000';
+// API base URL - use environment variable or fallback to /api proxy
+const API_BASE_URL = (import.meta as any).env?.VITE_BACKEND || (globalThis as any)?.VITE_BACKEND || "/api";
 
 /**
  * API client functions

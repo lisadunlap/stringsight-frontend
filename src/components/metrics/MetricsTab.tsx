@@ -113,11 +113,16 @@ export function MetricsTab({
       }
     });
     
-    // Extract quality metrics from JSONL format (e.g., "quality_omni_math_accuracy_0_1")
+    // Extract base quality metrics from JSONL format (exclude delta/significance/CI)
     const qualityMetrics = new Set<string>();
     modelClusterScores.forEach((row: any) => {
       Object.keys(row).forEach(key => {
-        if (key.startsWith('quality_') && !key.endsWith('_delta') && !key.endsWith('_significant') && !key.includes('_ci_')) {
+        if (
+          key.startsWith('quality_') &&
+          !key.startsWith('quality_delta_') &&
+          !key.endsWith('_significant') &&
+          !key.includes('_ci_')
+        ) {
           const metric = key.replace('quality_', '');
           qualityMetrics.add(metric);
         }

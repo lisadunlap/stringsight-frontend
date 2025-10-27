@@ -13,6 +13,7 @@ export { MetricsMainContent } from './MetricsMainContent';
 export { BenchmarkSection } from './BenchmarkSection';
 export { ClusterPlotsSection } from './ClusterPlotsSection';
 export { TopClustersSummary } from './TopClustersSummary';
+export { MetricsInsightsOverview } from './MetricsInsightsOverview';
 
 // Types (re-export for convenience)
 export type {

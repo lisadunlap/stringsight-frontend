@@ -9,18 +9,18 @@
  */
 
 import React from 'react';
-import { 
-  Box, 
-  Typography, 
+import {
+  Box,
+  Typography,
   Paper,
   Stack,
   Grid
 } from '@mui/material';
 import { FrequencyChart } from './charts/FrequencyChart';
 import { QualityDeltaChart } from './charts/QualityDeltaChart';
-import type { 
-  ModelClusterRow, 
-  MetricsFilters 
+import type {
+  ModelClusterRow,
+  MetricsFilters
 } from '../../types/metrics';
 
 interface ClusterPlotsSectionProps {
@@ -29,6 +29,7 @@ interface ClusterPlotsSectionProps {
   qualityMetrics: string[];
   showCI: boolean;
   topClusters: string[];
+  onNavigateToCluster?: (clusterName: string) => void;
 }
 
 export function ClusterPlotsSection({
@@ -36,7 +37,8 @@ export function ClusterPlotsSection({
   filters,
   qualityMetrics,
   showCI,
-  topClusters
+  topClusters,
+  onNavigateToCluster
 }: ClusterPlotsSectionProps) {
 
   return (
@@ -63,18 +65,20 @@ export function ClusterPlotsSection({
           </Box>
         </Box>
 
-        {/* Quality Δ Chart Only */}
-        <Box sx={{ width: '100%', mt: 4 }}>
-          <Box sx={{ p: 0, height: 520, width: '100%' }}>
-            <QualityDeltaChart
-              data={data}
-              filters={filters}
-              topClusters={topClusters}
-              showCI={showCI}
-              height={520}
-            />
+        {/* Quality Δ Charts - one per metric */}
+        {qualityMetrics.map((metric) => (
+          <Box key={metric} sx={{ width: '100%', mt: 4 }}>
+            <Box sx={{ p: 0, height: 520, width: '100%' }}>
+              <QualityDeltaChart
+                data={data}
+                filters={{ ...filters, qualityMetric: metric }}
+                topClusters={topClusters}
+                showCI={showCI}
+                height={520}
+              />
+            </Box>
           </Box>
-        </Box>
+        ))}
       </Stack>
     </Box>
   );
