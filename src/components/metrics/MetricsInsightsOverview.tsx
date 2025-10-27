@@ -269,7 +269,7 @@ export function MetricsInsightsOverview({
         {/* 1. COMMON FAILURES */}
         <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Common Failures (Critical + Non-Critical)
+            Common Failure Patterns
           </Typography>
 
           {insights.commonFailures.length === 0 ? (
@@ -361,10 +361,11 @@ export function MetricsInsightsOverview({
                       {/* Middle: Cluster description */}
                       <Box sx={{ flex: 1, minWidth: 0, maxWidth: 600 }}>
                         <Typography
-                          variant="body2"
+                          variant="body1"
                           sx={{
                             color: 'text.primary',
-                            lineHeight: 1.6
+                            lineHeight: 1.6,
+                            fontSize: '1rem'
                           }}
                         >
                           {failure.cluster}
@@ -425,10 +426,11 @@ export function MetricsInsightsOverview({
                     {shortModelName(behavior.model)} →
                   </Typography>
                   <Typography
-                    variant="body2"
+                    variant="body1"
                     sx={{
                       flex: 1,
                       cursor: 'pointer',
+                      fontSize: '1rem',
                       '&:hover': { color: 'primary.main', textDecoration: 'underline' }
                     }}
                     onClick={() => onNavigateToCluster?.(behavior.cluster)}
@@ -545,10 +547,11 @@ export function MetricsInsightsOverview({
                                 {isLast ? '└─' : '├─'}
                               </Typography>
                               <Typography
-                                variant="body2"
+                                variant="body1"
                                 sx={{
                                   flex: 1,
                                   cursor: 'pointer',
+                                  fontSize: '1rem',
                                   '&:hover': { color: 'primary.main', textDecoration: 'underline' }
                                 }}
                                 onClick={() => onNavigateToCluster?.(pattern.cluster)}

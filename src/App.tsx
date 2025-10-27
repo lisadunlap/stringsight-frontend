@@ -1098,6 +1098,16 @@ function App() {
 
   const onView = useCallback((row: Record<string, any>, preserveEvidence = false) => {
     console.log('[App] onView called with preserveEvidence:', preserveEvidence);
+
+    // Look up the operational row (which has consolidated score objects)
+    const idx = row.__index;
+    const operationalRow = idx != null
+      ? operationalRows.find(r => Number(r?.__index) === Number(idx))
+      : null;
+
+    // Use operational row for scores, fallback to current row
+    const rowWithScores = operationalRow || row;
+
     if (method === "single_model") {
       const messages = ensureOpenAIFormat(String(row?.["prompt"] ?? ""), row?.["model_response"]);
       setSelectedTrace({ type: "single", messages });
@@ -1113,7 +1123,7 @@ function App() {
         modelB: String(row?.["model_b"] ?? "Model B"),
       });
     }
-    setSelectedRow(row);
+    setSelectedRow(rowWithScores);
     setDrawerOpen(true);
     if (!preserveEvidence) {
       console.log('[App] onView - Clearing evidence (preserveEvidence=false)');
@@ -1123,7 +1133,7 @@ function App() {
     } else {
       console.log('[App] onView - Preserving evidence (preserveEvidence=true)');
     }
-  }, [method]);
+  }, [method, operationalRows]);
 
   const responseKeys = useMemo(() =>
     method === "single_model"
@@ -2620,8 +2630,8 @@ function App() {
                 }}
                 debug={true}
                 showBenchmark={true}
-                showClusterPlots={true}
-                showModelCards={true}
+                showClusterPlots={false}
+                showModelCards={false}
               />
             ) : (
               <Box sx={{ p: 3, textAlign: 'center' }}>
@@ -2661,11 +2671,10 @@ function App() {
                   />
                 ) : (
                   // Standard header when viewing from main data table
-              <Box sx={{ mb: 1.5 }}>
-                <Typography variant="subtitle2" sx={{ color: '#334155' }}>
+              <Box sx={{ mb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Typography variant="body2" sx={{ color: '#334155', fontWeight: 500 }}>
                   {selectedTrace?.type === 'single' ? (String((selectedRow as any)?.model || '')) : `${String((selectedRow as any)?.model_a || '')} vs ${String((selectedRow as any)?.model_b || '')}`}
                 </Typography>
-                {/* Compact score chips if present */}
                 {(() => {
                   let entries: [string, any][] = [];
                   if (method === 'single_model') {
@@ -2682,13 +2691,13 @@ function App() {
                   }
                   if (!entries.length) return null;
                   return (
-                    <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                    <Box sx={{ textAlign: 'right' }}>
                       {entries.map(([k, v]) => (
-                        <Box key={k} sx={{ px: 0.75, py: 0.25, border: '1px solid #E5E7EB', borderRadius: 9999, fontSize: 12, color: '#334155', background: '#F8FAFC' }}>
+                        <Typography key={k} variant="body2" sx={{ color: '#334155', fontSize: '0.875rem', lineHeight: 1.4 }}>
                           {k}: {typeof v === 'number' ? v.toFixed(decimalPrecision) : String(v)}
-                        </Box>
+                        </Typography>
                       ))}
-                    </Stack>
+                    </Box>
                   );
                 })()}
               </Box>

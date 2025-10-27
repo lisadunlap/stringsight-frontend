@@ -25,6 +25,7 @@ import {
   Fade 
 } from '@mui/material';
 import { MetricsMainContent } from './MetricsMainContent';
+import { MetricsOverviewBanner } from './MetricsOverviewBanner';
 import type { MetricsFilters, MetricsSummary, ModelClusterPayload, ModelBenchmarkPayload, ModelClusterRow } from '../../types/metrics';
 
 interface MetricsTabProps {
@@ -70,8 +71,8 @@ export function MetricsTab({
   onDataProcessed,
   debug = false,
   showBenchmark = true,
-  showClusterPlots = true,
-  showModelCards = true,
+  showClusterPlots = false,
+  showModelCards = false,
   onNavigateToCluster,
   onViewExample,
   totalUniqueConversations
@@ -293,7 +294,13 @@ export function MetricsTab({
 
   return (
     <Fade in={true} timeout={300}>
-      <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
+      <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'auto', p: 3 }}>
+        {/* Overview Banner */}
+        <MetricsOverviewBanner
+          data={modelClusterData.data}
+          qualityMetrics={qualityMetrics || []}
+        />
+
         {/* Main Content Area - Full Width */}
         <MetricsMainContent
           filters={filters}

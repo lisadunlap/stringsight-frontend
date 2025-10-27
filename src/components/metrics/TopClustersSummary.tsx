@@ -158,7 +158,7 @@ export function TopClustersSummary({ data, filters, onNavigateToCluster }: TopCl
                                 <Typography variant="caption" sx={{ color: deltaColor }}>{formatDeltaPercent(delta)}</Typography>
                               </Stack>
                             </Box>
-                            <Box component="span" sx={{ flex: 1, overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                            <Box component="span" sx={{ flex: 1, overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'normal', fontSize: '1rem' }}>
                               {row.cluster}
                               {tagName && (
                                 <Typography component="span" variant="caption" sx={{ ml: 1, color: tagColor }}>

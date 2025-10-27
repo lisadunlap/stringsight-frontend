@@ -51,8 +51,8 @@ export function MetricsMainContent({
   qualityMetrics,
   summary,
   showBenchmark = true,
-  showClusterPlots = true,
-  showModelCards = true,
+  showClusterPlots = false,
+  showModelCards = false,
   onNavigateToCluster,
   onViewExample
 }: MetricsMainContentProps) {
@@ -204,8 +204,6 @@ export function MetricsMainContent({
     <Box sx={{
       height: '100%',
       width: '100%',
-      overflow: 'auto',
-      p: 3,
       '& > *': { mb: 4 }
     }}>
       {/* Insights Overview */}

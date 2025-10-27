@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import type { Message } from "../lib/traces";
 import { Box, Typography, Chip, Stack, Accordion, AccordionSummary, AccordionDetails, FormControlLabel, Switch } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -296,13 +296,99 @@ function applyHighlightToChildren(children: React.ReactNode, highlights?: string
 // Helper function to apply regex highlighting to nodes
 // applyHighlightRegex is unused in the simplified version; removing to keep surface area minimal
 
+// Helper to get role color
+function getRoleDotColor(role: string) {
+  if (role === "user") return "#3b82f6"; // blue
+  if (role === "assistant") return "#22c55e"; // green
+  if (role === "tool") return "#f97316"; // orange
+  if (role === "info") return "#14b8a6"; // teal
+  if (role === "system") return "#a855f7"; // purple
+  return "#6b7280"; // default grey
+}
+
 export function ConversationTrace({ messages, highlights, rawResponse }: { messages: Message[]; highlights?: string[]; rawResponse?: any }) {
   const [prettyPrintEnabled, setPrettyPrintEnabled] = useState(true);
+  const [collapsedMessages, setCollapsedMessages] = useState<Set<number>>(new Set());
+  const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   console.log('[ConversationTrace] Rendering with highlights:', highlights);
 
+  const scrollToMessage = (index: number) => {
+    messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const toggleCollapse = (index: number) => {
+    setCollapsedMessages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
+
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      {/* Navigation bar */}
+      {messages.length > 1 && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, mb: 0.5, display: 'block' }}>
+            Conversation Timeline
+          </Typography>
+          <Box sx={{
+            display: 'flex',
+            gap: 0.5,
+            p: 1,
+            backgroundColor: '#f8fafc',
+            borderRadius: 0.5,
+            border: '1px solid #e5e7eb'
+          }}>
+          {messages.map((m, i) => {
+            const color = getRoleDotColor(m.role);
+            const roleLabel = m.role.charAt(0).toUpperCase() + m.role.slice(1);
+            const displayName = m.name ? `${roleLabel}: ${m.name}` : roleLabel;
+
+            return (
+              <Box
+                key={i}
+                onClick={() => scrollToMessage(i)}
+                sx={{
+                  flex: 1,
+                  height: 8,
+                  backgroundColor: color,
+                  borderRadius: 0.25,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  position: 'relative',
+                  '&:hover': {
+                    opacity: 0.8,
+                    transform: 'scaleY(1.2)'
+                  },
+                  '&:hover::after': {
+                    content: `"${displayName}"`,
+                    position: 'absolute',
+                    bottom: '12px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: '#1f2937',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    whiteSpace: 'nowrap',
+                    pointerEvents: 'none',
+                    zIndex: 10
+                  }
+                }}
+              />
+            );
+          })}
+          </Box>
+        </Box>
+      )}
+
       {messages.map((m, i) => {
         const isStructuredContent = typeof m.content === 'object' && m.content !== null;
         const hasToolCalls = isStructuredContent && m.content.tool_calls;
@@ -312,16 +398,9 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
             : String(m.content ?? '')
         );
 
-        // Determine background color and border color based on role
-        const getRoleColors = (role: string) => {
-          if (role === "user") return { bg: "#f8fafc", border: "#cbd5e1" }; // Light grey bg, darker grey border
-          if (role === "tool") return { bg: "#fffef5", border: "#fbbf24" }; // Very light amber bg, darker amber border
-          if (role === "info") return { bg: "#fafefb", border: "#6ee7b7" }; // Lighter green bg, darker green border
-          if (role === "system") return { bg: "#fcfaff", border: "#c084fc" }; // Very light purple bg (incredibly subtle), darker purple border
-          return { bg: "#ffffff", border: "#e5e7eb" }; // Default white bg, gray border
-        };
-
-        const colors = getRoleColors(m.role);
+        const dotColor = getRoleDotColor(m.role);
+        const isToolRole = m.role === "tool";
+        const isCollapsed = collapsedMessages.has(i);
 
         // Check if this message contains JSON-like content
         const hasJsonContent = (() => {
@@ -330,43 +409,83 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
           return /\n\s+["{[]/.test(trimmed) || (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'));
         })();
 
+        const isLastMessage = i === messages.length - 1;
+
         return (
-          <Box key={i} sx={{
-            p: 1.5,
-            border: "1px solid",
-            borderColor: colors.border,
-            borderRadius: 1,
-            backgroundColor: colors.bg,
-          }}>
-            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                  {m.role}
-                </Typography>
-                {m.name && (
-                  <Chip label={m.name} size="small" variant="outlined" sx={{ height: '18px', fontSize: '0.65rem' }} />
+          <Box
+            key={i}
+            ref={(el) => { messageRefs.current[i] = el; }}
+            sx={{ position: 'relative', display: 'flex', gap: 1.5 }}
+          >
+            {/* Timeline dot and line */}
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              pt: 0.5,
+              minWidth: '20px'
+            }}>
+              {/* Dot */}
+              <Box
+                onClick={() => toggleCollapse(i)}
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  backgroundColor: isToolRole ? 'transparent' : dotColor,
+                  border: isToolRole ? `2px solid ${dotColor}` : 'none',
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s',
+                  '&:hover': {
+                    transform: 'scale(1.3)'
+                  }
+                }}
+              />
+              {/* Vertical line */}
+              <Box sx={{
+                width: 2,
+                flex: 1,
+                minHeight: 16,
+                backgroundColor: dotColor,
+                my: 0.5
+              }} />
+            </Box>
+
+            {/* Message content */}
+            <Box sx={{ flex: 1, pb: 2 }}>
+              {/* Role label and controls */}
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: isCollapsed ? 0 : 0.5 }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: dotColor, textTransform: 'capitalize' }}>
+                    {m.role}
+                    {m.name && `: ${m.name}`}
+                    {isCollapsed && ' (collapsed)'}
+                  </Typography>
+                </Stack>
+                {!isCollapsed && hasJsonContent && (
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={prettyPrintEnabled}
+                        onChange={(e) => setPrettyPrintEnabled(e.target.checked)}
+                        size="small"
+                      />
+                    }
+                    label="Pretty-print"
+                    sx={{
+                      margin: 0,
+                      '& .MuiFormControlLabel-label': {
+                        fontSize: '0.7rem',
+                        color: 'text.secondary'
+                      }
+                    }}
+                  />
                 )}
               </Stack>
-              {hasJsonContent && (
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={prettyPrintEnabled}
-                      onChange={(e) => setPrettyPrintEnabled(e.target.checked)}
-                      size="small"
-                    />
-                  }
-                  label="Pretty-print dictionaries"
-                  sx={{
-                    margin: 0,
-                    '& .MuiFormControlLabel-label': {
-                      fontSize: '0.7rem',
-                      color: 'text.secondary'
-                    }
-                  }}
-                />
-              )}
-            </Stack>
+
+            {!isCollapsed && (
+              <>
 
             {hasToolCalls && Array.isArray(m.content.tool_calls) && (
               <Box sx={{ mb: 1 }}>
@@ -488,6 +607,9 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
               </Typography>
             );
           })()}
+              </>
+            )}
+            </Box>
           </Box>
         );
       })}

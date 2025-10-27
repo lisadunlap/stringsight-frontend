@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Stack, Chip, Divider } from '@mui/material';
+import { Box, Typography, Stack, Chip } from '@mui/material';
 
 interface PropertyTraceHeaderProps {
   selectedRow: any;
@@ -155,11 +155,24 @@ export default function PropertyTraceHeader({
 
   const categoryChips = getCategoryChips();
   const fullTextSections = getFullTextSections();
+  const conversationScores = getConversationScores();
+
+  // Get model name
+  const getModelName = () => {
+    if (method === 'single_model') {
+      return String(selectedRow?.model || '');
+    } else if (method === 'side_by_side') {
+      return evidenceTargetModel
+        ? String(evidenceTargetModel)
+        : `${String(selectedRow?.model_a || '')} vs ${String(selectedRow?.model_b || '')}`;
+    }
+    return '';
+  };
 
   return (
     <Box sx={{ mb: 2 }}>
       {/* Property Information */}
-      <Box>
+      <Box sx={{ mb: 2 }}>
         <Typography variant="subtitle2" sx={{ color: '#334155', mb: 1 }}>
           Property Information
         </Typography>
@@ -180,6 +193,22 @@ export default function PropertyTraceHeader({
 
         {/* Full Text Sections (Reason, Evidence) */}
         {fullTextSections.map(([key, value]) => formatFullTextSection(key, value))}
+      </Box>
+
+      {/* Model name and scores right above the trace */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <Typography variant="body2" sx={{ color: '#334155', fontWeight: 500 }}>
+          {getModelName()}
+        </Typography>
+        {conversationScores.length > 0 && (
+          <Box sx={{ textAlign: 'right' }}>
+            {conversationScores.map(([k, v]) => (
+              <Typography key={k} variant="body2" sx={{ color: '#334155', fontSize: '0.875rem', lineHeight: 1.4 }}>
+                {k}: {typeof v === 'number' ? v.toFixed(2) : String(v)}
+              </Typography>
+            ))}
+          </Box>
+        )}
       </Box>
     </Box>
   );

@@ -454,10 +454,11 @@ export function FrequencyChartAlt({
               {/* Middle: Cluster description */}
               <Box sx={{ flex: 1, minWidth: 0, pb: category ? 3 : 0 }}>
                 <Typography
-                  variant="body2"
+                  variant="body1"
                   sx={{
                     color: 'text.primary',
-                    lineHeight: 1.6
+                    lineHeight: 1.6,
+                    fontSize: '1rem'
                   }}
                 >
                   {cluster}
