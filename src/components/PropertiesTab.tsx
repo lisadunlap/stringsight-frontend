@@ -123,27 +123,32 @@ export default function PropertiesTab({
     
     console.log(`[PropertiesTab] Valid columns after filtering:`, validColumns);
     
-    // Custom ordering: question_id first, property_description second, then model_response, then the rest
+    // Custom ordering: question_id first, property_description second, then model, then model_response, then the rest
     const orderedColumns: string[] = [];
-    
+
     // Add question_id first if it exists and is valid
     if (validColumns.includes('question_id')) {
       orderedColumns.push('question_id');
     }
-    
+
     // Add property_description second if it exists and is valid
     if (validColumns.includes('property_description')) {
       orderedColumns.push('property_description');
     }
-    
-    // Always add model_response third (we ensure it exists in enrichedRows)
+
+    // Add model third if it exists and is valid
+    if (validColumns.includes('model')) {
+      orderedColumns.push('model');
+    }
+
+    // Always add model_response fourth (we ensure it exists in enrichedRows)
     orderedColumns.push('model_response');
-    
+
     // Add all other valid columns in alphabetical order
     const remainingColumns = validColumns
-      .filter(col => col !== 'question_id' && col !== 'property_description' && col !== 'model_response')
+      .filter(col => col !== 'question_id' && col !== 'property_description' && col !== 'model' && col !== 'model_response')
       .sort();
-    
+
     orderedColumns.push(...remainingColumns);
     
     return orderedColumns;

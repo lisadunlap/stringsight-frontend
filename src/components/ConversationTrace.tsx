@@ -306,7 +306,19 @@ function getRoleDotColor(role: string) {
   return "#6b7280"; // default grey
 }
 
-export function ConversationTrace({ messages, highlights, rawResponse }: { messages: Message[]; highlights?: string[]; rawResponse?: any }) {
+export function ConversationTrace({
+  messages,
+  highlights,
+  rawResponse,
+  modelName,
+  score
+}: {
+  messages: Message[];
+  highlights?: string[];
+  rawResponse?: any;
+  modelName?: string;
+  score?: Record<string, any>;
+}) {
   const [prettyPrintEnabled, setPrettyPrintEnabled] = useState(true);
   const [collapsedMessages, setCollapsedMessages] = useState<Set<number>>(new Set());
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -331,6 +343,23 @@ export function ConversationTrace({ messages, highlights, rawResponse }: { messa
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      {/* Model name and score header */}
+      {modelName && (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+          <Typography variant="subtitle2">
+            {modelName}
+          </Typography>
+          {score && Object.keys(score).length > 0 && (
+            <Box sx={{ textAlign: 'right' }}>
+              {Object.entries(score).map(([key, value]) => (
+                <Typography key={key} variant="body2" sx={{ fontSize: '0.875rem', lineHeight: 1.4 }}>
+                  {key}: {typeof value === 'number' ? value.toFixed(2) : String(value)}
+                </Typography>
+              ))}
+            </Box>
+          )}
+        </Box>
+      )}
       {/* Navigation bar */}
       {messages.length > 1 && (
         <Box sx={{ mb: 2 }}>

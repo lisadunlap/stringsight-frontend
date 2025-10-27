@@ -12,6 +12,8 @@ export function SideBySideTrace({
   targetModel,
   rawResponseA,
   rawResponseB,
+  scoreA,
+  scoreB,
 }: {
   messagesA: Message[];
   messagesB: Message[];
@@ -21,6 +23,8 @@ export function SideBySideTrace({
   targetModel?: string;
   rawResponseA?: any;
   rawResponseB?: any;
+  scoreA?: Record<string, any>;
+  scoreB?: Record<string, any>;
 }) {
   return (
     <Box sx={{
@@ -29,11 +33,37 @@ export function SideBySideTrace({
       gap: 2,
     }}>
       <Box>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>{modelA}</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+          <Typography variant="subtitle2">
+            {modelA}
+          </Typography>
+          {scoreA && Object.keys(scoreA).length > 0 && (
+            <Box sx={{ textAlign: 'right' }}>
+              {Object.entries(scoreA).map(([key, value]) => (
+                <Typography key={key} variant="body2" sx={{ fontSize: '0.875rem', lineHeight: 1.4 }}>
+                  {key}: {typeof value === 'number' ? value.toFixed(2) : String(value)}
+                </Typography>
+              ))}
+            </Box>
+          )}
+        </Box>
         <ConversationTrace messages={messagesA} highlights={targetModel && targetModel !== modelA ? [] : highlights} rawResponse={rawResponseA} />
       </Box>
       <Box>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>{modelB}</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+          <Typography variant="subtitle2">
+            {modelB}
+          </Typography>
+          {scoreB && Object.keys(scoreB).length > 0 && (
+            <Box sx={{ textAlign: 'right' }}>
+              {Object.entries(scoreB).map(([key, value]) => (
+                <Typography key={key} variant="body2" sx={{ fontSize: '0.875rem', lineHeight: 1.4 }}>
+                  {key}: {typeof value === 'number' ? value.toFixed(2) : String(value)}
+                </Typography>
+              ))}
+            </Box>
+          )}
+        </Box>
         <ConversationTrace messages={messagesB} highlights={targetModel && targetModel !== modelB ? [] : highlights} rawResponse={rawResponseB} />
       </Box>
     </Box>

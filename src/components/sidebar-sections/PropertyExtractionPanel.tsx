@@ -696,64 +696,140 @@ export default function PropertyExtractionPanel({
       )}
 
       {lastExtractProps.length > 0 && (
-        <Box ref={resultsRef} sx={{ 
-          p: 2, 
-          border: '1px solid', 
-          borderColor: 'divider', 
-          backgroundColor: 'background.paper', 
-          borderRadius: 1 
+        <Box ref={resultsRef} sx={{
+          p: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          backgroundColor: 'background.paper',
+          borderRadius: 1
         }}>
           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
             Last extraction result
           </Typography>
-          <Stack spacing={1}>
-            {lastExtractProps.map((p, i) => (
-              <Accordion 
-                key={i} 
-                disableGutters 
-                sx={{ 
-                  boxShadow: 'none', 
-                  border: '1px solid', 
-                  borderColor: 'divider', 
-                  borderRadius: 1, 
-                  backgroundColor: 'background.default' 
-                }}
-                onChange={(_, expanded) => {
-                  if (expanded) {
-                    const raw = p?.evidence;
-                    let list: string[] = [];
-                    if (Array.isArray(raw)) list = raw.map((s: any) => String(s || '').trim()).filter(Boolean);
-                    else if (typeof raw === 'string') {
-                      const trimmed = raw.trim();
-                      const parts = trimmed.split(/"\s*,\s*"|\n|,\s(?=[\w\d])/g).map(s => s.replace(/^"|"$/g, '').trim());
-                      list = parts.filter(Boolean);
+
+          {method === 'side_by_side' ? (
+            // Group properties by model for side-by-side
+            (() => {
+              const byModel = new Map<string, any[]>();
+              lastExtractProps.forEach(p => {
+                const modelName = (p as any).model || 'Unknown';
+                if (!byModel.has(modelName)) byModel.set(modelName, []);
+                byModel.get(modelName)!.push(p);
+              });
+
+              return (
+                <Stack spacing={2}>
+                  {Array.from(byModel.entries()).map(([modelName, props]) => (
+                    <Box key={modelName}>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700, color: 'primary.main' }}>
+                        {modelName}
+                      </Typography>
+                      <Box sx={{ borderLeft: '3px solid', borderColor: 'primary.main', pl: 1.5 }}>
+                        <Stack spacing={1}>
+                          {props.map((p, i) => (
+                            <Accordion
+                              key={i}
+                              disableGutters
+                              sx={{
+                                boxShadow: 'none',
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: 1,
+                                backgroundColor: 'background.default'
+                              }}
+                              onChange={(_, expanded) => {
+                                if (expanded) {
+                                  const raw = p?.evidence;
+                                  let list: string[] = [];
+                                  if (Array.isArray(raw)) list = raw.map((s: any) => String(s || '').trim()).filter(Boolean);
+                                  else if (typeof raw === 'string') {
+                                    const trimmed = raw.trim();
+                                    const parts = trimmed.split(/"\s*,\s*"|\n|,\s(?=[\w\d])/g).map(s => s.replace(/^"|"$/g, '').trim());
+                                    list = parts.filter(Boolean);
+                                  }
+                                  onSelectEvidence(list, (p as any).model);
+                                }
+                              }}
+                            >
+                              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                  {p.property_description || `Property ${i + 1}`}
+                                </Typography>
+                              </AccordionSummary>
+                              <AccordionDetails>
+                                <Box sx={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 0.5, columnGap: 1 }}>
+                                  {Object.entries(p)
+                                    .filter(([k]) => !['raw_response', 'contains_errors', 'meta'].includes(k))
+                                    .map(([k, v]) => (
+                                    <React.Fragment key={k}>
+                                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>{k}</Typography>
+                                      <Typography variant="caption" sx={{ color: 'text.primary' }}>
+                                        {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                                      </Typography>
+                                    </React.Fragment>
+                                  ))}
+                                </Box>
+                              </AccordionDetails>
+                            </Accordion>
+                          ))}
+                        </Stack>
+                      </Box>
+                    </Box>
+                  ))}
+                </Stack>
+              );
+            })()
+          ) : (
+            // Flat list for single model
+            <Stack spacing={1}>
+              {lastExtractProps.map((p, i) => (
+                <Accordion
+                  key={i}
+                  disableGutters
+                  sx={{
+                    boxShadow: 'none',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    backgroundColor: 'background.default'
+                  }}
+                  onChange={(_, expanded) => {
+                    if (expanded) {
+                      const raw = p?.evidence;
+                      let list: string[] = [];
+                      if (Array.isArray(raw)) list = raw.map((s: any) => String(s || '').trim()).filter(Boolean);
+                      else if (typeof raw === 'string') {
+                        const trimmed = raw.trim();
+                        const parts = trimmed.split(/"\s*,\s*"|\n|,\s(?=[\w\d])/g).map(s => s.replace(/^"|"$/g, '').trim());
+                        list = parts.filter(Boolean);
+                      }
+                      onSelectEvidence(list, (p as any).model);
                     }
-                    onSelectEvidence(list, (p as any).model);
-                  }
-                }}
-              >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {p.property_description || `Property ${i + 1}`}
-                  </Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 0.5, columnGap: 1 }}>
-                    {Object.entries(p)
-                      .filter(([k]) => !['raw_response', 'contains_errors', 'meta'].includes(k))
-                      .map(([k, v]) => (
-                      <React.Fragment key={k}>
-                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>{k}</Typography>
-                        <Typography variant="caption" sx={{ color: 'text.primary' }}>
-                          {typeof v === 'object' ? JSON.stringify(v) : String(v)}
-                        </Typography>
-                      </React.Fragment>
-                    ))}
-                  </Box>
-                </AccordionDetails>
-              </Accordion>
-            ))}
-          </Stack>
+                  }}
+                >
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {p.property_description || `Property ${i + 1}`}
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 0.5, columnGap: 1 }}>
+                      {Object.entries(p)
+                        .filter(([k]) => !['raw_response', 'contains_errors', 'meta'].includes(k))
+                        .map(([k, v]) => (
+                        <React.Fragment key={k}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{k}</Typography>
+                          <Typography variant="caption" sx={{ color: 'text.primary' }}>
+                            {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                          </Typography>
+                        </React.Fragment>
+                      ))}
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Stack>
+          )}
         </Box>
       )}
     </Stack>

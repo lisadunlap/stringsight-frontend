@@ -1695,8 +1695,8 @@ function App() {
                      col === 'model_responses' ? 'MODEL RESPONSES' :
                      col === 'model_a' ? 'MODEL A' :
                      col === 'model_b' ? 'MODEL B' :
-                     col === 'model_a_response' ? 'RESPONSE A' :
-                     col === 'model_b_response' ? 'RESPONSE B' :
+                     col === 'model_a_response' ? 'RESPONSE' :
+                     col === 'model_b_response' ? 'RESPONSE' :
                      col.toUpperCase()}
                   </Typography>
                   {sortColumn === col && sortDirection === 'asc' && <ArrowUpwardIcon sx={{ fontSize: 12, color: '#374151' }} />}
@@ -2689,50 +2689,14 @@ function App() {
         } 
       }} ModalProps={{ keepMounted: true }}>
         <>
-            {(selectedTrace?.type === "single" || selectedTrace?.type === "sbs") && (
-              <>
-                {selectedProperty ? (
-                  // Enhanced header when viewing from properties table
-                  <PropertyTraceHeader
-                    selectedRow={selectedRow}
-                    selectedProperty={selectedProperty}
-                    method={method}
-                    evidenceTargetModel={evidenceTargetModel}
-                  />
-                ) : (
-                  // Standard header when viewing from main data table
-              <Box sx={{ mb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Typography variant="body2" sx={{ color: '#334155', fontWeight: 500 }}>
-                  {selectedTrace?.type === 'single' ? (String((selectedRow as any)?.model || '')) : `${String((selectedRow as any)?.model_a || '')} vs ${String((selectedRow as any)?.model_b || '')}`}
-                </Typography>
-                {(() => {
-                  let entries: [string, any][] = [];
-                  if (method === 'single_model') {
-                    const scores = selectedRow?.score || null;
-                    entries = scores && typeof scores === 'object' ? Object.entries(scores as Record<string, number>) : [];
-                  } else if (method === 'side_by_side') {
-                    // Show scores for the model whose evidence is targeted, else both
-                    const isA = evidenceTargetModel && String(selectedRow?.model_a || '') === String(evidenceTargetModel);
-                    const isB = evidenceTargetModel && String(selectedRow?.model_b || '') === String(evidenceTargetModel);
-                    const sa = (selectedRow as any)?.score_a || {};
-                    const sb = (selectedRow as any)?.score_b || {};
-                    const chosen = isA ? sa : isB ? sb : sa; // default A
-                    entries = Object.entries(chosen);
-                  }
-                  if (!entries.length) return null;
-                  return (
-                    <Box sx={{ textAlign: 'right' }}>
-                      {entries.map(([k, v]) => (
-                        <Typography key={k} variant="body2" sx={{ color: '#334155', fontSize: '0.875rem', lineHeight: 1.4 }}>
-                          {k}: {typeof v === 'number' ? v.toFixed(decimalPrecision) : String(v)}
-                        </Typography>
-                      ))}
-                    </Box>
-                  );
-                })()}
-              </Box>
-                )}
-              </>
+            {(selectedTrace?.type === "single" || selectedTrace?.type === "sbs") && selectedProperty && (
+              // Property information header when viewing from properties table
+              <PropertyTraceHeader
+                selectedRow={selectedRow}
+                selectedProperty={selectedProperty}
+                method={method}
+                evidenceTargetModel={evidenceTargetModel}
+              />
             )}
             {selectedTrace?.type === "single" && (() => {
               console.log('[App] Rendering ConversationTrace with highlights:', selectedEvidence);
@@ -2741,6 +2705,8 @@ function App() {
                   messages={selectedTrace.messages}
                   highlights={selectedEvidence || undefined}
                   rawResponse={selectedRow?.model_response}
+                  modelName={selectedRow?.model ? String(selectedRow.model) : undefined}
+                  score={(selectedRow as any)?.score}
                 />
               );
             })()}
@@ -2754,6 +2720,8 @@ function App() {
                 targetModel={evidenceTargetModel}
                 rawResponseA={selectedRow?.model_a_response}
                 rawResponseB={selectedRow?.model_b_response}
+                scoreA={(selectedRow as any)?.score_a}
+                scoreB={(selectedRow as any)?.score_b}
               />
             )}
           </>

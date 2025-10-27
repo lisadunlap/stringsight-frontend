@@ -122,52 +122,8 @@ export default function PropertyTraceHeader({
     );
   };
 
-  // Get conversation scores
-  const getConversationScores = () => {
-    let entries: [string, any][] = [];
-    if (method === 'single_model') {
-      const scores = selectedRow?.score || null;
-      entries = scores && typeof scores === 'object' ? Object.entries(scores as Record<string, number>) : [];
-    } else if (method === 'side_by_side') {
-      const isA = evidenceTargetModel && String(selectedRow?.model_a || '') === String(evidenceTargetModel);
-      const isB = evidenceTargetModel && String(selectedRow?.model_b || '') === String(evidenceTargetModel);
-      const sa = (selectedRow as any)?.score_a || {};
-      const sb = (selectedRow as any)?.score_b || {};
-      const chosen = isA ? sa : isB ? sb : sa; // default A
-      entries = Object.entries(chosen);
-    }
-    return entries;
-  };
-
-  // Get property metadata (excluding certain fields)
-  const getPropertyMetadata = () => {
-    if (!selectedProperty) return [];
-    
-    const excludeKeys = new Set([
-      'question_id', 'model', 'model_response', 'property_description', 
-      '__index', 'row_index', 'id', 'meta', 'raw_response'
-    ]);
-    
-    return Object.entries(selectedProperty)
-      .filter(([key]) => !excludeKeys.has(key))
-      .filter(([, value]) => value !== null && value !== undefined && value !== '');
-  };
-
   const categoryChips = getCategoryChips();
   const fullTextSections = getFullTextSections();
-  const conversationScores = getConversationScores();
-
-  // Get model name
-  const getModelName = () => {
-    if (method === 'single_model') {
-      return String(selectedRow?.model || '');
-    } else if (method === 'side_by_side') {
-      return evidenceTargetModel
-        ? String(evidenceTargetModel)
-        : `${String(selectedRow?.model_a || '')} vs ${String(selectedRow?.model_b || '')}`;
-    }
-    return '';
-  };
 
   return (
     <Box sx={{ mb: 2 }}>
@@ -195,21 +151,6 @@ export default function PropertyTraceHeader({
         {fullTextSections.map(([key, value]) => formatFullTextSection(key, value))}
       </Box>
 
-      {/* Model name and scores right above the trace */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <Typography variant="body2" sx={{ color: '#334155', fontWeight: 500 }}>
-          {getModelName()}
-        </Typography>
-        {conversationScores.length > 0 && (
-          <Box sx={{ textAlign: 'right' }}>
-            {conversationScores.map(([k, v]) => (
-              <Typography key={k} variant="body2" sx={{ color: '#334155', fontSize: '0.875rem', lineHeight: 1.4 }}>
-                {k}: {typeof v === 'number' ? v.toFixed(2) : String(v)}
-              </Typography>
-            ))}
-          </Box>
-        )}
-      </Box>
     </Box>
   );
 }
