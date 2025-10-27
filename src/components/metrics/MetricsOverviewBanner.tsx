@@ -22,7 +22,7 @@ function normalizeGroup(group: string | undefined): string | null {
   const v = group.toLowerCase().trim().replace(/[_\s]+/g, '_');
 
   if (v === 'negative_(critical)' || v === 'negative_critical' || v === 'negative (critical)') return 'negative_critical';
-  if (v === 'negative_(non_critical)' || v === 'negative_non_critical' || v === 'negative (non-critical)') return 'negative_non_critical';
+  if (v === 'negative_(non-critical)' || v === 'negative_non-critical' || v === 'negative_non_critical' || v === 'negative (non-critical)') return 'negative_non_critical';
   if (v === 'positive') return 'positive';
   if (v === 'style' || v === 'stylistic') return 'style';
 

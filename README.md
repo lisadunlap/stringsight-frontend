@@ -59,7 +59,7 @@ The frontend will automatically build and deploy. Configure `VITE_BACKEND` in Ve
 - **Clusters Tab**: Analyze grouped behaviors and patterns
 - **Metrics Tab**: Compare model performance across behavioral dimensions
 - **Conversation Traces**: Inspect full conversation context with side-by-side comparisons
-// Server browsing removed; upload files in-browser instead
+- **Load Results**: Load pre-computed analysis results from a local folder
 
 ## Project Structure
 
@@ -75,15 +75,23 @@ src/
 
 ## Loading Data
 
-The frontend supports browser-based uploads:
+The frontend supports multiple ways to load data:
 
-- Upload File: Click "Upload File" and select a CSV, JSON, or JSONL file. Parsing happens entirely in the browser; no backend required.
+### Browser-Based Upload
+- **Upload File**: Click "Upload File" and select a CSV, JSON, or JSONL file. Parsing happens entirely in the browser; no backend required.
+- **Load Demo Data**: Click "Load Demo Data" to auto-load a bundled JSONL sample (`taubench_airline.jsonl`). This file is served from `public/` and demonstrates the expected column mapping flow.
 
-- Load Demo Data: Click "Load Demo Data" to auto-load a bundled JSONL sample (`taubench_airline.jsonl`). This file is served from `public/` and demonstrates the expected column mapping flow.
+### Load Pre-Computed Results
+- **Load Results**: Click "Load Results" to select a local results folder. Your browser will prompt you to select a directory. The system will automatically load all relevant files from that folder:
+  - `full_dataset.json` - Bundle containing conversations, properties, and clusters
+  - `parsed_properties.jsonl` - (Optional) Extracted properties if not in full_dataset.json
+  - `model_cluster_scores_df.jsonl` - Model-cluster metrics (for Metrics tab)
+  - `cluster_scores_df.jsonl` - Cluster-level metrics (for Metrics tab)
+  - `model_scores_df.jsonl` - Model-level metrics (for Metrics tab)
 
 Supported formats:
 - CSV: Standard evaluation datasets
-- JSON/JSONL: Structured data or StringSight results (`full_dataset.json`)
+- JSON/JSONL: Structured data or StringSight results
 
 ## Development
 

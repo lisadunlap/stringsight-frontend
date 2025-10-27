@@ -14,7 +14,13 @@ import {
   Typography,
   Paper,
   Chip,
-  Tooltip
+  Tooltip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
@@ -48,11 +54,10 @@ interface CommonFailure {
 }
 
 interface UniqueBehavior {
-  model: string;
   cluster: string;
-  proportion: number;
-  proportionDelta: number;
   category: string;
+  modelDeltas: Map<string, number>; // model -> proportionDelta
+  modelProportions: Map<string, number>; // model -> proportion
 }
 
 interface MisalignedPattern {
@@ -128,34 +133,40 @@ export function MetricsInsightsOverview({
       })
       .sort((a, b) => b.totalSize - a.totalSize);
 
-    // 2. UNIQUE STYLISTIC BEHAVIORS - Top 3 per model where proportion_delta > 0
+    // 2. UNIQUE STYLISTIC BEHAVIORS - Group by cluster, show delta per model
     const stylisticRows = filteredData.filter(row => {
       const group = normalizeGroup(row.metadata?.group);
       return (group === 'style' || group === 'positive') && (row.proportion_delta || 0) > 0;
     });
 
-    const modelGroups = new Map<string, ModelClusterRow[]>();
+    // Group by cluster, track which models have each cluster
+    const clusterBehaviorMap = new Map<string, { category: string; modelDeltas: Map<string, number>; modelProportions: Map<string, number> }>();
     stylisticRows.forEach(row => {
-      if (!modelGroups.has(row.model)) {
-        modelGroups.set(row.model, []);
+      if (!clusterBehaviorMap.has(row.cluster)) {
+        clusterBehaviorMap.set(row.cluster, {
+          category: normalizeGroup(row.metadata?.group),
+          modelDeltas: new Map(),
+          modelProportions: new Map()
+        });
       }
-      modelGroups.get(row.model)!.push(row);
+      clusterBehaviorMap.get(row.cluster)!.modelDeltas.set(row.model, row.proportion_delta || 0);
+      clusterBehaviorMap.get(row.cluster)!.modelProportions.set(row.model, row.proportion || 0);
     });
 
-    const uniqueBehaviors: UniqueBehavior[] = [];
-    modelGroups.forEach((rows, model) => {
-      const top3 = rows
-        .sort((a, b) => (b.proportion_delta || 0) - (a.proportion_delta || 0))
-        .slice(0, 3)
-        .map(r => ({
-          model,
-          cluster: r.cluster,
-          proportion: r.proportion || 0,
-          proportionDelta: r.proportion_delta || 0,
-          category: normalizeGroup(r.metadata?.group)
-        }));
-      uniqueBehaviors.push(...top3);
-    });
+    // Convert to array and sort by maximum delta across all models
+    const uniqueBehaviors: UniqueBehavior[] = Array.from(clusterBehaviorMap.entries())
+      .map(([cluster, data]) => ({
+        cluster,
+        category: data.category,
+        modelDeltas: data.modelDeltas,
+        modelProportions: data.modelProportions
+      }))
+      .sort((a, b) => {
+        const maxDeltaA = Math.max(...Array.from(a.modelDeltas.values()));
+        const maxDeltaB = Math.max(...Array.from(b.modelDeltas.values()));
+        return maxDeltaB - maxDeltaA;
+      })
+      .slice(0, 3); // Show top 3 behaviors
 
     // 3. MISALIGNED PATTERNS
     // - Negative behaviors with positive quality delta
@@ -277,8 +288,9 @@ export function MetricsInsightsOverview({
               No common failure patterns found
             </Typography>
           ) : (
-            <Stack spacing={2}>
-              {insights.commonFailures.map((failure, idx) => {
+            <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 1 }}>
+              <Stack spacing={2}>
+                {insights.commonFailures.map((failure, idx) => {
                 // Get category color for the chip
                 const categoryColor = failure.category === 'negative_critical' ? '#DC2626' : '#CA8A04';
 
@@ -404,7 +416,8 @@ export function MetricsInsightsOverview({
                   </Paper>
                 );
               })}
-            </Stack>
+              </Stack>
+            </Box>
           )}
         </Paper>
 
@@ -419,43 +432,111 @@ export function MetricsInsightsOverview({
               No unique stylistic patterns found
             </Typography>
           ) : (
-            <Stack spacing={1.5}>
-              {insights.uniqueBehaviors.map((behavior, idx) => (
-                <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Typography variant="body2" fontWeight={500} sx={{ minWidth: 80 }}>
-                    {shortModelName(behavior.model)} →
-                  </Typography>
-                  <Typography
-                    variant="body1"
-                    sx={{
-                      flex: 1,
-                      cursor: 'pointer',
-                      fontSize: '1rem',
-                      '&:hover': { color: 'primary.main', textDecoration: 'underline' }
-                    }}
-                    onClick={() => onNavigateToCluster?.(behavior.cluster)}
-                  >
-                    {behavior.cluster}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120 }}>
-                    {(behavior.proportion * 100).toFixed(1)}%
-                    <Typography component="span" sx={{ color: 'success.main', fontWeight: 500 }}>
-                      {' '}(+{(behavior.proportionDelta * 100).toFixed(1)}%)
-                    </Typography>
-                  </Typography>
-                  <Box
-                    onClick={() => onNavigateToCluster?.(behavior.cluster)}
-                    sx={{
-                      cursor: 'pointer',
-                      color: 'action.active',
-                      '&:hover': { color: 'primary.main' }
-                    }}
-                  >
-                    →
-                  </Box>
-                </Box>
-              ))}
-            </Stack>
+            <TableContainer>
+              <Table size="small" sx={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell
+                      sx={{
+                        fontWeight: 600,
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                        py: 1.5,
+                        minWidth: 400
+                      }}
+                    >
+                      Stylistic Behavior
+                    </TableCell>
+                    {insights.allModels.map((model, idx) => (
+                      <TableCell
+                        key={idx}
+                        align="center"
+                        sx={{
+                          fontWeight: 600,
+                          borderBottom: '2px solid',
+                          borderColor: 'divider',
+                          py: 1.5,
+                          minWidth: 100
+                        }}
+                      >
+                        {shortModelName(model)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {insights.uniqueBehaviors.map((behavior, idx) => (
+                    <TableRow
+                      key={idx}
+                      sx={{
+                        '&:hover': { bgcolor: 'action.hover' },
+                        borderBottom: idx === insights.uniqueBehaviors.length - 1 ? 'none' : '1px solid',
+                        borderColor: 'divider'
+                      }}
+                    >
+                      <TableCell
+                        sx={{
+                          py: 1.5,
+                          cursor: 'pointer',
+                          '&:hover': { color: 'primary.main' }
+                        }}
+                        onClick={() => onNavigateToCluster?.(behavior.cluster)}
+                      >
+                        <Typography variant="body2" sx={{ fontSize: '0.95rem' }}>
+                          {behavior.cluster}
+                        </Typography>
+                      </TableCell>
+                      {insights.allModels.map((model, mIdx) => {
+                        const delta = behavior.modelDeltas.get(model);
+                        const proportion = behavior.modelProportions.get(model);
+                        return (
+                          <TableCell
+                            key={mIdx}
+                            align="center"
+                            sx={{ py: 1.5 }}
+                          >
+                            {delta !== undefined && proportion !== undefined ? (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: 'text.primary',
+                                    fontWeight: 500,
+                                    fontSize: '0.9rem'
+                                  }}
+                                >
+                                  {(proportion * 100).toFixed(1)}%
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: 'success.main',
+                                    fontWeight: 500,
+                                    fontSize: '0.8rem'
+                                  }}
+                                >
+                                  (+{(delta * 100).toFixed(1)}%)
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: 'text.disabled',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                —
+                              </Typography>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
         </Paper>
 

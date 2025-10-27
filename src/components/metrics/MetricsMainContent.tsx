@@ -237,8 +237,8 @@ export function MetricsMainContent({
         </>
       )}
 
-      {/* Benchmark Section */}
-      {showBenchmark && benchmarkData && benchmarkData.data.length > 0 && (
+      {/* Benchmark Section - Temporarily disabled */}
+      {/* {showBenchmark && benchmarkData && benchmarkData.data.length > 0 && (
         <>
           <BenchmarkSection
             data={benchmarkData}
@@ -246,7 +246,7 @@ export function MetricsMainContent({
           />
           <Divider />
         </>
-      )}
+      )} */}
 
       {/* Cluster Plots Section */}
       {showClusterPlots && (
