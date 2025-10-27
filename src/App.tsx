@@ -862,17 +862,47 @@ function App() {
         
         // Build score_a and score_b from selected score columns
         if (mapping.scoreCols.length > 0) {
+          const toNumber = (v: any): number | undefined => {
+            if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+            if (typeof v === 'string' && v.trim() !== '') {
+              const n = Number(v);
+              return Number.isFinite(n) ? n : undefined;
+            }
+            return undefined;
+          };
+
+          const parseMaybeJsonDict = (v: any): Record<string, any> | null => {
+            if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, any>;
+            if (typeof v === 'string') {
+              const s = v.trim();
+              if (s.startsWith('{') && s.endsWith('}')) {
+                try { return JSON.parse(s); } catch (_) { return null; }
+              }
+            }
+            return null;
+          };
+
           const buildScore = (r: Record<string, any>) => {
             const s: Record<string, number> = {};
             for (const col of mapping.scoreCols) {
-              const v = r[col];
-              if (typeof v === 'number' && Number.isFinite(v)) {
+              const raw = r[col];
+              const asDict = parseMaybeJsonDict(raw);
+              if (asDict) {
+                // Score column contains an object like {accuracy: 0.8}
+                for (const [k, v] of Object.entries(asDict)) {
+                  const num = toNumber(v);
+                  if (num !== undefined) s[k] = num;
+                }
+              } else {
+                // Score column is a scalar value
                 const k = col.replace(/^(score_)?/i, '').replace(/_?score$/i, '') || 'value';
-                s[k] = v;
+                const num = toNumber(raw);
+                if (num !== undefined) s[k] = num;
               }
             }
             return Object.keys(s).length > 0 ? s : undefined;
           };
+
           const scoreA = buildScore(rowA);
           const scoreB = buildScore(rowB);
           if (scoreA) sbsRow.score_a = scoreA;
@@ -1139,7 +1169,7 @@ function App() {
     method === "single_model"
       ? ["model_response"]
       : method === "side_by_side"
-        ? ["model_a_response", "model_b_response"]
+        ? ["model_a_response"]  // Only one column needed - View shows both traces side-by-side
         : [],
     [method]
   );
@@ -1154,9 +1184,9 @@ function App() {
     if (currentRows.length === 0) return [];
     const allColumns = Object.keys(currentRows[0]);
     
-    // For side-by-side, hide the internal model/response columns and show a view button instead
-    const hiddenSbsColumns = method === 'side_by_side' 
-      ? ['model_a', 'model_b', 'model_a_response', 'model_b_response']
+    // For side-by-side, hide model names and model_b_response (we only show one View button via model_a_response)
+    const hiddenSbsColumns = method === 'side_by_side'
+      ? ['model_a', 'model_b', 'model_b_response']
       : [];
     
     const visibleColumns = allColumns.filter(c => !hiddenSbsColumns.includes(c));
