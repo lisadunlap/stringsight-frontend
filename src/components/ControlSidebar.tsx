@@ -39,7 +39,7 @@ export default function ControlSidebar({
   const [useCustom, setUseCustom] = React.useState<boolean>(false);
   const [resolvedPrompt, setResolvedPrompt] = React.useState<string>('');
 
-  const [modelName, setModelName] = React.useState<string>('gpt-4o-mini');
+  const [modelName, setModelName] = React.useState<string>('gpt-4.1-mini');
   const [temperature, setTemperature] = React.useState<number>(0.6);
   const [topP, setTopP] = React.useState<number>(0.95);
   const [maxTokens, setMaxTokens] = React.useState<number>(2048);

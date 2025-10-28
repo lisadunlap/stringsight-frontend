@@ -11,6 +11,7 @@ export type SidebarSection = 'data' | 'extraction' | 'metrics';
 interface PermanentIconSidebarProps {
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
+  highlightExtraction?: boolean;
 }
 
 interface IconButtonItemProps {
@@ -19,9 +20,10 @@ interface IconButtonItemProps {
   active: boolean;
   onClick: () => void;
   disabled?: boolean;
+  highlight?: boolean;
 }
 
-function IconButtonItem({ icon, tooltip, active, onClick, disabled = false }: IconButtonItemProps) {
+function IconButtonItem({ icon, tooltip, active, onClick, disabled = false, highlight = false }: IconButtonItemProps) {
   return (
     <Tooltip title={tooltip} placement="right">
       <Box sx={{ mb: 1 }}>
@@ -32,10 +34,10 @@ function IconButtonItem({ icon, tooltip, active, onClick, disabled = false }: Ic
             width: 48,
             height: 48,
             borderRadius: 2,
-            backgroundColor: active ? 'primary.main' : 'transparent',
-            color: active ? 'primary.contrastText' : 'text.secondary',
+            backgroundColor: active ? 'primary.main' : highlight ? 'warning.main' : 'transparent',
+            color: active ? 'primary.contrastText' : highlight ? 'warning.contrastText' : 'text.secondary',
             '&:hover': {
-              backgroundColor: active ? 'primary.dark' : 'action.hover',
+              backgroundColor: active ? 'primary.dark' : highlight ? 'warning.dark' : 'action.hover',
             },
             '&.Mui-disabled': {
               color: 'action.disabled',
@@ -50,7 +52,7 @@ function IconButtonItem({ icon, tooltip, active, onClick, disabled = false }: Ic
   );
 }
 
-export default function PermanentIconSidebar({ activeSection, onSectionChange }: PermanentIconSidebarProps) {
+export default function PermanentIconSidebar({ activeSection, onSectionChange, highlightExtraction = false }: PermanentIconSidebarProps) {
   return (
     <Box
       sx={{
@@ -72,21 +74,22 @@ export default function PermanentIconSidebar({ activeSection, onSectionChange }:
     >
       <IconButtonItem
         icon={<DataViewIcon />}
-        tooltip="Data Viewing"
+        tooltip="Data - View model responses"
         active={activeSection === 'data'}
         onClick={() => onSectionChange('data')}
       />
 
       <IconButtonItem
         icon={<PropertyExtractionIcon />}
-        tooltip="Property Extraction & Clustering"
+        tooltip="Properties - View extracted behaviors per trace"
         active={activeSection === 'extraction'}
         onClick={() => onSectionChange('extraction')}
+        highlight={highlightExtraction && activeSection !== 'extraction'}
       />
 
       <IconButtonItem
         icon={<MetricsIcon />}
-        tooltip="Metrics"
+        tooltip="Insights - Get model & dataset level insights"
         active={activeSection === 'metrics'}
         onClick={() => onSectionChange('metrics')}
       />

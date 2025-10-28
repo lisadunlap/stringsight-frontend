@@ -14,7 +14,7 @@ const sectionTitles: Record<SidebarSection, string> = {
   data: 'Data Statistics',
   extraction: 'Property Extraction',
   clustering: 'Clustering Analysis',
-  metrics: 'Metrics Dashboard'
+  metrics: 'Insights Dashboard'
 };
 
 export default function ExpandedSidebar({ 

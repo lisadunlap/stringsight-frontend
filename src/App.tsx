@@ -257,6 +257,9 @@ function App() {
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
   const [clusterSearchQuery, setClusterSearchQuery] = useState<string>('');
   
+  // Highlight extraction icon when data is loaded but no properties exist
+  const [highlightExtractionIcon, setHighlightExtractionIcon] = useState<boolean>(false);
+  
   // Results loading indicator
   const [isLoadingResults, setIsLoadingResults] = useState<boolean>(false);
   const [resultsLoadingMessage, setResultsLoadingMessage] = useState<string>('');
@@ -320,6 +323,21 @@ function App() {
       hasAutoSwitchedToClustersRef.current = true;
     }
   }, [clusters, isResultsMode]);
+
+  // Highlight extraction icon when data is loaded but no properties exist
+  React.useEffect(() => {
+    if (operationalRows.length > 0 && propertiesRows.length === 0 && !isLoadingResults) {
+      // Flash for 10 seconds
+      setHighlightExtractionIcon(true);
+      const timer = setTimeout(() => {
+        setHighlightExtractionIcon(false);
+      }, 10000);
+      return () => clearTimeout(timer);
+    } else if (propertiesRows.length > 0) {
+      // Turn off immediately when properties are added
+      setHighlightExtractionIcon(false);
+    }
+  }, [operationalRows.length, propertiesRows.length, isLoadingResults]);
 
   // (reserved) keying strategies for recomputes can be added later when needed
 
@@ -2129,11 +2147,16 @@ function App() {
         onSectionChange={(section) => {
           setActiveSection(section);
           setSidebarExpanded(true);
+          // Clear highlight when user clicks extraction
+          if (section === 'extraction') {
+            setHighlightExtractionIcon(false);
+          }
               if (section === 'metrics') {
                 // Stay within metrics family; default to Metrics view
                 setActiveTab('metrics');
               }
-        }} 
+        }}
+        highlightExtraction={highlightExtractionIcon}
       />
 
       {/* Removed expand chevron button; opening is handled by clicking icon sidebar */}
@@ -2426,6 +2449,9 @@ function App() {
               <strong>{dataOverview.uniquePrompts}</strong> unique prompts ·{' '}
               <strong>{dataOverview.uniqueModels}</strong> unique models
             </Box>
+            <Box sx={{ color: 'warning.main', fontWeight: 500 }}>
+              Click <strong>🔍</strong> to analyze your traces
+            </Box>
             {/* Removed hint: Click headers to sort • Use filters to narrow results */}
           </Box>
         )}
@@ -2450,15 +2476,15 @@ function App() {
             indicatorColor="primary"
             sx={{ flex: 1 }}
           >
-            <Tab value="table" label="Data" />
+            <Tab value="table" label="Data" title="View model responses" />
             {propertiesRows.length > 0 && (
-              <Tab value="properties" label={`Properties (${propertiesRows.length})`} />
+              <Tab value="properties" label={`Properties (${propertiesRows.length})`} title="View extracted behaviors per trace" />
             )}
             {clusters.length > 0 && (
-              <Tab value="clusters" label={`Clusters (${clusters.length})`} />
+              <Tab value="clusters" label={`Clusters (${clusters.length})`} title="View common behaviors in traces" />
             )}
             {resultsMetrics && (
-              <Tab value="metrics" label="Metrics" />
+              <Tab value="metrics" label="Insights" title="Get model & dataset level insights" />
             )}
           </Tabs>
           {clusters.length > 0 && (

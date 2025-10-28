@@ -77,7 +77,7 @@ export default function PropertyExtractionPanel({
   );
   const [resolvedPrompt, setResolvedPrompt] = React.useState<string>('');
 
-  const [modelName, setModelName] = React.useState<string>('gpt-4o-mini');
+  const [modelName, setModelName] = React.useState<string>('gpt-4.1');
   const [temperature, setTemperature] = React.useState<number>(0.6);
   const [topP, setTopP] = React.useState<number>(0.95);
   const [maxTokens, setMaxTokens] = React.useState<number>(2048);
@@ -97,8 +97,8 @@ export default function PropertyExtractionPanel({
   const [embeddingModel, setEmbeddingModel] = React.useState<string>('openai/text-embedding-3-small');
   const [embeddingModels, setEmbeddingModels] = React.useState<string[]>([]);
   const [groupBy, setGroupBy] = React.useState<'none'|'category'|'behavior_type'>('behavior_type');
-  const [summarizationModel, setSummarizationModel] = React.useState<string>('gpt-4o');
-  const [matchingModel, setMatchingModel] = React.useState<string>('gpt-4o-mini');
+  const [summarizationModel, setSummarizationModel] = React.useState<string>('gpt-4.1');
+  const [matchingModel, setMatchingModel] = React.useState<string>('gpt-4.1-mini');
   const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
   const [currentStage, setCurrentStage] = React.useState<'extraction' | 'clustering' | null>(null);
 
@@ -419,6 +419,9 @@ export default function PropertyExtractionPanel({
 
   return (
     <Stack spacing={3}>
+      <Typography variant="body2" sx={{ color: 'warning.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
+        Extract interesting properties from your traces. Click 'Extract on Row 0' to see an example.
+      </Typography>
       <Box>
         <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
           Extraction Prompt
@@ -456,8 +459,19 @@ export default function PropertyExtractionPanel({
                   localStorage.setItem('stringsight.taskDescription', val);
                   localStorage.setItem('stringsight.taskDescriptionEdited', 'true');
                 }} 
-                minRows={3} 
+                minRows={4}
+                maxRows={9}
                 multiline 
+                sx={{
+                  '& .MuiInputBase-root': {
+                    overflow: 'auto',
+                    fontSize: '0.9rem',
+                  },
+                  '& .MuiInputLabel-root': {
+                    backgroundColor: 'background.paper',
+                    px: 0.5,
+                  }
+                }}
               />
               <Box>
                 <Button
@@ -489,7 +503,7 @@ export default function PropertyExtractionPanel({
           <Stack spacing={2}>
             <TextField 
               size="small" 
-              label="Model" 
+              label="Property Annotator" 
               value={modelName} 
               onChange={(e) => setModelName(e.target.value)} 
             />
