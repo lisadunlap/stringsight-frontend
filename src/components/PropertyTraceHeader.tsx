@@ -42,7 +42,7 @@ export default function PropertyTraceHeader({
         <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', display: 'block', mb: 0.5 }}>
           {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
         </Typography>
-        <Typography variant="caption" sx={{ color: '#334155', fontWeight: 500 }}>
+        <Typography variant="body2" sx={{ color: '#334155', fontWeight: 500 }}>
           {String(value)}
         </Typography>
       </Box>

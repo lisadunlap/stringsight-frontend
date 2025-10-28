@@ -2474,7 +2474,24 @@ function App() {
             }}
             textColor="primary"
             indicatorColor="primary"
-            sx={{ flex: 1 }}
+            sx={{ 
+              flex: 1,
+              '& .MuiTab-root': {
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
+                borderRadius: '8px 8px 0 0',
+                marginRight: '4px',
+                marginBottom: '0',
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderBottom: 'none',
+                '&.Mui-selected': {
+                  backgroundColor: '#ffffff',
+                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)',
+                  zIndex: 1,
+                  position: 'relative'
+                }
+              }
+            }}
           >
             <Tab value="table" label="Data" title="View model responses" />
             {propertiesRows.length > 0 && (
@@ -2607,6 +2624,7 @@ function App() {
                 resultsData={resultsMetrics}
                 filters={metricsFilters}
                 totalUniqueConversations={totalUniqueConversations}
+                method={method}
                 onDataProcessed={(data) => {
                   setMetricsAvailableModels(data.availableModels);
                   setMetricsAvailableGroups(data.availableGroups);

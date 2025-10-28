@@ -42,6 +42,8 @@ interface MetricsMainContentProps {
   showModelCards?: boolean;
   onNavigateToCluster?: (clusterName: string) => void;
   onViewExample?: (cluster: ModelClusterRow) => void;
+  /** Data method - single_model or side_by_side */
+  method?: 'single_model' | 'side_by_side' | 'unknown';
 }
 
 export function MetricsMainContent({
@@ -54,7 +56,8 @@ export function MetricsMainContent({
   showClusterPlots = false,
   showModelCards = false,
   onNavigateToCluster,
-  onViewExample
+  onViewExample,
+  method = 'unknown'
 }: MetricsMainContentProps) {
 
   // Apply filters to the data
@@ -212,6 +215,7 @@ export function MetricsMainContent({
         filters={filters}
         qualityMetrics={qualityMetrics}
         onNavigateToCluster={onNavigateToCluster}
+        method={method}
       />
       <Divider />
 

@@ -63,6 +63,9 @@ interface MetricsTabProps {
 
   /** Total unique conversations (from backend clustering response) */
   totalUniqueConversations?: number | null;
+
+  /** Data method - single_model or side_by_side */
+  method?: 'single_model' | 'side_by_side' | 'unknown';
 }
 
 export function MetricsTab({
@@ -75,12 +78,17 @@ export function MetricsTab({
   showModelCards = false,
   onNavigateToCluster,
   onViewExample,
-  totalUniqueConversations
+  totalUniqueConversations,
+  method = 'unknown'
 }: MetricsTabProps) {
 
   // Process the existing resultsData instead of fetching from API
   const processedData = useMemo(() => {
+    console.log('[MetricsTab] Processing data with method:', method);
+    console.log('[MetricsTab] Results data:', resultsData);
+    
     if (!resultsData?.model_cluster_scores) {
+      console.log('[MetricsTab] No model cluster scores data available');
       return {
         summary: null as MetricsSummary | null,
         modelClusterData: null as ModelClusterPayload | null,
@@ -106,6 +114,9 @@ export function MetricsTab({
     const models = [...new Set(modelClusterScores.map((row: any) => row.model))].sort();
     const clusters = [...new Set(modelClusterScores.map((row: any) => row.cluster))];
     
+    console.log('[MetricsTab] Extracted models:', models);
+    console.log('[MetricsTab] Extracted clusters:', clusters.length);
+    
     // Extract groups from metadata
     const groups = new Set<string>();
     modelClusterScores.forEach((row: any) => {
@@ -129,6 +140,8 @@ export function MetricsTab({
         }
       });
     });
+
+    console.log('[MetricsTab] Extracted quality metrics:', Array.from(qualityMetrics));
 
     // Detect confidence intervals from data
     const hasConfidenceIntervals = modelClusterScores.some((row: any) => {
@@ -313,6 +326,7 @@ export function MetricsTab({
           showModelCards={showModelCards}
           onNavigateToCluster={onNavigateToCluster}
           onViewExample={onViewExample}
+          method={method}
         />
       </Box>
     </Fade>

@@ -33,6 +33,8 @@ interface MetricsInsightsOverviewProps {
   filters: MetricsFilters;
   qualityMetrics: string[];
   onNavigateToCluster?: (clusterName: string) => void;
+  /** Data method - single_model or side_by_side */
+  method?: 'single_model' | 'side_by_side' | 'unknown';
 }
 
 // Normalize group names to standard categories
@@ -70,11 +72,22 @@ export function MetricsInsightsOverview({
   data,
   filters,
   qualityMetrics,
-  onNavigateToCluster
+  onNavigateToCluster,
+  method = 'unknown'
 }: MetricsInsightsOverviewProps) {
+
+  // Debug logging
+  console.log('[MetricsInsightsOverview] Rendering with:', {
+    dataLength: data.length,
+    qualityMetricsLength: qualityMetrics.length,
+    method,
+    filters,
+    firstDataItem: data[0]
+  });
 
   const insights = useMemo(() => {
     if (!data.length || qualityMetrics.length === 0) {
+      console.log('[MetricsInsightsOverview] Early return - no data or quality metrics');
       return {
         commonFailures: [],
         uniqueBehaviors: [],
@@ -265,10 +278,18 @@ export function MetricsInsightsOverview({
   }, [data, filters, qualityMetrics]);
 
   if (!data.length || qualityMetrics.length === 0) {
+    console.log('[MetricsInsightsOverview] Component returning null - no data or quality metrics');
     return null;
   }
 
   const shortModelName = (model: string) => model.split('/').pop() || model;
+
+  console.log('[MetricsInsightsOverview] Component rendering with insights:', {
+    commonFailures: insights.commonFailures.length,
+    uniqueBehaviors: insights.uniqueBehaviors.length,
+    misalignedPatterns: insights.misalignedPatterns.length,
+    allModels: insights.allModels
+  });
 
   return (
     <Box sx={{ mb: 4 }}>

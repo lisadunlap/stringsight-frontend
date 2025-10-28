@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Table, TableHead, TableRow, TableCell, TableBody, Button, TableContainer, Accordion, AccordionSummary, AccordionDetails, Typography, Chip, Pagination, Fade } from '@mui/material';
+import { Box, Table, TableHead, TableRow, TableCell, TableBody, Button, TableContainer, Accordion, AccordionSummary, AccordionDetails, Typography, Chip, Pagination, Fade, Tooltip } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterBar from './FilterBar';
@@ -232,6 +232,23 @@ export default function PropertiesTab({
       .replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  // Helper function to get behavior type color
+  const getBehaviorTypeColor = (behaviorType: string): string => {
+    const type = String(behaviorType).toLowerCase().trim();
+    
+    if (type === 'positive') {
+      return '#10B981'; // Green
+    } else if (type === 'negative (critical)' || type === 'negative(critical)') {
+      return '#EF4444'; // Red
+    } else if (type === 'negative (non-critical)' || type === 'negative(non-critical)') {
+      return '#F97316'; // Orange
+    } else if (type === 'style') {
+      return '#8B5CF6'; // Purple
+    }
+    
+    return 'transparent'; // Default/no color
+  };
+
   // Helper function to format cell values
   const formatCellValue = (value: any, columnName: string, rowData: any): React.ReactNode => {
     if (value === null || value === undefined) return '';
@@ -263,6 +280,30 @@ export default function PropertiesTab({
       displayValue = String(value);
     } else {
       displayValue = String(value);
+    }
+    
+    // Special handling for property_description with unexpected behavior flag
+    if (columnName === 'property_description') {
+      const isUnexpectedBehavior = rowData?.unexpected_behavior === true || 
+                                   rowData?.unexpected_behavior === 'true' ||
+                                   String(rowData?.unexpected_behavior || '').toLowerCase() === 'true';
+      
+      if (isUnexpectedBehavior) {
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+            <Tooltip title="Flagged as a strange behavior" arrow>
+              <Typography component="span" sx={{ fontSize: '14px', color: '#EF4444' }}>
+                ⚠️
+              </Typography>
+            </Tooltip>
+            <FormattedCell 
+              text={displayValue} 
+              maxLength={300}
+              isPrompt={false}
+            />
+          </Box>
+        );
+      }
     }
     
     // Use FormattedCell for all text content (with expandable functionality)
@@ -309,9 +350,216 @@ export default function PropertiesTab({
   const endIdx = Math.min(filtered.length, startIdx + PAGE_SIZE);
   const pageRows = React.useMemo(() => filtered.slice(startIdx, endIdx), [filtered, startIdx, endIdx]);
 
+  // Calculate behavior type and unexpected behavior counts
+  const behaviorCounts = React.useMemo(() => {
+    const counts = {
+      positive: 0,
+      negativeCritical: 0,
+      negativeNonCritical: 0,
+      style: 0,
+      unexpected: 0
+    };
+
+    filtered.forEach(row => {
+      // Count unexpected behaviors
+      const isUnexpected = row?.unexpected_behavior === true || 
+                          row?.unexpected_behavior === 'true' ||
+                          String(row?.unexpected_behavior || '').toLowerCase() === 'true';
+      if (isUnexpected) {
+        counts.unexpected++;
+      }
+
+      // Find behavior type column and count
+      const behaviorTypeColumn = availableColumns.find(col => 
+        col.toLowerCase().includes('behavior') && col.toLowerCase().includes('type')
+      );
+      
+      if (behaviorTypeColumn) {
+        const behaviorType = String(row[behaviorTypeColumn] || '').toLowerCase().trim();
+        
+        if (behaviorType === 'positive') {
+          counts.positive++;
+        } else if (behaviorType === 'negative (critical)' || behaviorType === 'negative(critical)') {
+          counts.negativeCritical++;
+        } else if (behaviorType === 'negative (non-critical)' || behaviorType === 'negative(non-critical)') {
+          counts.negativeNonCritical++;
+        } else if (behaviorType === 'style') {
+          counts.style++;
+        }
+      }
+    });
+
+    return counts;
+  }, [filtered, availableColumns]);
+
   return (
     <Box>
       {/* (Prompt/task description controls intentionally not included here) */}
+
+      {/* Behavior Summary */}
+      <Box sx={{ 
+        mb: 1.5, 
+        mt: 2,
+        display: 'flex',
+        justifyContent: 'center'
+      }}>
+        <Box sx={{ 
+          p: 2.5, 
+          backgroundColor: '#ffffff',
+          borderRadius: 2,
+          border: '2px solid transparent',
+          backgroundImage: 'linear-gradient(white, white), linear-gradient(90deg, #2563eb, #10b981)',
+          backgroundOrigin: 'border-box',
+          backgroundClip: 'padding-box, border-box',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08)',
+          display: 'inline-flex',
+          flexWrap: 'wrap',
+          gap: 6,
+          alignItems: 'flex-start',
+          justifyContent: 'center'
+        }}>
+        {/* Property Counts */}
+        <Box>
+          <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
+            Property Counts
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Chip
+              label={
+                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#10B981' }}>
+                    {behaviorCounts.positive}
+                  </Typography>
+                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#10B981' }}>
+                    Positive
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: '#10B98115',
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
+                '& .MuiChip-label': {
+                  px: 0
+                }
+              }}
+            />
+            
+            <Chip
+              label={
+                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#EF4444' }}>
+                    {behaviorCounts.negativeCritical}
+                  </Typography>
+                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>
+                    Negative (Critical)
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: '#EF444415',
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
+                '& .MuiChip-label': {
+                  px: 0
+                }
+              }}
+            />
+            
+            <Chip
+              label={
+                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#F97316' }}>
+                    {behaviorCounts.negativeNonCritical}
+                  </Typography>
+                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#F97316' }}>
+                    Negative (Non-Critical)
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: '#F9731615',
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
+                '& .MuiChip-label': {
+                  px: 0
+                }
+              }}
+            />
+            
+            <Chip
+              label={
+                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#8B5CF6' }}>
+                    {behaviorCounts.style}
+                  </Typography>
+                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#8B5CF6' }}>
+                    Style
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: '#8B5CF615',
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
+                '& .MuiChip-label': {
+                  px: 0
+                }
+              }}
+            />
+          </Box>
+        </Box>
+
+        {/* Unexpected */}
+        <Box>
+          <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
+            Unexpected
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip
+              label={
+                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#92400E' }}>
+                    {behaviorCounts.unexpected}
+                  </Typography>
+                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#92400E' }}>
+                    Unexpected
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: '#92400E15',
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
+                '& .MuiChip-label': {
+                  px: 0
+                }
+              }}
+            />
+          </Box>
+        </Box>
+        </Box>
+      </Box>
 
       <FilterBar
         searchValue={query}
@@ -379,7 +627,7 @@ export default function PropertiesTab({
                             fontSize: 12, 
                             letterSpacing: 0.4, 
                             textTransform: 'uppercase',
-                            minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 250 : 'auto'
+                            minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 280 : 'auto'
                           }}
                         >
                           {formatColumnName(column)}
@@ -397,17 +645,24 @@ export default function PropertiesTab({
                       const rowsSlice = group.rows.slice(start, end);
                       return rowsSlice.map((p, i) => (
                         <TableRow key={i} hover>
-                          {availableColumns.map((column) => (
-                            <TableCell 
-                              key={column}
-                              sx={{ 
-                                maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 300 : 200,
-                                verticalAlign: 'top'
-                              }}
-                            >
-                              {formatCellValue(p[column], column, p)}
-                            </TableCell>
-                          ))}
+                          {availableColumns.map((column) => {
+                            const isBehaviorType = column.toLowerCase().includes('behavior') && column.toLowerCase().includes('type');
+                            const textColor = isBehaviorType ? getBehaviorTypeColor(p[column]) : 'inherit';
+                            
+                            return (
+                              <TableCell 
+                                key={column}
+                                sx={{ 
+                                  maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 350 : 200,
+                                  verticalAlign: 'top',
+                                  color: textColor,
+                                  fontWeight: textColor !== 'inherit' ? 600 : 'inherit'
+                                }}
+                              >
+                                {formatCellValue(p[column], column, p)}
+                              </TableCell>
+                            );
+                          })}
                         </TableRow>
                       ));
                     })()}
@@ -444,7 +699,7 @@ export default function PropertiesTab({
                         fontSize: 12, 
                         letterSpacing: 0.4, 
                         textTransform: 'uppercase',
-                        minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 250 : 'auto'
+                        minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 280 : 'auto'
                       }}
                     >
                       {formatColumnName(column)}
@@ -456,17 +711,24 @@ export default function PropertiesTab({
                 {pageRows.map((p, i) => {
                   const row = (
                     <TableRow key={i} hover>
-                      {availableColumns.map((column) => (
-                        <TableCell 
-                          key={column}
-                          sx={{ 
-                            maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 300 : 200,
-                            verticalAlign: 'top'
-                          }}
-                        >
-                          {formatCellValue(p[column], column, p)}
-                        </TableCell>
-                      ))}
+                      {availableColumns.map((column) => {
+                        const isBehaviorType = column.toLowerCase().includes('behavior') && column.toLowerCase().includes('type');
+                        const textColor = isBehaviorType ? getBehaviorTypeColor(p[column]) : 'inherit';
+                        
+                        return (
+                          <TableCell 
+                            key={column}
+                            sx={{ 
+                              maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 350 : 200,
+                              verticalAlign: 'top',
+                              color: textColor,
+                              fontWeight: textColor !== 'inherit' ? 600 : 'inherit'
+                            }}
+                          >
+                            {formatCellValue(p[column], column, p)}
+                          </TableCell>
+                        );
+                      })}
                     </TableRow>
                   );
                   // Slow staggered fade similar to DataTable
