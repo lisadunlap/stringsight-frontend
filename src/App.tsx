@@ -1,5 +1,8 @@
 import React, { useState, useCallback, useMemo, useRef, Component } from "react";
 import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress } from "@mui/material";
+import DownloadIcon from '@mui/icons-material/Download';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -541,16 +544,16 @@ function App() {
         console.log(`🔍 Processing file: ${file.name} (${text.length} bytes)`);
 
         try {
-          if (name === 'conversation.jsonl') {
-            // New primary format: conversation.jsonl
+          if (name === 'conversation.jsonl' || name === 'conversations.jsonl') {
+            // Primary formats: conversation.jsonl or conversations.jsonl
             const lines = text.split('\n').filter(l => l.trim());
             conversations = lines.map(line => JSON.parse(line));
             console.log(`✅ Loaded ${conversations.length} conversations from ${file.name}`);
             console.log(`📊 Sample conversation:`, conversations[0]);
           } else if (name === 'full_dataset.json' || name === 'conversations.json') {
-            // Only load if we don't already have conversations from conversation.jsonl
+            // Only load if we don't already have conversations from .jsonl files
             if (conversations.length > 0) {
-              console.log(`⏭️ Skipping ${file.name} - already loaded conversations from conversation.jsonl`);
+              console.log(`⏭️ Skipping ${file.name} - already loaded conversations from .jsonl file`);
               continue;
             }
 
@@ -633,7 +636,7 @@ function App() {
       }
 
       if (conversations.length === 0) {
-        throw new Error('No conversation data found. Expected file named "conversation.jsonl", "full_dataset.json", or "conversations.json"');
+        throw new Error('No conversation data found. Expected file named "conversation.jsonl", "conversations.jsonl", "full_dataset.json", or "conversations.json"');
       }
 
       // Set up conversations with three-layer data structure
@@ -2436,7 +2439,7 @@ function App() {
         />
 
         {/* Tabs for switching between Data, Properties, and Clusters */}
-        <Box sx={{ mb: 1 }}>
+        <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Tabs
             value={activeTab}
             onChange={(_, v) => {
@@ -2445,6 +2448,7 @@ function App() {
             }}
             textColor="primary"
             indicatorColor="primary"
+            sx={{ flex: 1 }}
           >
             <Tab value="table" label="Data" />
             {propertiesRows.length > 0 && (
@@ -2457,6 +2461,48 @@ function App() {
               <Tab value="metrics" label="Metrics" />
             )}
           </Tabs>
+          {clusters.length > 0 && (
+            <Button
+              startIcon={<DownloadIcon />}
+              onClick={async () => {
+                try {
+                  const zip = new JSZip();
+                  zip.file('clusters.jsonl', clusters.map(c => JSON.stringify(c)).join('\n'));
+                  zip.file('properties.jsonl', propertiesRows.map(p => JSON.stringify(p)).join('\n'));
+                  
+                  if (operationalRows.length > 0) {
+                    zip.file('conversations.jsonl', operationalRows.map(r => JSON.stringify(r)).join('\n'));
+                  }
+                  
+                  if (resultsMetrics?.model_cluster_scores && resultsMetrics.model_cluster_scores.length > 0) {
+                    zip.file('model_cluster_scores_df.jsonl', 
+                      resultsMetrics.model_cluster_scores.map(m => JSON.stringify(m)).join('\n'));
+                  }
+                  
+                  if (resultsMetrics?.cluster_scores && resultsMetrics.cluster_scores.length > 0) {
+                    zip.file('cluster_scores_df.jsonl',
+                      resultsMetrics.cluster_scores.map(m => JSON.stringify(m)).join('\n'));
+                  }
+                  
+                  if (resultsMetrics?.model_scores && resultsMetrics.model_scores.length > 0) {
+                    zip.file('model_scores_df.jsonl',
+                      resultsMetrics.model_scores.map(m => JSON.stringify(m)).join('\n'));
+                  }
+                  
+                  const blob = await zip.generateAsync({ type: 'blob' });
+                  const filename = `clustering_results_${new Date().toISOString().slice(0,10)}.zip`;
+                  saveAs(blob, filename);
+                } catch (err) {
+                  console.error('Download failed:', err);
+                  alert('Failed to download results');
+                }
+              }}
+              variant="outlined"
+              size="small"
+            >
+              Download Results
+            </Button>
+          )}
         </Box>
 
         {/* Content based on active tab */}

@@ -36,6 +36,7 @@ function formatPercent(p?: number): string {
 }
 
 function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversations, onOpenPropertyById, getPropertiesRows, onRequestRecompute, externalSearchQuery, modelClusterScores }: ClustersTabProps) {
+
   // Enrich clusters with metrics data at render time
   const enrichedClusters = React.useMemo(() => {
     if (!modelClusterScores || modelClusterScores.length === 0) {
