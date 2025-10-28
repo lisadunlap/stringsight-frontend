@@ -57,10 +57,16 @@ const FilterSummary: React.FC<FilterSummaryProps> = ({
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           {operations.map((operation, index) => {
             const colors = getOperationColor(operation.type);
+            // Calculate filter-specific index for operator display
+            const filterOperations = operations.filter(op => op.type === 'filter');
+            const filterIndex = operation.type === 'filter'
+              ? filterOperations.findIndex(op => op.id === operation.id)
+              : undefined;
+
             return (
               <Chip
                 key={operation.id}
-                label={`${index + 1}. ${getOperationTypeLabel(operation.type)}: ${getOperationDescription(operation)}`}
+                label={`${index + 1}. ${getOperationTypeLabel(operation.type)}: ${getOperationDescription(operation, filterIndex)}`}
                 onDelete={() => onRemoveOperation(operation.id)}
                 size="small"
                 sx={{

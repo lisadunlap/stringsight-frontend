@@ -77,10 +77,21 @@ export function normalizeMetricsColumnNames(metricsData: {
   cluster_scores?: any[];
   model_scores?: any[];
 }) {
+  console.log('[normalize] normalizeMetricsColumnNames called with:', {
+    has_model_cluster_scores: !!metricsData.model_cluster_scores,
+    model_cluster_scores_length: metricsData.model_cluster_scores?.length,
+    sample_row_keys: metricsData.model_cluster_scores?.[0] ? Object.keys(metricsData.model_cluster_scores[0]) : []
+  });
+
   function normalizeRows(rows: any[]): any[] {
     if (!rows || !Array.isArray(rows)) return rows;
 
-    return rows.map(row => {
+    return rows.map((row, index) => {
+      if (index === 0) {
+        console.log('[normalize] First row before normalization:', row);
+        console.log('[normalize] Has quality object?', typeof row.quality === 'object' && row.quality !== null);
+        console.log('[normalize] Has quality_delta object?', typeof row.quality_delta === 'object' && row.quality_delta !== null);
+      }
       const normalized = { ...row };
       const keysToRename: Array<{ oldKey: string; newKey: string }> = [];
 
@@ -133,15 +144,80 @@ export function normalizeMetricsColumnNames(metricsData: {
         delete normalized[oldKey];
       });
 
+      // Flatten nested quality objects (quality: {metric: value} -> quality_metric: value)
+      if (normalized.quality && typeof normalized.quality === 'object' && !Array.isArray(normalized.quality)) {
+        Object.entries(normalized.quality).forEach(([metric, value]) => {
+          normalized[`quality_${metric}`] = value;
+        });
+        delete normalized.quality;
+      }
+
+      // Flatten nested quality_delta objects (quality_delta: {metric: value} -> quality_delta_metric: value)
+      if (normalized.quality_delta && typeof normalized.quality_delta === 'object' && !Array.isArray(normalized.quality_delta)) {
+        Object.entries(normalized.quality_delta).forEach(([metric, value]) => {
+          normalized[`quality_delta_${metric}`] = value;
+        });
+        delete normalized.quality_delta;
+      }
+
+      // Flatten nested quality_ci objects if present
+      if (normalized.quality_ci && typeof normalized.quality_ci === 'object' && !Array.isArray(normalized.quality_ci)) {
+        Object.entries(normalized.quality_ci).forEach(([metric, value]) => {
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // Handle nested CI structure like {metric: {lower: x, upper: y}}
+            Object.entries(value as Record<string, any>).forEach(([ciKey, ciValue]) => {
+              normalized[`quality_${metric}_ci_${ciKey}`] = ciValue;
+            });
+          } else {
+            normalized[`quality_${metric}_ci`] = value;
+          }
+        });
+        delete normalized.quality_ci;
+      }
+
+      // Flatten nested quality_delta_ci objects if present
+      if (normalized.quality_delta_ci && typeof normalized.quality_delta_ci === 'object' && !Array.isArray(normalized.quality_delta_ci)) {
+        Object.entries(normalized.quality_delta_ci).forEach(([metric, value]) => {
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // Handle nested CI structure like {metric: {lower: x, upper: y}}
+            Object.entries(value as Record<string, any>).forEach(([ciKey, ciValue]) => {
+              normalized[`quality_delta_${metric}_ci_${ciKey}`] = ciValue;
+            });
+          } else {
+            normalized[`quality_delta_${metric}_ci`] = value;
+          }
+        });
+        delete normalized.quality_delta_ci;
+      }
+
+      // Flatten nested quality_delta_significant objects if present
+      if (normalized.quality_delta_significant && typeof normalized.quality_delta_significant === 'object' && !Array.isArray(normalized.quality_delta_significant)) {
+        Object.entries(normalized.quality_delta_significant).forEach(([metric, value]) => {
+          normalized[`quality_delta_${metric}_significant`] = value;
+        });
+        delete normalized.quality_delta_significant;
+      }
+
+      if (index === 0) {
+        console.log('[normalize] First row after normalization:', normalized);
+        const qualityKeys = Object.keys(normalized).filter(k => k.startsWith('quality_'));
+        console.log('[normalize] Quality keys in normalized row:', qualityKeys);
+      }
+
       return normalized;
     });
   }
 
-  return {
+  const result = {
     model_cluster_scores: normalizeRows(metricsData.model_cluster_scores),
     cluster_scores: normalizeRows(metricsData.cluster_scores),
     model_scores: normalizeRows(metricsData.model_scores)
   };
+
+  console.log('[normalize] Normalization complete. Result sample keys:',
+    result.model_cluster_scores?.[0] ? Object.keys(result.model_cluster_scores[0]) : []);
+
+  return result;
 }
 
 

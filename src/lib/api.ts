@@ -267,11 +267,13 @@ export async function runClustering(body: {
   properties: any[];
   params: { minClusterSize?: number | null; embeddingModel: string; groupBy?: 'none' | 'category' | 'behavior_type'; summarizationModel?: string; matchingModel?: string };
   score_columns?: string[];
+  method?: 'single_model' | 'side_by_side' | 'unknown';
+  model_column_map?: Record<string, string>; // e.g., {"gpt-4": "model_a", "claude-3": "model_b"}
 }) {
   const res = await fetch(`${API_BASE}/cluster/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ 
-    clusters: any[]; 
+  return res.json() as Promise<{
+    clusters: any[];
     total_conversations_by_model?: Record<string, number>;
     total_unique_conversations?: number;
     metrics?: {
@@ -288,11 +290,13 @@ export async function recomputeClusterMetrics(body: {
   operationalRows: any[];
   included_property_ids?: string[];
   score_columns?: string[];
+  method?: 'single_model' | 'side_by_side' | 'unknown';
+  model_column_map?: Record<string, string>; // e.g., {"gpt-4": "model_a", "claude-3": "model_b"}
 }) {
   const res = await fetch(`${API_BASE}/cluster/metrics`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ 
-    clusters: any[]; 
+  return res.json() as Promise<{
+    clusters: any[];
     total_conversations_by_model?: Record<string, number>;
     total_unique_conversations?: number;
   }>;

@@ -336,7 +336,8 @@ export default function PropertyExtractionPanel({
     if (!jobId) return;
     try {
       await extractJobCancel(jobId);
-      setJobState('cancelled');
+      // Don't set state here - let the polling loop detect the cancelled state from the server
+      // to avoid race conditions where local state is overwritten by the next poll
     } catch (e: any) {
       setErrorMsg(`Failed to cancel: ${String(e?.message || e)}`);
     }
@@ -367,20 +368,49 @@ export default function PropertyExtractionPanel({
 
       onBatchStatus?.(0, 'clustering', 'clustering', `Clustering ${properties.length} properties...`);
 
-      const scoreColumns = operationalRows[0] ? Object.keys(operationalRows[0]).filter(k => k.startsWith('score_')) : [];
+      // Detect score columns - look for both flat columns (score_metric) and nested objects (score, score_a, score_b)
+      const scoreColumns = operationalRows[0] ? Object.keys(operationalRows[0]).filter(k => {
+        const key = k.toLowerCase();
+        return key.startsWith('score_') || key === 'score' || key === 'score_a' || key === 'score_b';
+      }) : [];
+
+      console.log('🔍 Detected score columns:', scoreColumns);
+      console.log('🔍 Sample score values:', scoreColumns.map(k => ({ [k]: operationalRows[0]?.[k] })));
+
+      // For side-by-side: create model-to-column mapping so backend knows which score belongs to which model
+      let modelColumnMap: Record<string, string> | undefined;
+      if (method === 'side_by_side' && operationalRows[0]) {
+        const firstRow = operationalRows[0];
+        modelColumnMap = {};
+
+        // Map actual model names to their column identifiers
+        if (firstRow.model_a) {
+          modelColumnMap[firstRow.model_a] = 'model_a';
+        }
+        if (firstRow.model_b) {
+          modelColumnMap[firstRow.model_b] = 'model_b';
+        }
+
+        console.log('🔍 Created model column map:', modelColumnMap);
+        console.log('🔍 This maps property.model values to score column prefixes');
+      }
 
       const body = {
         operationalRows,
         properties,
         params: { minClusterSize, embeddingModel, groupBy, summarizationModel, matchingModel },
         score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
+        method,
+        model_column_map: modelColumnMap,
       };
 
       console.log('🔍 Clustering request body:', {
         operationalRowsCount: body.operationalRows.length,
         propertiesCount: body.properties.length,
         params: body.params,
-        score_columns: body.score_columns
+        score_columns: body.score_columns,
+        method: body.method,
+        model_column_map: body.model_column_map
       });
 
       const res = await runClustering(body as any);
@@ -732,7 +762,7 @@ export default function PropertyExtractionPanel({
           borderRadius: 1
         }}>
           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-            Last extraction result
+            Properties extracted
           </Typography>
 
           {method === 'side_by_side' ? (

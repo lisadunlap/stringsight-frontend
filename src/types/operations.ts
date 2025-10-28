@@ -10,6 +10,7 @@ export interface FilterOperation extends BaseOperation {
   column: string;
   values: string[];
   negated: boolean;
+  operator?: 'AND' | 'OR'; // Operator to use BEFORE this filter (undefined for first filter)
 }
 
 export interface CustomCodeOperation extends BaseOperation {
@@ -31,15 +32,17 @@ export interface OperationChain {
 
 // Helper functions for operation management
 export const createFilterOperation = (
-  column: string, 
-  values: string[], 
-  negated: boolean = false
+  column: string,
+  values: string[],
+  negated: boolean = false,
+  operator?: 'AND' | 'OR'
 ): FilterOperation => ({
   id: `filter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   type: 'filter',
   column,
   values,
   negated,
+  operator,
   timestamp: Date.now()
 });
 
@@ -62,10 +65,11 @@ export const createSortOperation = (
 });
 
 // Operation display helpers
-export const getOperationDescription = (operation: DataOperation): string => {
+export const getOperationDescription = (operation: DataOperation, index?: number): string => {
   switch (operation.type) {
     case 'filter':
-      return `${operation.column}: ${operation.negated ? 'NOT ' : ''}${operation.values.join(', ')}`;
+      const operatorPrefix = operation.operator && index !== undefined && index > 0 ? `${operation.operator} ` : '';
+      return `${operatorPrefix}${operation.column}: ${operation.negated ? 'NOT ' : ''}${operation.values.join(', ')}`;
     case 'custom':
       return operation.code.length > 50 ? `${operation.code.slice(0, 50)}...` : operation.code;
     case 'sort':

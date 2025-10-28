@@ -9,6 +9,7 @@ interface Filter {
   column: string;
   values: string[];
   negated: boolean;
+  operator?: 'AND' | 'OR';
 }
 
 export default function PropertiesTab({
@@ -186,14 +187,34 @@ export default function PropertiesTab({
       });
     }
     
-    // Apply column filters
-    filters.forEach(filter => {
-      result = result.filter(r => {
-        const value = String(r?.[filter.column] || '');
-        const matches = filter.values.includes(value);
-        return filter.negated ? !matches : matches;
+    // Apply column filters with AND/OR logic
+    if (filters.length > 0) {
+      result = result.filter(row => {
+        // For each row, evaluate all filters according to their operators
+        let combinedResult = false;
+
+        filters.forEach((filter, index) => {
+          const value = String(row?.[filter.column] || '');
+          const matches = filter.values.includes(value);
+          const filterResult = filter.negated ? !matches : matches;
+
+          if (index === 0) {
+            // First filter: no operator, just use the result
+            combinedResult = filterResult;
+          } else {
+            // Subsequent filters: apply operator
+            if (filter.operator === 'OR') {
+              combinedResult = combinedResult || filterResult;
+            } else {
+              // Default to AND
+              combinedResult = combinedResult && filterResult;
+            }
+          }
+        });
+
+        return combinedResult;
       });
-    });
+    }
     
     return result;
   }, [enrichedRows, query, filters, availableColumns]);
@@ -201,19 +222,25 @@ export default function PropertiesTab({
   // Filter management functions
   const addFilter = React.useCallback(() => {
     if (!pendingColumn || pendingValues.length === 0) return;
+    const operator = filters.length > 0 ? 'AND' : undefined;
     const newFilter: Filter = {
       column: pendingColumn,
       values: pendingValues,
-      negated: pendingNegated
+      negated: pendingNegated,
+      operator
     };
     setFilters(prev => [...prev, newFilter]);
     setPendingColumn(null);
     setPendingValues([]);
     setPendingNegated(false);
-  }, [pendingColumn, pendingValues, pendingNegated]);
+  }, [pendingColumn, pendingValues, pendingNegated, filters.length]);
 
   const removeFilter = React.useCallback((index: number) => {
     setFilters(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const changeFilterOperator = React.useCallback((index: number, operator: 'AND' | 'OR') => {
+    setFilters(prev => prev.map((f, i) => i === index ? { ...f, operator } : f));
   }, []);
 
   const resetAll = React.useCallback(() => {
@@ -528,9 +555,11 @@ export default function PropertiesTab({
 
         {/* Unexpected */}
         <Box>
-          <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
-            Unexpected
-          </Typography>
+          <Tooltip title="Properties flagged as exhibiting strange or unexpected behaviors that don't fit typical patterns" arrow>
+            <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px', cursor: 'help' }}>
+              Unexpected
+            </Typography>
+          </Tooltip>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Chip
               label={
@@ -579,6 +608,7 @@ export default function PropertiesTab({
         onAddFilter={addFilter}
         filters={filters}
         onRemoveFilter={removeFilter}
+        onChangeFilterOperator={changeFilterOperator}
         uniqueValuesFor={uniqueValuesFor}
         resultCount={filtered.length}
         resultLabel="properties"

@@ -86,8 +86,8 @@ export function MetricsInsightsOverview({
   });
 
   const insights = useMemo(() => {
-    if (!data.length || qualityMetrics.length === 0) {
-      console.log('[MetricsInsightsOverview] Early return - no data or quality metrics');
+    if (!data.length) {
+      console.log('[MetricsInsightsOverview] Early return - no data');
       return {
         commonFailures: [],
         uniqueBehaviors: [],
@@ -185,89 +185,94 @@ export function MetricsInsightsOverview({
     // - Negative behaviors with positive quality delta
     // - Style behaviors with any quality delta (positive or negative)
     // Aggregate deltas across all models for each cluster
+    // Note: This section requires quality metrics, so skip if none are available
 
-    const misalignedMap = new Map<string, { category: string; metricDeltas: Map<string, { deltas: number[]; significances: boolean[] }> }>();
+    // Initialize misaligned patterns array (may remain empty if no quality metrics)
+    let misalignedPatterns: MisalignedPattern[] = [];
 
-    filteredData.forEach(row => {
-      const group = normalizeGroup(row.metadata?.group);
+    // Only compute misaligned patterns if we have quality metrics
+    if (qualityMetrics.length > 0) {
+      const misalignedMap = new Map<string, { category: string; metricDeltas: Map<string, { deltas: number[]; significances: boolean[] }> }>();
 
-      // Check if this is a negative or style behavior (NOT positive)
-      const isNegative = group === 'negative_critical' || group === 'negative_non_critical';
-      const isStylistic = group === 'style';
+      filteredData.forEach(row => {
+        const group = normalizeGroup(row.metadata?.group);
 
-      if (!isNegative && !isStylistic) return;
+        // Check if this is a negative or style behavior (NOT positive)
+        const isNegative = group === 'negative_critical' || group === 'negative_non_critical';
+        const isStylistic = group === 'style';
 
-      qualityMetrics.forEach(metric => {
-        const qualityDeltaKey = `quality_delta_${metric}`;
-        const significantKey = `quality_delta_${metric}_significant`;
-        const delta = row[qualityDeltaKey as keyof ModelClusterRow] as number | undefined;
-        const significant = row[significantKey as keyof ModelClusterRow] as boolean | undefined;
+        if (!isNegative && !isStylistic) return;
 
-        if (typeof delta !== 'number' || !isFinite(delta)) return;
+        qualityMetrics.forEach(metric => {
+          const qualityDeltaKey = `quality_delta_${metric}`;
+          const significantKey = `quality_delta_${metric}_significant`;
+          const delta = row[qualityDeltaKey as keyof ModelClusterRow] as number | undefined;
+          const significant = row[significantKey as keyof ModelClusterRow] as boolean | undefined;
 
-        // For negative behaviors: only include if delta > 0 (positive impact)
-        // For stylistic behaviors: include any delta (positive or negative)
-        const shouldInclude = isNegative ? delta > 0 : true;
+          if (typeof delta !== 'number' || !isFinite(delta)) return;
 
-        if (!shouldInclude) return;
+          // For negative behaviors: only include if delta > 0 (positive impact)
+          // For stylistic behaviors: include any delta (positive or negative)
+          const shouldInclude = isNegative ? delta > 0 : true;
 
-        // Apply significance filter if enabled
-        if (filters.significanceOnly && !significant) return;
+          if (!shouldInclude) return;
 
-        if (!misalignedMap.has(row.cluster)) {
-          misalignedMap.set(row.cluster, {
-            category: group,
-            metricDeltas: new Map()
-          });
-        }
+          // Apply significance filter if enabled
+          if (filters.significanceOnly && !significant) return;
 
-        const clusterData = misalignedMap.get(row.cluster)!;
+          if (!misalignedMap.has(row.cluster)) {
+            misalignedMap.set(row.cluster, {
+              category: group,
+              metricDeltas: new Map()
+            });
+          }
 
-        if (!clusterData.metricDeltas.has(metric)) {
-          clusterData.metricDeltas.set(metric, { deltas: [], significances: [] });
-        }
+          const clusterData = misalignedMap.get(row.cluster)!;
 
-        clusterData.metricDeltas.get(metric)!.deltas.push(delta);
-        clusterData.metricDeltas.get(metric)!.significances.push(significant || false);
-      });
-    });
+          if (!clusterData.metricDeltas.has(metric)) {
+            clusterData.metricDeltas.set(metric, { deltas: [], significances: [] });
+          }
 
-    // Convert to array and compute average deltas
-    // Only include metrics where at least one model showed significant impact
-    const misalignedPatterns: MisalignedPattern[] = [];
-
-    misalignedMap.forEach((data, cluster) => {
-      const metricsImpacted: { metric: string; avgDelta: number; significant: boolean }[] = [];
-
-      data.metricDeltas.forEach((metricData, metric) => {
-        const avgDelta = metricData.deltas.reduce((sum, d) => sum + d, 0) / metricData.deltas.length;
-        const anySig = metricData.significances.some(s => s);
-
-        // Only include this metric if at least one model had a significant impact
-        if (anySig) {
-          metricsImpacted.push({
-            metric,
-            avgDelta,
-            significant: anySig
-          });
-        }
-      });
-
-      if (metricsImpacted.length > 0) {
-        misalignedPatterns.push({
-          cluster,
-          category: data.category,
-          metricsImpacted
+          clusterData.metricDeltas.get(metric)!.deltas.push(delta);
+          clusterData.metricDeltas.get(metric)!.significances.push(significant || false);
         });
-      }
-    });
+      });
 
-    // Sort by total absolute impact (sum of |avgDelta|)
-    misalignedPatterns.sort((a, b) => {
-      const aImpact = a.metricsImpacted.reduce((sum, m) => sum + Math.abs(m.avgDelta), 0);
-      const bImpact = b.metricsImpacted.reduce((sum, m) => sum + Math.abs(m.avgDelta), 0);
-      return bImpact - aImpact;
-    });
+      // Convert to array and compute average deltas
+      // Only include metrics where at least one model showed significant impact
+      misalignedMap.forEach((data, cluster) => {
+        const metricsImpacted: { metric: string; avgDelta: number; significant: boolean }[] = [];
+
+        data.metricDeltas.forEach((metricData, metric) => {
+          const avgDelta = metricData.deltas.reduce((sum, d) => sum + d, 0) / metricData.deltas.length;
+          const anySig = metricData.significances.some(s => s);
+
+          // Only include this metric if at least one model had a significant impact
+          if (anySig) {
+            metricsImpacted.push({
+              metric,
+              avgDelta,
+              significant: anySig
+            });
+          }
+        });
+
+        if (metricsImpacted.length > 0) {
+          misalignedPatterns.push({
+            cluster,
+            category: data.category,
+            metricsImpacted
+          });
+        }
+      });
+
+      // Sort by total absolute impact (sum of |avgDelta|)
+      misalignedPatterns.sort((a, b) => {
+        const aImpact = a.metricsImpacted.reduce((sum, m) => sum + Math.abs(m.avgDelta), 0);
+        const bImpact = b.metricsImpacted.reduce((sum, m) => sum + Math.abs(m.avgDelta), 0);
+        return bImpact - aImpact;
+      });
+    }
 
     return {
       commonFailures,
@@ -277,8 +282,10 @@ export function MetricsInsightsOverview({
     };
   }, [data, filters, qualityMetrics]);
 
-  if (!data.length || qualityMetrics.length === 0) {
-    console.log('[MetricsInsightsOverview] Component returning null - no data or quality metrics');
+  // Only return null if there's no data at all
+  // We can still show Common Failures and Unique Behaviors without quality metrics
+  if (!data.length) {
+    console.log('[MetricsInsightsOverview] Component returning null - no data');
     return null;
   }
 
@@ -561,18 +568,19 @@ export function MetricsInsightsOverview({
           )}
         </Paper>
 
-        {/* 3. MISALIGNED PATTERNS */}
-        <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-            <WarningAmberIcon sx={{ fontSize: 20, color: 'warning.main' }} />
-            <Typography variant="h6">
-              Misaligned Patterns
-            </Typography>
-          </Stack>
+        {/* 3. MISALIGNED PATTERNS - Only show if quality metrics are available */}
+        {qualityMetrics.length > 0 && (
+          <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+              <WarningAmberIcon sx={{ fontSize: 20, color: 'warning.main' }} />
+              <Typography variant="h6">
+                Misaligned Patterns
+              </Typography>
+            </Stack>
 
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Shows only statistically significant quality metric impacts. Negative behaviors that improve metrics, and style behaviors with quality impact.
-          </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Shows only statistically significant quality metric impacts. Negative behaviors that improve metrics, and style behaviors with quality impact.
+            </Typography>
 
           {insights.misalignedPatterns.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
@@ -688,7 +696,8 @@ export function MetricsInsightsOverview({
               </Stack>
             );
           })()}
-        </Paper>
+          </Paper>
+        )}
       </Stack>
     </Box>
   );

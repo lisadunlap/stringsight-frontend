@@ -125,6 +125,12 @@ export function MetricsTab({
       }
     });
     
+    // Debug: Log ALL keys from first row to see what we're working with
+    if (modelClusterScores[0]) {
+      console.log('[MetricsTab] ALL keys in first row:', Object.keys(modelClusterScores[0]));
+      console.log('[MetricsTab] Sample row:', modelClusterScores[0]);
+    }
+
     // Extract base quality metrics from JSONL format (exclude delta/significance/CI)
     const qualityMetrics = new Set<string>();
     modelClusterScores.forEach((row: any) => {

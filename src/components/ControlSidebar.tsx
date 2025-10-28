@@ -204,7 +204,7 @@ export default function ControlSidebar({
   }
 
   return (
-    <Drawer anchor="left" open={open} onClose={onClose} variant="persistent" sx={{ '& .MuiDrawer-paper': { width: 480, p: 2 } }}>
+    <Drawer anchor="left" open={open} onClose={onClose} variant="persistent" sx={{ '& .MuiDrawer-paper': { width: 650, p: 2 } }}>
       <Stack spacing={2}>
         <Stack direction="row" alignItems="center" justifyContent="space-between">
           <Typography variant="h6">Pipeline Controls</Typography>
@@ -225,7 +225,7 @@ export default function ControlSidebar({
             renderInput={(params) => <TextField {...params} label="Prompt" />}
           />
         )}
-        <Typography variant="caption" sx={{ color: '#64748B' }}>{promptOptions.length} prompts available</Typography>
+        {/* <Typography variant="caption" sx={{ color: '#64748B' }}>{promptOptions.length} prompts available</Typography> */}
         {useCustom && (
           <TextField
             label="Custom system prompt"
@@ -282,7 +282,7 @@ export default function ControlSidebar({
 
         {lastExtractProps.length > 0 && (
           <Box sx={{ p: 1, border: '1px solid #E5E7EB', background: '#FFFFFF', borderRadius: 1 }}>
-            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Last extraction result</Typography>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Properties extracted</Typography>
             <Stack spacing={1}>
               {lastExtractProps.map((p, i) => (
                 <Accordion key={i} disableGutters sx={{ boxShadow: 'none', border: '1px solid #F1F5F9', borderRadius: 1, background: '#F8FAFC' }}

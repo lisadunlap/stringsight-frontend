@@ -34,10 +34,10 @@ function IconButtonItem({ icon, tooltip, active, onClick, disabled = false, high
             width: 48,
             height: 48,
             borderRadius: 2,
-            backgroundColor: active ? 'primary.main' : highlight ? 'warning.main' : 'transparent',
-            color: active ? 'primary.contrastText' : highlight ? 'warning.contrastText' : 'text.secondary',
+            backgroundColor: active ? 'primary.main' : 'transparent',
+            color: active ? 'primary.contrastText' : highlight ? 'warning.main' : 'text.secondary',
             '&:hover': {
-              backgroundColor: active ? 'primary.dark' : highlight ? 'warning.dark' : 'action.hover',
+              backgroundColor: active ? 'primary.dark' : 'action.hover',
             },
             '&.Mui-disabled': {
               color: 'action.disabled',

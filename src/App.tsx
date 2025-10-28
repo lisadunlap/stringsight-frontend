@@ -234,6 +234,213 @@ class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: bo
   }
 }
 
+/**
+ * Component to display tabbed examples of different data format options
+ */
+function ExampleFormatTabs() {
+  const [tabValue, setTabValue] = useState(0);
+
+  return (
+    <Box>
+      <Tabs
+        value={tabValue}
+        onChange={(_, newValue) => setTabValue(newValue)}
+        sx={{
+          borderBottom: 1,
+          borderColor: 'divider',
+          mb: 2,
+          '& .MuiTab-root': {
+            textTransform: 'none',
+            fontWeight: 500,
+            fontSize: '0.875rem'
+          }
+        }}
+      >
+        <Tab label="Conversation Format" />
+        <Tab label="Custom Format" />
+        <Tab label="Side-by-Side" />
+      </Tabs>
+
+      {/* Conversation Format Example */}
+      {tabValue === 0 && (
+        <Box>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+            <strong>Multi-turn conversations</strong> using OpenAI format with <code>role</code> and <code>content</code> fields.
+            Supports tool calls, multimodal inputs, and complex interactions.
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+            <strong>Fields:</strong>{' '}
+            <code style={{ backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 4px', borderRadius: '3px' }}>prompt</code>,{' '}
+            <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model</code>,{' '}
+            <code style={{ backgroundColor: '#E9D5FF', color: '#9333EA', padding: '2px 4px', borderRadius: '3px' }}>model_response</code>,{' '}
+            <code style={{ backgroundColor: '#FED7AA', color: '#EA580C', padding: '2px 4px', borderRadius: '3px' }}>score (optional, can be multiple scores)</code>
+            <br />
+            <em>Note: You can use any column names you want as long as they correspond to the required fields</em>
+          </Typography>
+          <Box sx={{
+            backgroundColor: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 1,
+            p: 1.5,
+            fontFamily: 'monospace',
+            fontSize: '0.75rem',
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap'
+          }}>
+            <Box component="pre" sx={{ m: 0, fontFamily: 'inherit' }}>
+              {'[\n  {\n    '}
+              <span style={{ color: '#16A34A', fontWeight: 600 }}>"prompt"</span>
+              {': "What is the capital of France?",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"model"</span>
+              {': "gpt-4",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_response"</span>
+              {': [\n      {"role": "user", "content": "What is the capital of France?"},\n      {"role": "assistant", "content": "The capital of France is Paris."}\n    ],\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy"</span>
+              {': 1.0,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"harmfulness"</span>
+              {': 0.0\n  },\n  {\n    '}
+              <span style={{ color: '#16A34A', fontWeight: 600 }}>"prompt"</span>
+              {': "Explain quantum computing",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"model"</span>
+              {': "claude-3",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_response"</span>
+              {': [\n      {"role": "user", "content": "Explain quantum computing"},\n      {"role": "assistant", "content": "Quantum computing uses..."},\n      {"role": "user", "content": "Can you give an example?"},\n      {"role": "assistant", "content": "Sure! Consider Shor\'s algorithm..."}\n    ],\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy"</span>
+              {': 0.8,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"harmfulness"</span>
+              {': 0.0\n  }\n]'}
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* Simple Response Format Example */}
+      {tabValue === 1 && (
+        <Box>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+            <strong>Single string responses</strong> for agentic traces, terminal outputs, or any custom formatted traces. If the model response input is a json object (not in OAI format), we convert it to a string.
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+            <strong>Fields:</strong>{' '}
+            <code style={{ backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 4px', borderRadius: '3px' }}>prompt</code>,{' '}
+            <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model</code>,{' '}
+            <code style={{ backgroundColor: '#E9D5FF', color: '#9333EA', padding: '2px 4px', borderRadius: '3px' }}>model_response</code>,{' '}
+            <code style={{ backgroundColor: '#FED7AA', color: '#EA580C', padding: '2px 4px', borderRadius: '3px' }}>score (optional, can be multiple scores)</code>
+            <br />
+            <em>Note: You can use any column names you want as long as they correspond to the required fields</em>
+          </Typography>
+          <Box sx={{
+            backgroundColor: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 1,
+            p: 1.5,
+            fontFamily: 'monospace',
+            fontSize: '0.75rem',
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap'
+          }}>
+            <Box component="pre" sx={{ m: 0, fontFamily: 'inherit' }}>
+              {'[\n  {\n    '}
+              <span style={{ color: '#16A34A', fontWeight: 600 }}>"trace_id"</span>
+              {': "chatdev_0",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"llm_name"</span>
+              {': "GPT-4o",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"trajectory"</span>
+              {': "[2025-31-03 19:09:41 INFO] **[Preprocessing]**\\n\\n**ChatDev Starts** (20250331190941)\\n\\n**Timestamp**: 20250331190941\\n\\n**config_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/ChatChainConfig.json\\n\\n**config_phase_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/PhaseConfig.json\\n\\n**config_role_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/RoleConfig.json\\n\\n**task_prompt**: Develop a Checkers (Draughts) game. Use an 8x8 board, alternate turns between two players, and apply standard capture and kinging rules [rest of trajectory]",\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"reward"</span>
+              {': 1.0,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"code_quality"</span>
+              {': 0.7\n  },\n  {\n    '}
+              <span style={{ color: '#16A34A', fontWeight: 600 }}>"trace_id"</span>
+              {': "chatdev_0",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"llm_name"</span>
+              {': "GPT-4o w/ ICL prompts",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"trajectory"</span>
+              {': "[2025-31-03 19:30:18 INFO] **[Preprocessing]**\\n\\n**ChatDev Starts** (20250331193018)\\n\\n**Timestamp**: 20250331193018\\n\\n**config_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/ChatChainConfig.json\\n\\n**config_phase_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/PhaseConfig.json\\n\\n**config_role_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/RoleConfig.json\\n\\n**task_prompt**: Develop a Checkers (Draughts) game. Use an 8x8 board, alternate turns between two players, and apply standard capture and kinging rules [rest of trajectory]",\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"reward"</span>
+              {': 0.0,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"code_quality"</span>
+              {': 0.3\n  }\n]'}
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* Side-by-Side Format Example */}
+      {tabValue === 2 && (
+        <Box>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+            <strong>Head-to-head model comparisons</strong> with pre-paired responses. Use for A/B testing, arena-style battles, or preference evaluations.
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+            <strong style={{ textDecoration: 'underline' }}>Alternative:</strong> You can also upload data in conversation or custom format (with <code>prompt</code>, <code>model</code>, <code>model_response</code>, <code>score</code>) and select which models to compare in the UI by changing "Comparison Method" to "Side-by-Side" in the Column Selector.
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+            <strong>Fields:</strong>{' '}
+            <code style={{ backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 4px', borderRadius: '3px' }}>prompt</code>,{' '}
+            <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model_a</code>,{' '}
+            <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model_b</code>,{' '}
+            <code style={{ backgroundColor: '#E9D5FF', color: '#9333EA', padding: '2px 4px', borderRadius: '3px' }}>model_a_response</code>,{' '}
+            <code style={{ backgroundColor: '#E9D5FF', color: '#9333EA', padding: '2px 4px', borderRadius: '3px' }}>model_b_response</code>,{' '}
+            <br />
+            <em>Note: You can use any column names you want as long as they correspond to the required fields</em>
+          </Typography>
+          <Box sx={{
+            backgroundColor: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 1,
+            p: 1.5,
+            fontFamily: 'monospace',
+            fontSize: '0.75rem',
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap'
+          }}>
+            <Box component="pre" sx={{ m: 0, fontFamily: 'inherit' }}>
+              {'[\n  {\n    '}
+              <span style={{ color: '#16A34A', fontWeight: 600 }}>"prompt"</span>
+              {': "What is machine learning?",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"model_a"</span>
+              {': "gpt-4",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"model_b"</span>
+              {': "claude-3",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_a_response"</span>
+              {': "ML is a subset of AI that enables systems to learn from data...",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_b_response"</span>
+              {': "Machine learning involves algorithms that improve through experience...",\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy_a"</span>
+              {': 0.95,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy_b"</span>
+              {': 0.92,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness_a"</span>
+              {': 4.5,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness_b"</span>
+              {': 4.3\n  },\n  {\n    '}
+              <span style={{ color: '#16A34A', fontWeight: 600 }}>"prompt"</span>
+              {': "Explain quantum computing",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"model_a"</span>
+              {': "gpt-4",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"model_b"</span>
+              {': "claude-3",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_a_response"</span>
+              {': "Quantum computing uses quantum bits...",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_b_response"</span>
+              {': "QC leverages quantum mechanical phenomena...",\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy_a"</span>
+              {': 0.88,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy_b"</span>
+              {': 0.91,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness_a"</span>
+              {': 4.0,\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness_b"</span>
+              {': 4.6\n  }\n]'}
+            </Box>
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 function App() {
   // Data management layers as suggested
   const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]); // Raw uploaded data
@@ -1239,7 +1446,7 @@ function App() {
   const [dataSearchQuery, setDataSearchQuery] = useState<string>('');
   
   // Legacy filter interface for compatibility
-  type Filter = { column: string; values: string[]; negated: boolean };
+  type Filter = { column: string; values: string[]; negated: boolean; operator?: 'AND' | 'OR' };
   const filters: Filter[] = operationChain
     .filter(op => op.type === 'filter')
     .map(op => op as any);
@@ -1323,16 +1530,34 @@ function App() {
     let displayData = flattenedRows;
 
     // Apply filter operations on flattened data (so score_* columns can be filtered)
-    for (const operation of operations) {
-      if (operation.type === 'filter') {
-        const filterOp = operation as any;
-        displayData = displayData.filter(row => {
+    const filterOps = operations.filter(op => op.type === 'filter') as any[];
+    if (filterOps.length > 0) {
+      displayData = displayData.filter(row => {
+        // For each row, evaluate all filters according to their operators
+        let combinedResult = false;
+
+        filterOps.forEach((filterOp, index) => {
           const rowValue = String(row[filterOp.column] ?? '');
           const matchesValues = filterOp.values.includes(rowValue);
-          return filterOp.negated ? !matchesValues : matchesValues;
+          const filterResult = filterOp.negated ? !matchesValues : matchesValues;
+
+          if (index === 0) {
+            // First filter: no operator, just use the result
+            combinedResult = filterResult;
+          } else {
+            // Subsequent filters: apply operator
+            if (filterOp.operator === 'OR') {
+              combinedResult = combinedResult || filterResult;
+            } else {
+              // Default to AND
+              combinedResult = combinedResult && filterResult;
+            }
+          }
         });
-        console.log(`🔍 Filter ${filterOp.column}: ${displayData.length} rows`);
-      }
+
+        return combinedResult;
+      });
+      console.log(`🔍 Applied ${filterOps.length} filter(s): ${displayData.length} rows`);
     }
 
     // Apply sort operations on flattened data (so score_* columns sort correctly)
@@ -1365,7 +1590,7 @@ function App() {
 
   // Legacy wrapper for backward compatibility
   const applyFilters = useCallback(async (newFilters: Filter[]) => {
-    const filterOps = newFilters.map(f => createFilterOperation(f.column, f.values, f.negated));
+    const filterOps = newFilters.map(f => createFilterOperation(f.column, f.values, f.negated, f.operator));
     const nonFilterOps = operationChain.filter(op => op.type !== 'filter');
     const newChain = [...filterOps, ...nonFilterOps];
     setOperationChain(newChain);
@@ -1673,14 +1898,19 @@ function App() {
           onPendingNegatedChange={setPendingNegated}
           onAddFilter={() => {
             if (!pendingColumn || pendingValues.length === 0) return;
-            const next = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated }];
-            setPendingColumn(null); 
-            setPendingValues([]); 
+            const operator = filters.length > 0 ? 'AND' : undefined;
+            const next = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
+            setPendingColumn(null);
+            setPendingValues([]);
             setPendingNegated(false);
             void applyFilters(next);
           }}
           filters={filters}
           onRemoveFilter={removeFilter}
+          onChangeFilterOperator={(index, operator) => {
+            const next = filters.map((f, i) => i === index ? { ...f, operator } : f);
+            void applyFilters(next);
+          }}
           uniqueValuesFor={uniqueValuesFor}
           resultCount={sortedRows.length}
           resultLabel="rows"
@@ -1853,14 +2083,19 @@ function App() {
           onPendingNegatedChange={setPendingNegated}
           onAddFilter={() => {
             if (!pendingColumn || pendingValues.length === 0) return;
-            const next = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated }];
-            setPendingColumn(null); 
-            setPendingValues([]); 
+            const operator = filters.length > 0 ? 'AND' : undefined;
+            const next = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
+            setPendingColumn(null);
+            setPendingValues([]);
             setPendingNegated(false);
             void applyFilters(next);
           }}
           filters={filters}
           onRemoveFilter={removeFilter}
+          onChangeFilterOperator={(index, operator) => {
+            const next = filters.map((f, i) => i === index ? { ...f, operator } : f);
+            void applyFilters(next);
+          }}
           uniqueValuesFor={uniqueValuesFor}
           resultCount={sortedRows.length}
           resultLabel="rows"
@@ -2009,32 +2244,50 @@ function App() {
   const onRequestRecomputeCb = useCallback((included_property_ids?: string[]) => {
     (async () => {
       try {
-        // Detect score columns from operationalRows
-        const scoreColumns = operationalRows[0] ? Object.keys(operationalRows[0]).filter(k => k.startsWith('score_')) : [];
-        
+        // Detect score columns from operationalRows - include both flat and nested score columns
+        const scoreColumns = operationalRows[0] ? Object.keys(operationalRows[0]).filter(k => {
+          const key = k.toLowerCase();
+          return key.startsWith('score_') || key === 'score' || key === 'score_a' || key === 'score_b';
+        }) : [];
+
+        // For side-by-side: create model-to-column mapping
+        let modelColumnMap: Record<string, string> | undefined;
+        if (method === 'side_by_side' && operationalRows[0]) {
+          const firstRow = operationalRows[0];
+          modelColumnMap = {};
+          if (firstRow.model_a) {
+            modelColumnMap[firstRow.model_a] = 'model_a';
+          }
+          if (firstRow.model_b) {
+            modelColumnMap[firstRow.model_b] = 'model_b';
+          }
+        }
+
         const res = await recomputeClusterMetrics({
           clusters,
           properties: propertiesRows,
           operationalRows,
           included_property_ids,
           score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
+          method,
+          model_column_map: modelColumnMap,
         });
-        
+
         // Re-enrich clusters with quality data from cached metrics
         let updatedClusters = res.clusters || [];
         if (resultsMetrics?.model_cluster_scores) {
           updatedClusters = enrichClustersWithQualityData(
-            updatedClusters, 
+            updatedClusters,
             resultsMetrics.model_cluster_scores
           );
         }
-        
+
         setClusters(ensureExamplesArray(updatedClusters));
       } catch (e) {
         console.error('recompute (filters) failed', e);
       }
     })();
-  }, [clusters, propertiesRows, operationalRows, resultsMetrics]);
+  }, [clusters, propertiesRows, operationalRows, resultsMetrics, method]);
 
   // Utility: Guarantee examples is always an array when setting clusters
   const ensureExamplesArray = (clusters) => (clusters || []).map(c => ({ ...c, examples: c.examples || [] }));
@@ -2388,17 +2641,16 @@ function App() {
         )}
       </ExpandedSidebar>
 
-            <Container maxWidth={false} sx={{ 
-        py: 2, 
-        flexGrow: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'stretch', 
-        ml: `${60 + (sidebarExpanded ? 400 : 0)}px`, // Account for both sidebars
+            <Container maxWidth={false} sx={{
+        py: 2,
+        flexGrow: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        ml: '60px', // Account for permanent icon sidebar only
         mr: 0, // No right margin
-        width: `calc(100vw - ${60 + (sidebarExpanded ? 400 : 0)}px)`, // Constrain width to prevent cutoff
+        width: 'calc(100vw - 60px)', // Constrain width to account for icon sidebar only
         maxWidth: 'none', // Override default maxWidth
-        transition: 'margin-left 450ms ease, width 450ms ease',
         overflow: 'auto' // Ensure proper scroll containment
       }}>
         {/* Left control sidebar is always available (collapsed by default via width + Drawer) */}
@@ -2413,6 +2665,43 @@ function App() {
               <Typography variant="body2" sx={{ color: 'primary.dark' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
               <Typography variant="body2" sx={{ color: 'primary.dark' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
               <Typography variant="body2" sx={{ color: 'primary.dark' }}>3) Click Done to load your table and explore</Typography>
+              
+              <Box sx={{ mt: 2, mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ color: 'primary.dark', fontWeight: 600, mb: 1 }}>What data do you need?</Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+                  StringSight accepts <strong>.jsonl</strong>, <strong>.json</strong>, or <strong>.csv</strong> files with the following:
+                </Typography>
+
+                <Typography variant="body2" sx={{ color: 'primary.dark', fontWeight: 600, fontSize: '0.875rem', mb: 0.5 }}>
+                  Required:
+                </Typography>
+                <Box component="ol" sx={{ color: 'text.secondary', fontSize: '0.875rem', ml: 3, mb: 1.5, pl: 0 }}>
+                  <li>
+                    <strong>The prompt/task identifier</strong> - any identifier for the specific task (can be the actual prompt or a unique ID)
+                  </li>
+                  <li>
+                    <strong>The model response</strong> - can be in OpenAI format (multi-turn conversations), a single string (agentic traces, reasoning chains), or your own custom format. Note: strings and custom formats will appear as single-turn traces.
+                  </li>
+                </Box>
+
+                <Typography variant="body2" sx={{ color: 'primary.dark', fontWeight: 600, fontSize: '0.875rem', mb: 0.5 }}>
+                  Optional:
+                </Typography>
+                <Box component="ol" start={3} sx={{ color: 'text.secondary', fontSize: '0.875rem', ml: 3, mb: 1.5, pl: 0 }}>
+                  <li>
+                    <strong>Model name</strong> - include if analyzing multiple models, methods, or prompts (e.g., model name, agent scaffolding, prompt variant)
+                  </li>
+                  <li>
+                    <strong>Scores</strong> - any numerical evaluation metrics (accuracy, harmfulness, etc.). Can be separate columns or a single 'score' column with format: <code>{`{"metric1": value, "metric2": value}`}</code>
+                  </li>
+                </Box>
+
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2, fontSize: '0.875rem', fontStyle: 'italic' }}>
+                  You can name these columns whatever you want and assign them during upload.
+                </Typography>
+
+                <ExampleFormatTabs />
+              </Box>
             </Box>
           </Box>
         )}
@@ -2428,44 +2717,47 @@ function App() {
           />
         )}
 
-        {/* Show filter notice if any rows were dropped due to missing scores */}
-        {filterNotice && (
-          <Box sx={{ mb: 1, p: 1.5, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#92400E', borderRadius: 1 }}>
-            {filterNotice}
-          </Box>
-        )}
+        {/* Show data interface only after data is loaded */}
+        {originalRows.length > 0 && (
+          <>
+            {/* Show filter notice if any rows were dropped due to missing scores */}
+            {filterNotice && (
+              <Box sx={{ mb: 1, p: 1.5, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#92400E', borderRadius: 1 }}>
+                {filterNotice}
+              </Box>
+            )}
 
-        {dataOverview && (
-          <Box sx={{ 
-            mb: 2, 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 3
-          }}>
-            <Box sx={{ color: 'text.secondary' }}>
-              <strong>{dataOverview.rowCount}</strong> rows ·{' '}
-              <strong>{dataOverview.uniquePrompts}</strong> unique prompts ·{' '}
-              <strong>{dataOverview.uniqueModels}</strong> unique models
-            </Box>
-            <Box sx={{ color: 'warning.main', fontWeight: 500 }}>
-              Click <strong>🔍</strong> in the sidebar to analyze your traces
-            </Box>
-            {/* Removed hint: Click headers to sort • Use filters to narrow results */}
-          </Box>
-        )}
+            {dataOverview && (
+              <Box sx={{
+                mb: 2,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 3
+              }}>
+                <Box sx={{ color: 'text.secondary' }}>
+                  <strong>{dataOverview.rowCount}</strong> rows ·{' '}
+                  <strong>{dataOverview.uniquePrompts}</strong> unique prompts ·{' '}
+                  <strong>{dataOverview.uniqueModels}</strong> unique models
+                </Box>
+                <Box sx={{ color: 'warning.main', fontWeight: 500 }}>
+                  Click <strong>🔍</strong> in the sidebar to analyze your traces
+                </Box>
+                {/* Removed hint: Click headers to sort • Use filters to narrow results */}
+              </Box>
+            )}
 
 
 
-        {/* Operation Chain Summary */}
-        <FilterSummary
-          operations={operationChain}
-          onRemoveOperation={removeOperation}
-        />
+            {/* Operation Chain Summary */}
+            <FilterSummary
+              operations={operationChain}
+              onRemoveOperation={removeOperation}
+            />
 
-        {/* Tabs for switching between Data, Properties, and Clusters */}
-        <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Tabs for switching between Data, Properties, and Clusters */}
+            <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Tabs
             value={activeTab}
             onChange={(_, v) => {
@@ -2765,18 +3057,20 @@ function App() {
             )}
           </Box>
         )}
+          </>
+        )}
       </Container>
 
 
 
-      <Drawer anchor="right" open={drawerOpen} variant="persistent" sx={{ 
-        '& .MuiDrawer-paper': { 
-          width: '50vw', 
-          maxWidth: 900, 
+      <Drawer anchor="right" open={drawerOpen} variant="persistent" sx={{
+        '& .MuiDrawer-paper': {
+          width: '65vw',
+          maxWidth: 1200,
           p: 2,
           overflow: 'auto',
           height: '100vh'
-        } 
+        }
       }} ModalProps={{ keepMounted: true }}>
         <>
             {(selectedTrace?.type === "single" || selectedTrace?.type === "sbs") && selectedProperty && (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, IconButton, Typography, Drawer } from '@mui/material';
+import { Box, IconButton, Typography } from '@mui/material';
 import { ChevronLeft as CollapseIcon } from '@mui/icons-material';
 import { type SidebarSection } from './PermanentIconSidebar';
 
@@ -13,7 +13,6 @@ interface ExpandedSidebarProps {
 const sectionTitles: Record<SidebarSection, string> = {
   data: 'Data Statistics',
   extraction: 'Property Extraction',
-  clustering: 'Clustering Analysis',
   metrics: 'Insights Dashboard'
 };
 
@@ -24,23 +23,20 @@ export default function ExpandedSidebar({
   children 
 }: ExpandedSidebarProps) {
   return (
-    <Drawer
-      variant="persistent"
-      anchor="left"
-      open={expanded}
+    <Box
       sx={{
-        width: expanded ? 400 : 0,
-        flexShrink: 0,
-        '& .MuiDrawer-paper': {
-          width: 400,
-          boxSizing: 'border-box',
-          left: 60, // Account for permanent icon sidebar
-          top: 64, // Start below header (standard AppBar height)
-          height: 'calc(100vh - 64px)',
-          borderRight: '1px solid',
-          borderColor: 'divider',
-          backgroundColor: 'background.paper',
-        },
+        position: 'fixed',
+        left: 60, // Start from the icon sidebar
+        top: 64, // Start below header
+        height: 'calc(100vh - 64px)',
+        width: expanded ? 400 : 0, // Animate width
+        backgroundColor: 'background.paper',
+        borderRight: expanded ? '1px solid' : 'none',
+        borderColor: 'divider',
+        boxShadow: expanded ? 3 : 0,
+        zIndex: 1200,
+        transition: 'width 225ms cubic-bezier(0, 0, 0.2, 1) 0ms, box-shadow 225ms cubic-bezier(0, 0, 0.2, 1) 0ms',
+        overflow: 'hidden', // Hide content when width is 0
       }}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -78,6 +74,6 @@ export default function ExpandedSidebar({
           {children}
         </Box>
       </Box>
-    </Drawer>
+    </Box>
   );
 }
