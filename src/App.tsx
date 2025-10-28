@@ -2450,7 +2450,7 @@ function App() {
               <strong>{dataOverview.uniqueModels}</strong> unique models
             </Box>
             <Box sx={{ color: 'warning.main', fontWeight: 500 }}>
-              Click <strong>🔍</strong> to analyze your traces
+              Click <strong>🔍</strong> in the sidebar to analyze your traces
             </Box>
             {/* Removed hint: Click headers to sort • Use filters to narrow results */}
           </Box>

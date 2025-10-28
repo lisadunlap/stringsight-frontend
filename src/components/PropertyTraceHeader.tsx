@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Stack, Chip } from '@mui/material';
+import { Box, Typography, Stack } from '@mui/material';
 
 interface PropertyTraceHeaderProps {
   selectedRow: any;
@@ -16,80 +16,36 @@ export default function PropertyTraceHeader({
 }: PropertyTraceHeaderProps) {
   
 
-  // Separate metadata into chips vs full-text sections
-  const getCategoryChips = () => {
+  // Get metadata fields for 3-column layout
+  const getMetadataFields = () => {
     if (!selectedProperty) return [];
-    const chipFields = ['category', 'behavior_type', 'contains_errors', 'unexpected_behavior'];
+    const metadataFields = ['category', 'behavior_type', 'unexpected_behavior'];
     return Object.entries(selectedProperty)
-      .filter(([key]) => chipFields.includes(key))
+      .filter(([key]) => metadataFields.includes(key))
       .filter(([, value]) => value !== null && value !== undefined && value !== '');
   };
 
   const getFullTextSections = () => {
     if (!selectedProperty) return [];
-    const textFields = ['reason', 'evidence'];
+    const textFields = ['evidence', 'reason']; // Reordered: evidence first, then reason
     return Object.entries(selectedProperty)
       .filter(([key]) => textFields.some(f => key.toLowerCase().includes(f)))
       .filter(([, value]) => value !== null && value !== undefined && value !== '');
   };
 
-  // Format property metadata
-  const formatPropertyValue = (key: string, value: any): React.ReactNode => {
+  // Format metadata field for 3-column layout
+  const formatMetadataField = (key: string, value: any): React.ReactNode => {
     if (value === null || value === undefined || value === '') return null;
 
-    // Handle booleans
-    if (typeof value === 'boolean') {
-      return (
-        <Chip
-          key={key}
-          label={`${key.replace(/_/g, ' ')}: ${value ? 'True' : 'False'}`}
-          size="small"
-          variant="outlined"
-          sx={{ fontSize: '0.7rem' }}
-        />
-      );
-    }
-
-    // Handle behavior_type with specific colors
-    if (key === 'behavior_type') {
-      const valueStr = String(value);
-      let chipBgColor = '#6b7280'; // Default grey
-
-      if (valueStr === 'Style') {
-        chipBgColor = '#a855f7'; // Purple
-      } else if (valueStr === 'Negative (non-critical)') {
-        chipBgColor = '#f97316'; // Orange
-      } else if (valueStr === 'Negative (critical)') {
-        chipBgColor = '#ef4444'; // Red
-      } else if (valueStr === 'Positive') {
-        chipBgColor = '#22c55e'; // Green
-      }
-
-      return (
-        <Chip
-          key={key}
-          label={`${key.replace(/_/g, ' ')}: ${valueStr}`}
-          size="small"
-          sx={{
-            fontSize: '0.7rem',
-            backgroundColor: chipBgColor,
-            color: '#ffffff',
-            fontWeight: 500,
-            border: 'none'
-          }}
-        />
-      );
-    }
-
-    // Handle strings and numbers as chips
     return (
-      <Chip
-        key={key}
-        label={`${key.replace(/_/g, ' ')}: ${String(value)}`}
-        size="small"
-        variant="outlined"
-        sx={{ fontSize: '0.7rem' }}
-      />
+      <Box key={key} sx={{ textAlign: 'left' }}>
+        <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', display: 'block', mb: 0.5 }}>
+          {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+        </Typography>
+        <Typography variant="caption" sx={{ color: '#334155', fontWeight: 500 }}>
+          {String(value)}
+        </Typography>
+      </Box>
     );
   };
 
@@ -114,7 +70,8 @@ export default function PropertyTraceHeader({
         <Typography variant="body2" sx={{
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
-          color: '#334155'
+          color: '#334155',
+          fontStyle: key.toLowerCase().includes('evidence') ? 'italic' : 'normal'
         }}>
           {displayValue}
         </Typography>
@@ -122,35 +79,54 @@ export default function PropertyTraceHeader({
     );
   };
 
-  const categoryChips = getCategoryChips();
+  const metadataFields = getMetadataFields();
   const fullTextSections = getFullTextSections();
 
   return (
     <Box sx={{ mb: 2 }}>
       {/* Property Information */}
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle2" sx={{ color: '#334155', mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ color: '#1976d2', fontWeight: 600, mb: 1 }}>
           Property Information
         </Typography>
 
         {/* Property Description */}
         {selectedProperty?.property_description && (
-          <Typography variant="body2" sx={{ mb: 1, fontStyle: 'italic', color: '#64748B' }}>
-            "{selectedProperty.property_description}"
-          </Typography>
+          <Box sx={{ 
+            backgroundColor: 'rgba(25, 118, 210, 0.1)', 
+            borderRadius: 1, 
+            p: 1, 
+            mb: 1
+          }}>
+            <Typography variant="body2" sx={{ fontWeight: 500, textAlign: 'center', color: '#1565C0' }}>
+              {selectedProperty.property_description}
+            </Typography>
+          </Box>
         )}
 
-        {/* Category Chips (inline, wrapped) */}
-        {categoryChips.length > 0 && (
-          <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
-            {categoryChips.map(([key, value]) => formatPropertyValue(key, value))}
-          </Stack>
-        )}
-
-        {/* Full Text Sections (Reason, Evidence) */}
+        {/* Full Text Sections (Evidence, Reason) */}
         {fullTextSections.map(([key, value]) => formatFullTextSection(key, value))}
+
+        {/* Metadata Fields in 3-column layout */}
+        {metadataFields.length > 0 && (
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(3, 1fr)', 
+            gap: 2, 
+            mb: 1.5,
+            mt: 1,
+            p: 1.5,
+            backgroundColor: 'rgba(0, 0, 0, 0.02)',
+            borderRadius: 1,
+            border: '1px solid rgba(0, 0, 0, 0.08)'
+          }}>
+            {metadataFields.map(([key, value]) => formatMetadataField(key, value))}
+          </Box>
+        )}
       </Box>
 
+      {/* Horizontal separator line */}
+      <Box sx={{ borderBottom: '1px solid #E5E7EB', mb: 2 }} />
     </Box>
   );
 }

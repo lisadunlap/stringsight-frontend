@@ -418,10 +418,35 @@ export default function PropertyExtractionPanel({
   const methodValid = method === 'single_model' || method === 'side_by_side';
 
   return (
-    <Stack spacing={3}>
+    <Stack spacing={1}>
       <Typography variant="body2" sx={{ color: 'warning.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
         Extract interesting properties from your traces. Click 'Extract on Row 0' to see an example.
       </Typography>
+      
+      {/* View Selected Response Button */}
+      <Button
+        variant="outlined"
+        onClick={() => {
+          const row = getSelectedRow();
+          console.log('[PropertyExtraction] View Response clicked:', { row, onOpenTrace: !!onOpenTrace });
+          if (onOpenTrace && row) {
+            console.log('[PropertyExtraction] Calling onOpenTrace with row:', row);
+            onOpenTrace(row);
+          } else {
+            console.log('[PropertyExtraction] Cannot open trace:', { hasOnOpenTrace: !!onOpenTrace, hasRow: !!row });
+          }
+        }}
+        disabled={!getSelectedRow() || !onOpenTrace}
+        fullWidth
+        sx={{ mb: 1 }}
+      >
+        {(() => {
+          const row = getSelectedRow();
+          if (!row) return 'No Response Selected';
+          const index = (row as any)?.__index;
+          return index !== undefined ? `View Response (Row ${index})` : 'View Selected Response';
+        })()}
+      </Button>
       <Box>
         <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
           Extraction Prompt
@@ -440,12 +465,12 @@ export default function PropertyExtractionPanel({
                 localStorage.setItem('stringsight.taskDescriptionEdited', 'false');
               }
             }}
-            renderInput={(params) => <TextField {...params} label="Prompt" />}
+            renderInput={(params) => <TextField {...params} label="Task Type" />}
           />
           
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          {/* <Typography variant="caption" sx={{ color: 'text.secondary' }}>
             {promptOptions.length} prompts available
-          </Typography>
+          </Typography> */}
           
           {canTaskDescribe && (
             <Stack spacing={1}>
@@ -496,150 +521,139 @@ export default function PropertyExtractionPanel({
       </Box>
 
       <Accordion>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="subtitle2">Advanced (LLM settings)</Typography>
+        <AccordionSummary 
+          expandIcon={<ExpandMoreIcon />}
+          sx={{ minHeight: 'auto', py: 0.25, '& .MuiAccordionSummary-content': { margin: '4px 0' } }}
+        >
+          <Typography variant="subtitle2">Advanced settings</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2}>
-            <TextField 
-              size="small" 
-              label="Property Annotator" 
-              value={modelName} 
-              onChange={(e) => setModelName(e.target.value)} 
-            />
-            <TextField 
-              size="small" 
-              label="Sample size (batch only)" 
-              type="number" 
-              value={sampleSize || ''} 
-              onChange={(e) => setSampleSize(e.target.value ? Number(e.target.value) : null)} 
-              placeholder="Leave empty for all prompts"
-              helperText={sampleSize ? `Will sample ${sampleSize} prompts total` : 'Process all prompts'}
-            />
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="subtitle2">Full system prompt</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box sx={{ 
-                  p: 2, 
-                  border: '1px dashed', 
-                  borderColor: 'divider', 
-                  borderRadius: 1, 
-                  backgroundColor: 'background.default' 
-                }}>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block' }}>
-                    Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
-                  </Typography>
-                  <Box sx={{
-                    p: 1.5,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    backgroundColor: '#FFFFFF',
-                    maxHeight: 280,
-                    overflow: 'auto',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
-                    fontSize: 12,
-                    whiteSpace: 'pre-wrap',
-                    lineHeight: 1.6,
-                  }}>
-                    {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
-                  </Box>
-                </Box>
-              </AccordionDetails>
-            </Accordion>
+            {/* LLM Settings Section */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                LLM Settings
+              </Typography>
+              <Stack spacing={1.5}>
+                <TextField 
+                  size="small" 
+                  label="Property Annotator" 
+                  value={modelName} 
+                  onChange={(e) => setModelName(e.target.value)} 
+                />
+                <TextField 
+                  size="small" 
+                  label="Sample size (batch only)" 
+                  type="number" 
+                  value={sampleSize || ''} 
+                  onChange={(e) => setSampleSize(e.target.value ? Number(e.target.value) : null)} 
+                  placeholder="Leave empty for all prompts"
+                  helperText={sampleSize ? `Will sample ${sampleSize} prompts total` : 'Process all prompts'}
+                />
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography variant="subtitle2">Full system prompt</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box sx={{ 
+                      p: 2, 
+                      border: '1px dashed', 
+                      borderColor: 'divider', 
+                      borderRadius: 1, 
+                      backgroundColor: 'background.default' 
+                    }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block' }}>
+                        Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
+                      </Typography>
+                      <Box sx={{
+                        p: 1.5,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        backgroundColor: '#FFFFFF',
+                        maxHeight: 280,
+                        overflow: 'auto',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
+                        fontSize: 12,
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: 1.6,
+                      }}>
+                        {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
+                      </Box>
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+              </Stack>
+            </Box>
+
+            {/* Clustering Settings Section */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                Clustering Settings
+              </Typography>
+              <Stack spacing={1.5}>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  After extraction, properties will be automatically clustered and metrics computed.
+                </Typography>
+
+                <TextField
+                  size="small"
+                  label="Min cluster size"
+                  type="number"
+                  value={minClusterSize}
+                  onChange={(e) => setMinClusterSize(Number(e.target.value))}
+                  inputProps={{ min: 1, max: 100 }}
+                  helperText="Minimum number of properties required to form a cluster"
+                />
+
+                <FormControl size="small">
+                  <InputLabel id="embedding-model-label">Embedding model</InputLabel>
+                  <Select
+                    labelId="embedding-model-label"
+                    value={embeddingModel}
+                    label="Embedding model"
+                    onChange={(e) => setEmbeddingModel(String(e.target.value))}
+                  >
+                    {(embeddingModels.length ? embeddingModels : [embeddingModel]).map(m => (
+                      <MenuItem key={m} value={m}>{m}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl size="small">
+                  <InputLabel id="group-by-label">Group by</InputLabel>
+                  <Select
+                    labelId="group-by-label"
+                    value={groupBy}
+                    label="Group by"
+                    onChange={(e) => setGroupBy(e.target.value as any)}
+                  >
+                    <MenuItem value={'none'}>None</MenuItem>
+                    <MenuItem value={'category'}>category</MenuItem>
+                    <MenuItem value={'behavior_type'}>behavior_type</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <TextField
+                  size="small"
+                  label="Summarization model"
+                  value={summarizationModel}
+                  onChange={(e) => setSummarizationModel(e.target.value)}
+                  helperText="Model used for cluster label summarization"
+                />
+
+                <TextField
+                  size="small"
+                  label="Matching model"
+                  value={matchingModel}
+                  onChange={(e) => setMatchingModel(e.target.value)}
+                  helperText="Model used for cluster/property matching"
+                />
+              </Stack>
+            </Box>
           </Stack>
         </AccordionDetails>
       </Accordion>
-
-      <Accordion>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="subtitle2">Clustering Settings</Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Stack spacing={2}>
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              After extraction, properties will be automatically clustered and metrics computed.
-            </Typography>
-
-            <TextField
-              size="small"
-              label="Min cluster size"
-              type="number"
-              value={minClusterSize}
-              onChange={(e) => setMinClusterSize(Number(e.target.value))}
-              inputProps={{ min: 1, max: 100 }}
-              helperText="Minimum number of properties required to form a cluster"
-            />
-
-            <FormControl size="small">
-              <InputLabel id="embedding-model-label">Embedding model</InputLabel>
-              <Select
-                labelId="embedding-model-label"
-                value={embeddingModel}
-                label="Embedding model"
-                onChange={(e) => setEmbeddingModel(String(e.target.value))}
-              >
-                {(embeddingModels.length ? embeddingModels : [embeddingModel]).map(m => (
-                  <MenuItem key={m} value={m}>{m}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl size="small">
-              <InputLabel id="group-by-label">Group by</InputLabel>
-              <Select
-                labelId="group-by-label"
-                value={groupBy}
-                label="Group by"
-                onChange={(e) => setGroupBy(e.target.value as any)}
-              >
-                <MenuItem value={'none'}>None</MenuItem>
-                <MenuItem value={'category'}>category</MenuItem>
-                <MenuItem value={'behavior_type'}>behavior_type</MenuItem>
-              </Select>
-            </FormControl>
-
-            <TextField
-              size="small"
-              label="Summarization model"
-              value={summarizationModel}
-              onChange={(e) => setSummarizationModel(e.target.value)}
-              helperText="Model used for cluster label summarization"
-            />
-
-            <TextField
-              size="small"
-              label="Matching model"
-              value={matchingModel}
-              onChange={(e) => setMatchingModel(e.target.value)}
-              helperText="Model used for cluster/property matching"
-            />
-          </Stack>
-        </AccordionDetails>
-      </Accordion>
-
-      {/* View Selected Response Button */}
-      <Button
-        variant="outlined"
-        onClick={() => {
-          const row = getSelectedRow();
-          if (onOpenTrace && row) {
-            onOpenTrace(row);
-          }
-        }}
-        disabled={!getSelectedRow()}
-        fullWidth
-        sx={{ mb: 2 }}
-      >
-        {(() => {
-          const row = getSelectedRow();
-          if (!row) return 'No Response Selected';
-          const index = (row as any)?.__index;
-          return index !== undefined ? `View Response (Row ${index})` : 'View Selected Response';
-        })()}
-      </Button>
 
       {(busy || clusteringBusy) && (
         <Box sx={{ width: '100%', mb: 2 }}>
@@ -670,7 +684,7 @@ export default function PropertyExtractionPanel({
         </Box>
       )}
 
-      <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column' }}>
+      <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column', mt: 3 }}>
           <Button
             variant="contained"
             onClick={runExtractSingle}
@@ -771,18 +785,26 @@ export default function PropertyExtractionPanel({
                                 </Typography>
                               </AccordionSummary>
                               <AccordionDetails>
-                                <Box sx={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 0.5, columnGap: 1 }}>
-                                  {Object.entries(p)
-                                    .filter(([k]) => !['raw_response', 'contains_errors', 'meta'].includes(k))
-                                    .map(([k, v]) => (
-                                    <React.Fragment key={k}>
-                                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>{k}</Typography>
-                                      <Typography variant="caption" sx={{ color: 'text.primary' }}>
+                                <Stack spacing={1}>
+                                  {(() => {
+                                    const fieldOrder = ['model', 'property_description', 'evidence', 'behavior_type', 'category', 'reason', 'unexpected_behavior', 'question_id'];
+                                    const orderedFields = fieldOrder.filter(key => key in p);
+                                    const remainingFields = Object.entries(p)
+                                      .filter(([k]) => !['raw_response', 'contains_errors', 'meta', 'id'].includes(k) && !fieldOrder.includes(k));
+                                    
+                                    return [...orderedFields.map(key => [key, p[key]]), ...remainingFields];
+                                  })().map(([k, v]) => (
+                                    <Box key={k}>
+                                      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                                        {k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                      </Typography>
+                                      <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', mb: 0.5 }} />
+                                      <Typography variant="body2" sx={{ color: 'text.primary', mt: 0.5 }}>
                                         {typeof v === 'object' ? JSON.stringify(v) : String(v)}
                                       </Typography>
-                                    </React.Fragment>
+                                    </Box>
                                   ))}
-                                </Box>
+                                </Stack>
                               </AccordionDetails>
                             </Accordion>
                           ))}
@@ -827,18 +849,26 @@ export default function PropertyExtractionPanel({
                     </Typography>
                   </AccordionSummary>
                   <AccordionDetails>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 0.5, columnGap: 1 }}>
-                      {Object.entries(p)
-                        .filter(([k]) => !['raw_response', 'contains_errors', 'meta'].includes(k))
-                        .map(([k, v]) => (
-                        <React.Fragment key={k}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>{k}</Typography>
-                          <Typography variant="caption" sx={{ color: 'text.primary' }}>
+                    <Stack spacing={1}>
+                      {(() => {
+                        const fieldOrder = ['model', 'property_description', 'evidence', 'behavior_type', 'category', 'reason', 'unexpected_behavior', 'question_id'];
+                        const orderedFields = fieldOrder.filter(key => key in p);
+                        const remainingFields = Object.entries(p)
+                          .filter(([k]) => !['raw_response', 'contains_errors', 'meta', 'id'].includes(k) && !fieldOrder.includes(k));
+                        
+                        return [...orderedFields.map(key => [key, p[key]]), ...remainingFields];
+                      })().map(([k, v]) => (
+                        <Box key={k}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                            {k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </Typography>
+                          <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', mb: 0.5 }} />
+                          <Typography variant="body2" sx={{ color: 'text.primary', mt: 0.5 }}>
                             {typeof v === 'object' ? JSON.stringify(v) : String(v)}
                           </Typography>
-                        </React.Fragment>
+                        </Box>
                       ))}
-                    </Box>
+                    </Stack>
                   </AccordionDetails>
                 </Accordion>
               ))}
