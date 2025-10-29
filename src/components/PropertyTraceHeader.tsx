@@ -25,6 +25,9 @@ export default function PropertyTraceHeader({
       .filter(([, value]) => value !== null && value !== undefined && value !== '');
   };
 
+  // Show model field for side-by-side comparisons to clarify which model the property applies to
+  const shouldShowModelField = method === 'side_by_side' && selectedProperty?.model;
+
   const getFullTextSections = () => {
     if (!selectedProperty) return [];
     const textFields = ['evidence', 'reason']; // Reordered: evidence first, then reason
@@ -92,14 +95,32 @@ export default function PropertyTraceHeader({
 
         {/* Property Description */}
         {selectedProperty?.property_description && (
-          <Box sx={{ 
-            backgroundColor: 'rgba(25, 118, 210, 0.1)', 
-            borderRadius: 1, 
-            p: 1, 
+          <Box sx={{
+            backgroundColor: 'rgba(25, 118, 210, 0.1)',
+            borderRadius: 1,
+            p: 1,
             mb: 1
           }}>
             <Typography variant="body2" sx={{ fontWeight: 500, textAlign: 'center', color: '#1565C0' }}>
               {selectedProperty.property_description}
+            </Typography>
+          </Box>
+        )}
+
+        {/* Model Field - Show which model this property applies to (side-by-side only) */}
+        {shouldShowModelField && (
+          <Box sx={{
+            mb: 1,
+            p: 1,
+            backgroundColor: 'rgba(76, 175, 80, 0.08)',
+            borderRadius: 1,
+            border: '1px solid rgba(76, 175, 80, 0.3)'
+          }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: '#2E7D32', display: 'block', mb: 0.25 }}>
+              Applies to Model:
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: '#388E3C' }}>
+              {selectedProperty.model}
             </Typography>
           </Box>
         )}

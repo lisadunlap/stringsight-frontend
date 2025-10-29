@@ -202,9 +202,14 @@ function mergeOverlappingRanges(
 
 /**
  * Improved highlighting with fuzzy matching fallback
+ * Returns both the content array and whether matches were found
  */
-function highlightContent(text: string, highlights?: string[]): Array<string | React.ReactNode> {
-  if (!highlights || highlights.length === 0) return [text];
+function highlightContent(
+  text: string,
+  highlights?: string[],
+  highlightRefsArray?: React.MutableRefObject<(HTMLElement | null)[]>
+): { content: Array<string | React.ReactNode>; hasMatches: boolean } {
+  if (!highlights || highlights.length === 0) return { content: [text], hasMatches: false };
 
   // Collect all match regions first to handle overlaps
   const matches: Array<{ start: number; end: number }> = [];
@@ -237,7 +242,7 @@ function highlightContent(text: string, highlights?: string[]): Array<string | R
     }
   }
 
-  if (matches.length === 0) return [text];
+  if (matches.length === 0) return { content: [text], hasMatches: false };
 
   // Sort and merge overlapping matches
   matches.sort((a, b) => a.start - b.start);
@@ -255,10 +260,15 @@ function highlightContent(text: string, highlights?: string[]): Array<string | R
       result.push(text.slice(lastEnd, match.start));
     }
 
-    // Add highlighted match
+    // Add highlighted match with ref tracking
     result.push(
       <mark
         key={`${match.start}-${i}`}
+        ref={(el) => {
+          if (highlightRefsArray && el) {
+            highlightRefsArray.current.push(el);
+          }
+        }}
         style={{ backgroundColor: '#FEF08A', padding: 0 }}
       >
         {text.slice(match.start, match.end)}
@@ -273,20 +283,24 @@ function highlightContent(text: string, highlights?: string[]): Array<string | R
     result.push(text.slice(lastEnd));
   }
 
-  return result;
+  return { content: result, hasMatches: true };
 }
 
 // Recursively apply highlighting to React children
-function applyHighlightToChildren(children: React.ReactNode, highlights?: string[]): React.ReactNode {
+function applyHighlightToChildren(
+  children: React.ReactNode,
+  highlights?: string[],
+  highlightRefsArray?: React.MutableRefObject<(HTMLElement | null)[]>
+): React.ReactNode {
   if (!highlights || highlights.length === 0) return children;
 
   if (typeof children === 'string') {
-    return highlightContent(children, highlights);
+    return highlightContent(children, highlights, highlightRefsArray).content;
   }
 
   if (Array.isArray(children)) {
     return children.map((child, i) => (
-      <React.Fragment key={i}>{applyHighlightToChildren(child, highlights)}</React.Fragment>
+      <React.Fragment key={i}>{applyHighlightToChildren(child, highlights, highlightRefsArray)}</React.Fragment>
     ));
   }
 
@@ -322,8 +336,35 @@ export function ConversationTrace({
   const [prettyPrintEnabled, setPrettyPrintEnabled] = useState(true);
   const [collapsedMessages, setCollapsedMessages] = useState<Set<number>>(new Set());
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const highlightRefs = useRef<(HTMLElement | null)[]>([]);
 
   console.log('[ConversationTrace] Rendering with highlights:', highlights);
+
+  // Auto-scroll to first highlight when evidence is provided
+  React.useEffect(() => {
+    if (highlights && highlights.length > 0) {
+      // Clear refs before rendering
+      highlightRefs.current = [];
+
+      // Wait for render to complete, then scroll to first highlight
+      const timer = setTimeout(() => {
+        if (highlightRefs.current.length > 0) {
+          const firstHighlight = highlightRefs.current[0];
+          if (firstHighlight) {
+            console.log('[ConversationTrace] Auto-scrolling to first highlight');
+            firstHighlight.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+          }
+        } else {
+          console.log('[ConversationTrace] No highlights found in rendered content');
+        }
+      }, 150);
+
+      return () => clearTimeout(timer);
+    }
+  }, [highlights]);
 
   const scrollToMessage = (index: number) => {
     messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -573,7 +614,7 @@ export function ConversationTrace({
                     overflowWrap: 'anywhere',
                   }}
                 >
-                  {highlights && highlights.length > 0 ? highlightContent(content, highlights) : content}
+                  {highlights && highlights.length > 0 ? highlightContent(content, highlights, highlightRefs).content : content}
                 </Typography>
               );
             }
@@ -606,17 +647,17 @@ export function ConversationTrace({
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeKatex]}
                     components={{
-                      p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, highlights)}</p>,
-                      span: ({ children }) => <span>{applyHighlightToChildren(children, highlights)}</span>,
-                      li: ({ children }) => <li>{applyHighlightToChildren(children, highlights)}</li>,
-                      strong: ({ children }) => <strong>{applyHighlightToChildren(children, highlights)}</strong>,
-                      em: ({ children }) => <em>{applyHighlightToChildren(children, highlights)}</em>,
-                      h1: ({ children }) => <h1>{applyHighlightToChildren(children, highlights)}</h1>,
-                      h2: ({ children }) => <h2>{applyHighlightToChildren(children, highlights)}</h2>,
-                      h3: ({ children }) => <h3>{applyHighlightToChildren(children, highlights)}</h3>,
-                      h4: ({ children }) => <h4>{applyHighlightToChildren(children, highlights)}</h4>,
-                      h5: ({ children }) => <h5>{applyHighlightToChildren(children, highlights)}</h5>,
-                      h6: ({ children }) => <h6>{applyHighlightToChildren(children, highlights)}</h6>,
+                      p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, highlights, highlightRefs)}</p>,
+                      span: ({ children }) => <span>{applyHighlightToChildren(children, highlights, highlightRefs)}</span>,
+                      li: ({ children }) => <li>{applyHighlightToChildren(children, highlights, highlightRefs)}</li>,
+                      strong: ({ children }) => <strong>{applyHighlightToChildren(children, highlights, highlightRefs)}</strong>,
+                      em: ({ children }) => <em>{applyHighlightToChildren(children, highlights, highlightRefs)}</em>,
+                      h1: ({ children }) => <h1>{applyHighlightToChildren(children, highlights, highlightRefs)}</h1>,
+                      h2: ({ children }) => <h2>{applyHighlightToChildren(children, highlights, highlightRefs)}</h2>,
+                      h3: ({ children }) => <h3>{applyHighlightToChildren(children, highlights, highlightRefs)}</h3>,
+                      h4: ({ children }) => <h4>{applyHighlightToChildren(children, highlights, highlightRefs)}</h4>,
+                      h5: ({ children }) => <h5>{applyHighlightToChildren(children, highlights, highlightRefs)}</h5>,
+                      h6: ({ children }) => <h6>{applyHighlightToChildren(children, highlights, highlightRefs)}</h6>,
                     }}
                   >
                     {content}
@@ -632,7 +673,7 @@ export function ConversationTrace({
                 wordBreak: 'break-word',
                 overflowWrap: 'anywhere',
               }}>
-                {highlights && highlights.length > 0 ? highlightContent(content, highlights) : content}
+                {highlights && highlights.length > 0 ? highlightContent(content, highlights, highlightRefs).content : content}
               </Typography>
             );
           })()}

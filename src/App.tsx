@@ -447,9 +447,10 @@ function App() {
   const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]); // Raw uploaded data
   const [operationalRows, setOperationalRows] = useState<Record<string, any>[]>([]); // Cleaned, filtered columns
   const [currentRows, setCurrentRows] = useState<Record<string, any>[]>([]); // With filters applied
-  
+
   const [method, setMethod] = useState<"single_model" | "side_by_side" | "unknown">("unknown");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   const [selectedTrace, setSelectedTrace] = useState<any>(null);
   const [selectedRow, setSelectedRow] = useState<Record<string, any> | null>(null);
@@ -563,7 +564,8 @@ function App() {
   const [mappingErrors, setMappingErrors] = useState<string[]>([]); // reserved for future validation UI
   const [filterNotice, setFilterNotice] = useState<string | null>(null);
   
-  // Ref for results folder picker
+  // Refs for file inputs
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const resultsInputRef = useRef<HTMLInputElement>(null);
 
   // Backend availability check on mount
@@ -573,6 +575,48 @@ function App() {
       setBackendAvailable(ok);
     })();
   }, []);
+
+  // Click-outside handler for drawer - close drawer when clicking outside, but not when clicking in the sidebar
+  React.useEffect(() => {
+    if (!drawerOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+
+      // Check if click is inside the drawer
+      if (drawerRef.current?.contains(target)) {
+        return;
+      }
+
+      // Check if click is inside the expanded sidebar (left: 60px, width: 400px when expanded)
+      if (sidebarExpanded) {
+        const rect = target.getBoundingClientRect();
+        const clickX = event.clientX;
+        // Sidebar spans from 60px to 460px when expanded
+        if (clickX >= 60 && clickX <= 460) {
+          return;
+        }
+      }
+
+      // Click is outside both drawer and sidebar - close drawer
+      setDrawerOpen(false);
+      setSelectedTrace(null);
+      setSelectedRow(null);
+      setSelectedEvidence(null);
+      setEvidenceTargetModel(undefined);
+      setSelectedProperty(null);
+    };
+
+    // Add listener with slight delay to avoid immediate trigger
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [drawerOpen, sidebarExpanded]);
 
   // Reset UI, panels, and tabs when a brand new source is loaded
   const resetUiStateForNewSource = React.useCallback((mode: 'file' | 'results') => {
@@ -587,6 +631,10 @@ function App() {
     setMethod('unknown');
     setIsResultsMode(mode === 'results');
     setResultsMetrics(null);
+    // Hide column selector when loading results (results are already in correct format)
+    if (mode === 'results') {
+      setShowColumnSelector(false);
+    }
 
     // Panels, tabs, and sidebar
     setActiveSection('data');
@@ -659,24 +707,28 @@ function App() {
     resetUiStateForNewSource('file');
     setIsLoadingResults(true);
     setResultsLoadingMessage('Parsing file and preparing data...');
-    
+
     // Parse the file
     const { rows, columns } = await parseFile(file);
-    
+
     // Store raw data and columns
     setOriginalRows(rows);
     setAvailableColumns(columns);
     setFilterNotice(null);
-    
+
     // Prepare UI to select mapping for these columns
     applyAutoMappingFromColumns(columns);
-    
+
     try {
       await detectAndValidate(file); // optional backend validation
     } catch (_) {}
     finally {
       setIsLoadingResults(false);
       setResultsLoadingMessage('');
+      // Reset file input so the same file can be uploaded again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   }
 
@@ -926,6 +978,9 @@ function App() {
       });
       setCurrentRows(flattened);
 
+      // Hide column selector since results are already in the correct format
+      setShowColumnSelector(false);
+
       // Load properties (no pre-enrichment needed - PropertiesTab handles at render time)
       // Don't add __index since property index doesn't match conversation index
       if (properties.length > 0) {
@@ -1039,6 +1094,10 @@ function App() {
     } finally {
       setIsLoadingResults(false);
       setResultsLoadingMessage('');
+      // Reset file input so the same folder can be loaded again
+      if (resultsInputRef.current) {
+        resultsInputRef.current.value = '';
+      }
     }
   }, [resetUiStateForNewSource, processDataWithMapping]);
 
@@ -2345,6 +2404,7 @@ function App() {
             >
               Upload File
               <input
+                ref={fileInputRef}
                 type="file"
                 hidden
                 accept=".csv,.json,.jsonl"
@@ -3068,6 +3128,7 @@ function App() {
 
 
       <Drawer
+        ref={drawerRef}
         anchor="right"
         open={drawerOpen}
         variant="persistent"
