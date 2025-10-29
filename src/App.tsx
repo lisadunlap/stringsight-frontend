@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, Component } from "react";
-import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress } from "@mui/material";
+import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton } from "@mui/material";
 import DownloadIcon from '@mui/icons-material/Download';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -7,6 +7,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
 import { flattenScores, normalizeMetricsColumnNames } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
@@ -2324,6 +2325,9 @@ function App() {
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, ml: 1 }}>
             <Typography variant="h6">StringSight</Typography>
+            <Typography variant="body2" sx={{ ml: 1, color: 'text.secondary', fontSize: '0.875rem' }}>
+              Automatically analyze your traces
+            </Typography>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center">
             {isLoadingResults && (
@@ -2667,7 +2671,7 @@ function App() {
               <Typography variant="body2" sx={{ color: 'primary.dark' }}>3) Click Done to load your table and explore</Typography>
               
               <Box sx={{ mt: 2, mb: 1 }}>
-                <Typography variant="subtitle1" sx={{ color: 'primary.dark', fontWeight: 600, mb: 1 }}>What data do you need?</Typography>
+                <Typography variant="subtitle1" sx={{ color: 'primary.dark', fontWeight: 600, mb: 1 }}>What data format should I use?</Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
                   StringSight accepts <strong>.jsonl</strong>, <strong>.json</strong>, or <strong>.csv</strong> files with the following:
                 </Typography>
@@ -2717,8 +2721,8 @@ function App() {
           />
         )}
 
-        {/* Show data interface only after data is loaded */}
-        {originalRows.length > 0 && (
+        {/* Show data interface only after data is loaded and column mapping is complete */}
+        {originalRows.length > 0 && !showColumnSelector && (
           <>
             {/* Show filter notice if any rows were dropped due to missing scores */}
             {filterNotice && (
@@ -3063,16 +3067,49 @@ function App() {
 
 
 
-      <Drawer anchor="right" open={drawerOpen} variant="persistent" sx={{
-        '& .MuiDrawer-paper': {
-          width: '65vw',
-          maxWidth: 1200,
-          p: 2,
-          overflow: 'auto',
-          height: '100vh'
-        }
-      }} ModalProps={{ keepMounted: true }}>
+      <Drawer
+        anchor="right"
+        open={drawerOpen}
+        variant="persistent"
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: sidebarExpanded ? 'calc(100vw - 460px - 60px)' : 'calc(100vw - 60px - 40vw)',
+            minWidth: 500,
+            p: 2,
+            overflow: 'auto',
+            height: '100vh',
+            zIndex: (theme) => theme.zIndex.drawer
+          }
+        }}
+        ModalProps={{ keepMounted: true }}
+      >
         <>
+            {/* Collapse button */}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 1 }}>
+              <IconButton
+                onClick={() => {
+                  setDrawerOpen(false);
+                  setSelectedTrace(null);
+                  setSelectedRow(null);
+                  setSelectedEvidence(null);
+                  setEvidenceTargetModel(undefined);
+                  setSelectedProperty(null);
+                }}
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                  }
+                }}
+              >
+                <ChevronRightIcon />
+              </IconButton>
+            </Box>
+
             {(selectedTrace?.type === "single" || selectedTrace?.type === "sbs") && selectedProperty && (
               // Property information header when viewing from properties table
               <PropertyTraceHeader
@@ -3110,24 +3147,6 @@ function App() {
             )}
           </>
       </Drawer>
-      {/* Transparent center overlay to close only the right drawer when clicked */}
-      {drawerOpen && (
-        <Box
-          onClick={() => {
-            setDrawerOpen(false);
-            setSelectedProperty(null);
-          }}
-          sx={{
-            position: 'fixed',
-            left: `${60 + (sidebarExpanded ? 400 : 0)}px`,
-            right: '50vw',
-            top: (theme) => theme.mixins.toolbar.minHeight,
-            bottom: 0,
-            zIndex: (theme) => theme.zIndex.drawer - 1,
-            background: 'transparent',
-          }}
-        />
-      )}
     </Box>
   );
 }

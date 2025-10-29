@@ -573,7 +573,7 @@ export default function PropertyExtractionPanel({
                 />
                 <TextField 
                   size="small" 
-                  label="Sample size (batch only)" 
+                  label="Sample size" 
                   type="number" 
                   value={sampleSize || ''} 
                   onChange={(e) => setSampleSize(e.target.value ? Number(e.target.value) : null)} 
