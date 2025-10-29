@@ -269,6 +269,7 @@ export async function runClustering(body: {
   score_columns?: string[];
   method?: 'single_model' | 'side_by_side' | 'unknown';
   model_column_map?: Record<string, string>; // e.g., {"gpt-4": "model_a", "claude-3": "model_b"}
+  output_dir?: string | null;
 }) {
   const res = await fetch(`${API_BASE}/cluster/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(await res.text());

@@ -73,16 +73,84 @@ function pickPairResponses(c: any): [any, any] {
 }
 
 /**
+ * Transform operationalRows to backend-expected format.
+ * For side-by-side: converts model_a/model_b/score_a/score_b to arrays.
+ * For single_model: renames fields to match backend expectations.
+ */
+function transformRowsForBackend(
+  rows: Record<string, any>[],
+  method: 'single_model' | 'side_by_side' | 'unknown'
+): Record<string, any>[] {
+  if (method === 'side_by_side') {
+    return rows.map(row => {
+      const transformed: Record<string, any> = {
+        question_id: String(row.__index ?? row.question_id ?? ''),
+        prompt: row.prompt
+      };
+
+      // Convert model_a/model_b to model array
+      if (row.model_a !== undefined && row.model_b !== undefined) {
+        transformed.model = [row.model_a, row.model_b];
+      } else if (row.model_a !== undefined) {
+        transformed.model = [row.model_a];
+      } else if (row.model_b !== undefined) {
+        transformed.model = [row.model_b];
+      }
+
+      // Convert responses to array
+      if (row.model_a_response !== undefined && row.model_b_response !== undefined) {
+        transformed.responses = [row.model_a_response, row.model_b_response];
+      } else if (row.model_a_response !== undefined) {
+        transformed.responses = [row.model_a_response];
+      } else if (row.model_b_response !== undefined) {
+        transformed.responses = [row.model_b_response];
+      }
+
+      // Convert score_a/score_b to scores array
+      if (row.score_a !== undefined && row.score_b !== undefined) {
+        transformed.scores = [row.score_a, row.score_b];
+      } else if (row.score_a !== undefined) {
+        transformed.scores = [row.score_a];
+      } else if (row.score_b !== undefined) {
+        transformed.scores = [row.score_b];
+      }
+
+      return transformed;
+    });
+  } else if (method === 'single_model') {
+    return rows.map(row => {
+      const transformed: Record<string, any> = {
+        question_id: String(row.__index ?? row.question_id ?? ''),
+        prompt: row.prompt,
+        model: row.model
+      };
+
+      // Rename model_response to responses
+      if (row.model_response !== undefined) {
+        transformed.responses = row.model_response;
+      }
+
+      // Rename score to scores
+      if (row.score !== undefined) {
+        transformed.scores = row.score;
+      }
+
+      return transformed;
+    });
+  }
+
+  // Return as-is for unknown method
+  return rows;
+}
+
+/**
  * Enrich clusters with per-model quality data from metrics.
  * Extracts quality_by_model and quality_delta_by_model from model_cluster_scores.
  */
 function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[]): any[] {
   if (!clusters || !modelClusterScores || modelClusterScores.length === 0) {
-    console.log('🔧 enrichClustersWithQualityData: No clusters or metrics to enrich');
     return clusters;
   }
-
-  console.log('🔧 Enriching', clusters.length, 'clusters with quality data from', modelClusterScores.length, 'metric rows');
 
   // Build a map of cluster identifier -> model -> metrics
   // Note: metrics file may use 'cluster' (label) or 'cluster_id'
@@ -149,7 +217,6 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
     }
 
     if (!modelMap || modelMap.size === 0) {
-      console.log(`⚠️ No metrics found for cluster id=${cluster.id} label=${cluster.label}`);
       return cluster;
     }
 
@@ -157,9 +224,7 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
     const qualityByModel: Record<string, Record<string, number>> = {};
     const qualityDeltaByModel: Record<string, Record<string, number>> = {};
 
-    console.log('🔧 DEBUG: modelMap size:', modelMap.size);
     modelMap.forEach((metrics, model) => {
-      console.log(`🔧 DEBUG: Processing model ${model}, metrics:`, metrics);
       qualityByModel[model] = {};
       qualityDeltaByModel[model] = {};
 
@@ -167,15 +232,10 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
         if (key.startsWith('delta_')) {
           const metric = key.substring(6); // Remove 'delta_' prefix
           qualityDeltaByModel[model][metric] = value;
-          console.log(`  → Added delta: ${metric} = ${value}`);
         } else {
           qualityByModel[model][key] = value;
-          console.log(`  → Added quality: ${key} = ${value}`);
         }
       });
-
-      console.log(`🔧 DEBUG: After split - qualityByModel[${model}]:`, qualityByModel[model]);
-      console.log(`🔧 DEBUG: After split - qualityDeltaByModel[${model}]:`, qualityDeltaByModel[model]);
     });
 
     // Add to cluster meta
@@ -188,15 +248,7 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
       }
     };
   });
-  
-  // Log sample enriched cluster for debugging
-  if (enrichedClusters.length > 0) {
-    const sample = enrichedClusters[0];
-    console.log('🔧 Sample enriched cluster:', sample);
-    console.log('🔧 Sample quality_delta_by_model:', sample.meta?.quality_delta_by_model);
-    console.log('🔧 Sample quality_by_model:', sample.meta?.quality_by_model);
-  }
-  
+
   return enrichedClusters;
 }
 
@@ -267,7 +319,7 @@ function ExampleFormatTabs() {
         <Box>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
             <strong>Multi-turn conversations</strong> using OpenAI format with <code>role</code> and <code>content</code> fields.
-            Supports tool calls, multimodal inputs, and complex interactions.
+            Supports tool calls and multimodal inputs.
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
             <strong>Fields:</strong>{' '}
@@ -445,6 +497,7 @@ function ExampleFormatTabs() {
 function App() {
   // Data management layers as suggested
   const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]); // Raw uploaded data
+  const [uploadedFileName, setUploadedFileName] = useState<string>(''); // Original file name without extension
   const [operationalRows, setOperationalRows] = useState<Record<string, any>[]>([]); // Cleaned, filtered columns
   const [currentRows, setCurrentRows] = useState<Record<string, any>[]>([]); // With filters applied
 
@@ -622,6 +675,7 @@ function App() {
   const resetUiStateForNewSource = React.useCallback((mode: 'file' | 'results') => {
     // Core data and mapping
     setOriginalRows([]);
+    setUploadedFileName(''); // Reset filename when switching data sources
     setOperationalRows([]);
     setCurrentRows([]);
     setAvailableColumns([]);
@@ -716,6 +770,10 @@ function App() {
     setAvailableColumns(columns);
     setFilterNotice(null);
 
+    // Store file name without extension for use in results folder naming
+    const fileNameWithoutExt = file.name.replace(/\.(csv|json|jsonl)$/i, '');
+    setUploadedFileName(fileNameWithoutExt);
+
     // Prepare UI to select mapping for these columns
     applyAutoMappingFromColumns(columns);
 
@@ -764,6 +822,9 @@ function App() {
       setOriginalRows(rows);
       setAvailableColumns(columns);
       setFilterNotice(null);
+
+      // Set filename for demo data
+      setUploadedFileName('taubench_airline');
 
       // Auto-detect mapping using legacy detection
       const legacyDetected = detectMethodFromColumns(columns);
@@ -1936,8 +1997,20 @@ function App() {
       });
       return (
         <>
+        {/* Hint message for extraction feature */}
+        <Box sx={{ mb: 2, p: 1.5, backgroundColor: '#FFF4E5', border: '1px solid #FFB020', borderRadius: 1 }}>
+          <Typography variant="body2" sx={{ color: '#663C00', fontWeight: 500 }}>
+            Click <strong>🔍</strong> in the sidebar to analyze your traces
+          </Typography>
+        </Box>
+
         {/* Benchmark Metrics Table (same style as Metrics tab) */}
-        <DataTabBenchmarkTable operationalRows={operationalRows} method={method} />
+        <DataTabBenchmarkTable
+          operationalRows={operationalRows}
+          method={method}
+          propertiesRows={propertiesRows}
+          modelScores={resultsMetrics?.model_scores}
+        />
         
         {/* Keep FilterBar visible in grouped mode */}
         <Box sx={{ mt: 2 }}>
@@ -2122,8 +2195,20 @@ function App() {
     // Normal flat table view when no groupBy
     return (
       <>
+        {/* Hint message for extraction feature */}
+        <Box sx={{ mb: 2, p: 1.5, backgroundColor: '#FFF4E5', border: '1px solid #FFB020', borderRadius: 1 }}>
+          <Typography variant="body2" sx={{ color: '#663C00', fontWeight: 500 }}>
+            Click <strong>🔍</strong> in the sidebar to analyze your traces
+          </Typography>
+        </Box>
+
         {/* Benchmark Metrics Table (same style as Metrics tab) */}
-        <DataTabBenchmarkTable operationalRows={operationalRows} method={method} />
+        <DataTabBenchmarkTable
+          operationalRows={operationalRows}
+          method={method}
+          propertiesRows={propertiesRows}
+          modelScores={resultsMetrics?.model_scores}
+        />
         
         <Box sx={{ mt: 2 }}>
         <FilterBar
@@ -2304,13 +2389,25 @@ function App() {
   const onRequestRecomputeCb = useCallback((included_property_ids?: string[]) => {
     (async () => {
       try {
-        // Detect score columns from operationalRows - include both flat and nested score columns
-        const scoreColumns = operationalRows[0] ? Object.keys(operationalRows[0]).filter(k => {
+        // Transform operationalRows to backend-expected format
+        const transformedRows = transformRowsForBackend(operationalRows, method);
+
+        console.log('🔍 TRANSFORMATION DEBUG:', {
+          method,
+          originalSample: operationalRows[0],
+          transformedSample: transformedRows[0],
+          originalCount: operationalRows.length,
+          transformedCount: transformedRows.length
+        });
+
+        // Detect score columns from transformed data
+        const scoreColumns = transformedRows[0] ? Object.keys(transformedRows[0]).filter(k => {
           const key = k.toLowerCase();
-          return key.startsWith('score_') || key === 'score' || key === 'score_a' || key === 'score_b';
+          return key.startsWith('score') || key === 'scores';
         }) : [];
 
         // For side-by-side: create model-to-column mapping
+        // Note: After transformation, this is no longer needed since we use arrays
         let modelColumnMap: Record<string, string> | undefined;
         if (method === 'side_by_side' && operationalRows[0]) {
           const firstRow = operationalRows[0];
@@ -2323,10 +2420,17 @@ function App() {
           }
         }
 
+        console.log('🔍 SENDING TO BACKEND:', {
+          transformedRows_sample: transformedRows[0],
+          score_columns: scoreColumns,
+          method: method,
+          model_column_map: modelColumnMap
+        });
+
         const res = await recomputeClusterMetrics({
           clusters,
           properties: propertiesRows,
-          operationalRows,
+          operationalRows: transformedRows,
           included_property_ids,
           score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
           method,
@@ -2497,6 +2601,7 @@ function App() {
           <Box sx={{ position: 'relative' }}>
           <PropertyExtractionPanel
             method={method}
+            uploadedFileName={uploadedFileName}
             getSelectedRow={() => {
               // Prioritize the row being viewed in the trace drawer, otherwise use the default selection
               return (drawerOpen && selectedRow) ? selectedRow : selectedRowForExtraction;
@@ -2578,14 +2683,6 @@ function App() {
             }}
             onBatchDone={() => setBatchRunning(false)}
             onClustersUpdated={(data) => {
-              console.log('🟢 App.tsx onClustersUpdated received:', data);
-              console.log('🟢 Data type:', typeof data);
-              console.log('🟢 Data keys:', data ? Object.keys(data) : 'null/undefined');
-              console.log('🟢 Sample cluster:', data?.clusters?.[0]);
-              console.log('🟢 Sample cluster meta:', data?.clusters?.[0]?.meta);
-              console.log('🟢 Metrics:', data?.metrics);
-              console.log('🟢 Sample model_cluster_scores:', data?.metrics?.model_cluster_scores?.[0]);
-
               if (!data) {
                 console.error('❌ onClustersUpdated received undefined/null data');
                 return;
@@ -2595,37 +2692,26 @@ function App() {
               let enrichedClusters = data.clusters || [];
               if (data.metrics?.model_cluster_scores) {
                 const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
-                console.log('🔧 Enriching clusters with quality data from model_cluster_scores');
-                console.log('🔧 First model_cluster_scores row:', normalizedMetrics.model_cluster_scores[0]);
-                console.log('🔧 Does first row have examples?', normalizedMetrics.model_cluster_scores[0]?.examples);
-                console.log('🔧 Total model_cluster_scores rows:', normalizedMetrics.model_cluster_scores.length);
-                
+
                 enrichedClusters = enrichClustersWithQualityData(
                   data.clusters || [],
                   normalizedMetrics.model_cluster_scores
                 );
-                console.log('🔧 Sample enriched cluster meta:', enrichedClusters[0]?.meta);
 
                 // Build a map of examples by cluster label (metrics rows group by 'cluster' label)
                 const examplesByCluster = new Map<string, any[]>();
-                normalizedMetrics.model_cluster_scores.forEach((row: any, index: number) => {
+                normalizedMetrics.model_cluster_scores.forEach((row: any) => {
                   const labelKey = String(row.cluster ?? '');
                   const hasExamples = Array.isArray(row.examples) && row.examples.length > 0;
-                  if (index < 3) {
-                    console.log(`🔧 Row ${index} - Cluster: "${labelKey}", Examples: ${hasExamples ? row.examples.length : 0}`);
-                  }
                   if (!hasExamples) return;
                   const existing = examplesByCluster.get(labelKey) || [];
                   examplesByCluster.set(labelKey, existing.concat(row.examples));
                 });
 
-                console.log('🔧 Total clusters with examples:', examplesByCluster.size);
-
                 // Enrich clusters with examples from model_cluster_scores (label match)
                 enrichedClusters = enrichedClusters.map(cluster => {
                   const labelKey = cluster.cluster_label || cluster.label || cluster.cluster || '';
                   const examples = examplesByCluster.get(String(labelKey)) || [];
-                  console.log(`🔧 Adding ${examples.length} examples to cluster "${labelKey}"`);
                   return {
                     ...cluster,
                     examples
@@ -2641,12 +2727,15 @@ function App() {
               // Save metrics so they appear in the Metrics tab
               if (data.metrics) {
                 const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
+                console.log('📊 resultsMetrics set:', normalizedMetrics.model_scores?.length || 0, 'model_scores');
                 setResultsMetrics(normalizedMetrics);
               }
             }}
             onNavigateToMetrics={() => {
               // Navigate to metrics tab to view clustering results
               setActiveTab('metrics');
+              // Collapse property extraction panel when clustering finishes
+              setSidebarExpanded(false);
             }}
             onOpenTrace={(row) => {
               // Format trace data properly based on method (same as onView function)
@@ -2804,9 +2893,6 @@ function App() {
                   <strong>{dataOverview.rowCount}</strong> rows ·{' '}
                   <strong>{dataOverview.uniquePrompts}</strong> unique prompts ·{' '}
                   <strong>{dataOverview.uniqueModels}</strong> unique models
-                </Box>
-                <Box sx={{ color: 'warning.main', fontWeight: 500 }}>
-                  Click <strong>🔍</strong> in the sidebar to analyze your traces
                 </Box>
                 {/* Removed hint: Click headers to sort • Use filters to narrow results */}
               </Box>

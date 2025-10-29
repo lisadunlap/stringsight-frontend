@@ -84,7 +84,7 @@ export default function PermanentIconSidebar({ activeSection, onSectionChange, h
         tooltip="Properties - View extracted behaviors per trace"
         active={activeSection === 'extraction'}
         onClick={() => onSectionChange('extraction')}
-        highlight={highlightExtraction && activeSection !== 'extraction'}
+        highlight={activeSection !== 'extraction'}
       />
 
       <IconButtonItem

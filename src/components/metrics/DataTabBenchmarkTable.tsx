@@ -4,6 +4,15 @@
  * Adapter to reuse Metrics tab's BenchmarkTable in the Data tab.
  * Converts `operationalRows` into per-model aggregates matching
  * `ModelBenchmarkRow[]` and infers available quality metrics.
+ *
+ * When backend-computed model_scores are available:
+ * - Uses them directly (already computed from properties)
+ * - Ensures frequencies and quality metrics reflect the actual extracted behaviors per model
+ *
+ * Otherwise, falls back to computing from operationalRows/propertiesRows:
+ * - For side-by-side with properties: uses model field from properties
+ * - For side-by-side without properties: counts both models equally
+ * - For single_model: uses conversation data directly
  */
 
 import React, { useMemo } from 'react';
@@ -13,10 +22,46 @@ import type { ModelBenchmarkRow } from '../../types/metrics';
 interface DataTabBenchmarkTableProps {
   operationalRows: Array<Record<string, unknown>>;
   method: 'single_model' | 'side_by_side' | 'unknown';
+  propertiesRows?: Array<Record<string, unknown>>;
+  modelScores?: Array<Record<string, unknown>>;
 }
 
-export default function DataTabBenchmarkTable({ operationalRows, method }: DataTabBenchmarkTableProps) {
+export default function DataTabBenchmarkTable({ operationalRows, method, propertiesRows, modelScores }: DataTabBenchmarkTableProps) {
   const { rows, qualityMetrics } = useMemo(() => {
+    // If backend-computed model_scores are available, use them directly
+    if (modelScores && modelScores.length > 0) {
+      console.log('[DataTabBenchmarkTable] Using backend-computed model_scores:', modelScores);
+      const metricSet = new Set<string>();
+
+      // Extract quality metrics from backend data
+      for (const row of modelScores) {
+        for (const key of Object.keys(row)) {
+          if (key.startsWith('quality_')) {
+            const metricName = key.replace('quality_', '');
+            metricSet.add(metricName);
+          }
+        }
+      }
+
+      // Convert backend model_scores to ModelBenchmarkRow format
+      const benchmarkRows: ModelBenchmarkRow[] = modelScores.map((row: any) => ({
+        model: String(row.model || ''),
+        cluster: 'all_clusters' as const,
+        size: typeof row.size === 'number' ? row.size : 0,
+        proportion: 1,
+        ...Object.fromEntries(
+          Object.entries(row).filter(([k]) => k.startsWith('quality_'))
+        )
+      }));
+
+      return {
+        rows: benchmarkRows,
+        qualityMetrics: Array.from(metricSet).sort()
+      };
+    }
+
+    // Fallback: compute from operationalRows/propertiesRows
+    console.log('[DataTabBenchmarkTable] No model_scores available, computing from operational/properties rows');
     const perModel: Record<string, ModelBenchmarkRow> = {};
     const metricSet = new Set<string>();
 
@@ -39,18 +84,54 @@ export default function DataTabBenchmarkTable({ operationalRows, method }: DataT
       }
     };
 
-    for (const r of operationalRows || []) {
-      if (method === 'single_model') {
-        const model = typeof (r as any)?.model === 'string' ? String((r as any).model) : '';
-        const score = (r as any)?.score as Record<string, unknown> | null | undefined;
-        addObservation(model, score);
-      } else if (method === 'side_by_side') {
-        const modelA = typeof (r as any)?.model_a === 'string' ? String((r as any).model_a) : '';
-        const modelB = typeof (r as any)?.model_b === 'string' ? String((r as any).model_b) : '';
-        const scoreA = (r as any)?.score_a as Record<string, unknown> | null | undefined;
-        const scoreB = (r as any)?.score_b as Record<string, unknown> | null | undefined;
-        addObservation(modelA, scoreA);
-        addObservation(modelB, scoreB);
+    // For side-by-side with properties: use model from properties, not from conversations
+    if (method === 'side_by_side' && propertiesRows && propertiesRows.length > 0) {
+      // Create a map of question_id -> conversation for fast lookup
+      const conversationMap = new Map<string, any>();
+      for (const r of operationalRows || []) {
+        const qid = String((r as any).__index ?? (r as any).question_id ?? '');
+        conversationMap.set(qid, r);
+      }
+
+      // Iterate through properties and use their model field
+      for (const prop of propertiesRows) {
+        const propModel = typeof (prop as any)?.model === 'string' ? String((prop as any).model) : '';
+        const qid = String((prop as any).question_id ?? '');
+
+        if (!propModel || !qid) continue;
+
+        const conversation = conversationMap.get(qid);
+        if (!conversation) continue;
+
+        // Determine which score to use based on the property's model
+        // Match property model to conversation model_a or model_b
+        const modelA = typeof (conversation as any)?.model_a === 'string' ? String((conversation as any).model_a) : '';
+        const modelB = typeof (conversation as any)?.model_b === 'string' ? String((conversation as any).model_b) : '';
+
+        let scoreObj: Record<string, unknown> | null | undefined;
+        if (propModel === modelA) {
+          scoreObj = (conversation as any)?.score_a as Record<string, unknown> | null | undefined;
+        } else if (propModel === modelB) {
+          scoreObj = (conversation as any)?.score_b as Record<string, unknown> | null | undefined;
+        }
+
+        addObservation(propModel, scoreObj);
+      }
+    } else {
+      // Original logic for single_model or side_by_side without properties
+      for (const r of operationalRows || []) {
+        if (method === 'single_model') {
+          const model = typeof (r as any)?.model === 'string' ? String((r as any).model) : '';
+          const score = (r as any)?.score as Record<string, unknown> | null | undefined;
+          addObservation(model, score);
+        } else if (method === 'side_by_side') {
+          const modelA = typeof (r as any)?.model_a === 'string' ? String((r as any).model_a) : '';
+          const modelB = typeof (r as any)?.model_b === 'string' ? String((r as any).model_b) : '';
+          const scoreA = (r as any)?.score_a as Record<string, unknown> | null | undefined;
+          const scoreB = (r as any)?.score_b as Record<string, unknown> | null | undefined;
+          addObservation(modelA, scoreA);
+          addObservation(modelB, scoreB);
+        }
       }
     }
 
@@ -80,7 +161,7 @@ export default function DataTabBenchmarkTable({ operationalRows, method }: DataT
     });
 
     return { rows, qualityMetrics: Array.from(metricSet).sort() };
-  }, [operationalRows, method]);
+  }, [operationalRows, method, propertiesRows, modelScores]);
 
   return (
     <BenchmarkTable data={rows} qualityMetrics={qualityMetrics} showCI={true} />

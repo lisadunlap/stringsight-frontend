@@ -337,17 +337,22 @@ export function ConversationTrace({
   const [collapsedMessages, setCollapsedMessages] = useState<Set<number>>(new Set());
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const highlightRefs = useRef<(HTMLElement | null)[]>([]);
+  const prevHighlightsRef = useRef<string[] | undefined>();
 
   console.log('[ConversationTrace] Rendering with highlights:', highlights);
+
+  // Clear refs during render phase when highlights change (not in useEffect which runs after render)
+  if (prevHighlightsRef.current !== highlights) {
+    highlightRefs.current = [];
+    prevHighlightsRef.current = highlights;
+  }
 
   // Auto-scroll to first highlight when evidence is provided
   React.useEffect(() => {
     if (highlights && highlights.length > 0) {
-      // Clear refs before rendering
-      highlightRefs.current = [];
-
-      // Wait for render to complete, then scroll to first highlight
+      // Wait for render to complete and drawer animation, then scroll to first highlight
       const timer = setTimeout(() => {
+        console.log('[ConversationTrace] Checking for highlights, refs count:', highlightRefs.current.length);
         if (highlightRefs.current.length > 0) {
           const firstHighlight = highlightRefs.current[0];
           if (firstHighlight) {
@@ -360,7 +365,7 @@ export function ConversationTrace({
         } else {
           console.log('[ConversationTrace] No highlights found in rendered content');
         }
-      }, 150);
+      }, 300); // Increased timeout to account for drawer animations
 
       return () => clearTimeout(timer);
     }

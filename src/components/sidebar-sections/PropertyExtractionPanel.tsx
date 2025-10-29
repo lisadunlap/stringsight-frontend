@@ -20,8 +20,80 @@ import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobSt
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
 
+/**
+ * Transform operationalRows to backend-expected format.
+ * For side-by-side: converts model_a/model_b/score_a/score_b to arrays.
+ * For single_model: renames fields to match backend expectations.
+ */
+function transformRowsForBackend(
+  rows: Record<string, any>[],
+  method: Method
+): Record<string, any>[] {
+  if (method === 'side_by_side') {
+    return rows.map(row => {
+      const transformed: Record<string, any> = {
+        question_id: String(row.__index ?? row.question_id ?? ''),
+        prompt: row.prompt
+      };
+
+      // Convert model_a/model_b to model array
+      if (row.model_a !== undefined && row.model_b !== undefined) {
+        transformed.model = [row.model_a, row.model_b];
+      } else if (row.model_a !== undefined) {
+        transformed.model = [row.model_a];
+      } else if (row.model_b !== undefined) {
+        transformed.model = [row.model_b];
+      }
+
+      // Convert responses to array
+      if (row.model_a_response !== undefined && row.model_b_response !== undefined) {
+        transformed.responses = [row.model_a_response, row.model_b_response];
+      } else if (row.model_a_response !== undefined) {
+        transformed.responses = [row.model_a_response];
+      } else if (row.model_b_response !== undefined) {
+        transformed.responses = [row.model_b_response];
+      }
+
+      // Convert score_a/score_b to scores array
+      if (row.score_a !== undefined && row.score_b !== undefined) {
+        transformed.scores = [row.score_a, row.score_b];
+      } else if (row.score_a !== undefined) {
+        transformed.scores = [row.score_a];
+      } else if (row.score_b !== undefined) {
+        transformed.scores = [row.score_b];
+      }
+
+      return transformed;
+    });
+  } else if (method === 'single_model') {
+    return rows.map(row => {
+      const transformed: Record<string, any> = {
+        question_id: String(row.__index ?? row.question_id ?? ''),
+        prompt: row.prompt,
+        model: row.model
+      };
+
+      // Rename model_response to responses
+      if (row.model_response !== undefined) {
+        transformed.responses = row.model_response;
+      }
+
+      // Rename score to scores
+      if (row.score !== undefined) {
+        transformed.scores = row.score;
+      }
+
+      return transformed;
+    });
+  }
+
+  // Return as-is for unknown method
+  return rows;
+}
+
 interface PropertyExtractionPanelProps {
   method: Method;
+  uploadedFileName?: string;
   getSelectedRow: () => Record<string, any> | null;
   getAllRows: () => Record<string, any>[];
   getOperationalRows: () => any[];
@@ -49,6 +121,7 @@ interface PropertyExtractionPanelProps {
 
 export default function PropertyExtractionPanel({
   method,
+  uploadedFileName,
   getSelectedRow,
   getAllRows,
   getOperationalRows,
@@ -102,8 +175,25 @@ export default function PropertyExtractionPanel({
   const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
   const [currentStage, setCurrentStage] = React.useState<'extraction' | 'clustering' | null>(null);
 
+  // Results folder naming
+  const [resultsName, setResultsName] = React.useState<string>('');
+
   const selectedPromptMeta = promptOptions.find(p => p.name === selectedPrompt);
   const canTaskDescribe = selectedPromptMeta?.has_task_description || false;
+
+  // Update resultsName when uploadedFileName changes
+  React.useEffect(() => {
+    if (uploadedFileName && !resultsName) {
+      setResultsName(uploadedFileName);
+    }
+  }, [uploadedFileName, resultsName]);
+
+  // Generate output directory name with custom name (or filename) and timestamp
+  const generateOutputDir = React.useCallback(() => {
+    const baseName = resultsName.trim() || uploadedFileName || 'results';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: YYYY-MM-DDTHH-MM-SS
+    return `${baseName}_${timestamp}`;
+  }, [resultsName, uploadedFileName]);
 
   // Load prompts and embedding models on mount
   React.useEffect(() => {
@@ -192,11 +282,11 @@ export default function PropertyExtractionPanel({
   async function runExtractSingle() {
     const row = getSelectedRow();
     const methodValid = method === 'single_model' || method === 'side_by_side';
-    console.log('[PropertyExtraction] runExtractSingle called', { row, methodValid, method });
     if (!row || !methodValid) return;
     setBusy(true);
     try {
       setErrorMsg(null);
+      const outputDir = generateOutputDir();
       const body: any = {
         row,
         method,
@@ -207,10 +297,9 @@ export default function PropertyExtractionPanel({
         top_p: topP,
         max_tokens: maxTokens,
         max_workers: maxWorkers,
+        output_dir: outputDir,
       };
-      console.log('[PropertyExtraction] Calling extractSingle with body:', body);
       const res = await extractSingle({ ...body, return_debug: true });
-      console.log('[PropertyExtraction] extractSingle response:', res);
       onPropertiesMerged(res.properties || []);
       setLastExtractProps(res.properties || []);
       
@@ -263,7 +352,9 @@ export default function PropertyExtractionPanel({
       // STAGE 1: Property Extraction
       onBatchStatus?.(0, 'queued', 'extraction', 'Starting property extraction...');
 
-      const startRes = await extractJobStart({
+      const outputDir = generateOutputDir();
+
+      const extractBody = {
         rows,
         method,
         system_prompt: selectedPrompt,
@@ -274,7 +365,10 @@ export default function PropertyExtractionPanel({
         max_tokens: maxTokens,
         max_workers: maxWorkers,
         sample_size: sampleSize || undefined,
-      });
+        output_dir: outputDir,
+      };
+
+      const startRes = await extractJobStart(extractBody);
       setJobId(startRes.job_id);
 
       await new Promise<void>((resolve, reject) => {
@@ -316,11 +410,7 @@ export default function PropertyExtractionPanel({
 
       // STAGE 2: Clustering (automatically run after extraction with the extracted properties)
       if (extractedProperties.length > 0) {
-        console.log('🎯 Starting clustering with', extractedProperties.length, 'extracted properties');
         await runClusteringWithProperties(extractedProperties);
-        console.log('✅ Clustering completed successfully');
-      } else {
-        console.warn('⚠️ No properties extracted, skipping clustering');
       }
 
       onBatchDone?.();
@@ -352,13 +442,24 @@ export default function PropertyExtractionPanel({
       return;
     }
 
+    // Collapse examples/property details when clustering starts
+    setLastExtractProps([]);
+
     setClusteringBusy(true);
     setCurrentStage('clustering');
 
     try {
-      console.log('🔍 Starting clustering with properties:', properties.length);
-      console.log('🔍 Sample property:', properties[0]);
-      console.log('🔍 Operational rows count:', operationalRows.length);
+      // Transform operationalRows to backend-expected format
+      const transformedRows = transformRowsForBackend(operationalRows, method);
+
+      console.log('🔍 Clustering:', properties.length, 'properties,', operationalRows.length, 'conversations');
+      console.log('🔍 Properties model distribution:',
+        properties.reduce((acc: any, p: any) => {
+          const model = p.model || 'unknown';
+          acc[model] = (acc[model] || 0) + 1;
+          return acc;
+        }, {})
+      );
 
       // Determine which properties to cluster based on groupBy
       const propertiesToCluster = properties.map((prop: any) => {
@@ -368,14 +469,11 @@ export default function PropertyExtractionPanel({
 
       onBatchStatus?.(0, 'clustering', 'clustering', `Clustering ${properties.length} properties...`);
 
-      // Detect score columns - look for both flat columns (score_metric) and nested objects (score, score_a, score_b)
-      const scoreColumns = operationalRows[0] ? Object.keys(operationalRows[0]).filter(k => {
+      // Detect score columns from transformed data
+      const scoreColumns = transformedRows[0] ? Object.keys(transformedRows[0]).filter(k => {
         const key = k.toLowerCase();
-        return key.startsWith('score_') || key === 'score' || key === 'score_a' || key === 'score_b';
+        return key.startsWith('score') || key === 'scores';
       }) : [];
-
-      console.log('🔍 Detected score columns:', scoreColumns);
-      console.log('🔍 Sample score values:', scoreColumns.map(k => ({ [k]: operationalRows[0]?.[k] })));
 
       // For side-by-side: create model-to-column mapping so backend knows which score belongs to which model
       let modelColumnMap: Record<string, string> | undefined;
@@ -390,33 +488,34 @@ export default function PropertyExtractionPanel({
         if (firstRow.model_b) {
           modelColumnMap[firstRow.model_b] = 'model_b';
         }
-
-        console.log('🔍 Created model column map:', modelColumnMap);
-        console.log('🔍 This maps property.model values to score column prefixes');
       }
 
+      const outputDir = generateOutputDir();
+
       const body = {
-        operationalRows,
+        operationalRows: transformedRows,
         properties,
         params: { minClusterSize, embeddingModel, groupBy, summarizationModel, matchingModel },
         score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
         method,
         model_column_map: modelColumnMap,
+        output_dir: outputDir,
       };
 
-      console.log('🔍 Clustering request body:', {
-        operationalRowsCount: body.operationalRows.length,
-        propertiesCount: body.properties.length,
-        params: body.params,
-        score_columns: body.score_columns,
-        method: body.method,
-        model_column_map: body.model_column_map
-      });
-
       const res = await runClustering(body as any);
-      console.log('🔵 Clustering response:', res);
-      console.log('🔵 Response type:', typeof res);
-      console.log('🔵 Response keys:', res ? Object.keys(res) : 'null/undefined');
+
+      // Log metrics if available
+      if (res?.metrics?.model_scores) {
+        console.log('🔵 Backend model_scores:',
+          res.metrics.model_scores.map((s: any) => ({
+            model: s.model,
+            size: s.size,
+            qualities: Object.keys(s).filter(k => k.startsWith('quality_') && !k.includes('_ci_')).length
+          }))
+        );
+      } else {
+        console.warn('⚠️ No model_scores in clustering response!');
+      }
 
       if (!res) {
         throw new Error('Clustering API returned undefined response');
@@ -428,10 +527,7 @@ export default function PropertyExtractionPanel({
 
       // Navigate to clusters tab after clustering completes
       if (onNavigateToMetrics) {
-        console.log('📊 Navigating to Clusters tab');
         onNavigateToMetrics();
-      } else {
-        console.warn('⚠️ onNavigateToMetrics callback not provided');
       }
 
       onBatchStatus?.(1, 'done', 'clustering', 'Clustering complete');
@@ -458,12 +554,8 @@ export default function PropertyExtractionPanel({
         variant="outlined"
         onClick={() => {
           const row = getSelectedRow();
-          console.log('[PropertyExtraction] View Response clicked:', { row, onOpenTrace: !!onOpenTrace });
           if (onOpenTrace && row) {
-            console.log('[PropertyExtraction] Calling onOpenTrace with row:', row);
             onOpenTrace(row);
-          } else {
-            console.log('[PropertyExtraction] Cannot open trace:', { hasOnOpenTrace: !!onOpenTrace, hasRow: !!row });
           }
         }}
         disabled={!getSelectedRow() || !onOpenTrace}
@@ -571,14 +663,22 @@ export default function PropertyExtractionPanel({
                   value={modelName} 
                   onChange={(e) => setModelName(e.target.value)} 
                 />
-                <TextField 
-                  size="small" 
-                  label="Sample size" 
-                  type="number" 
-                  value={sampleSize || ''} 
-                  onChange={(e) => setSampleSize(e.target.value ? Number(e.target.value) : null)} 
+                <TextField
+                  size="small"
+                  label="Sample size"
+                  type="number"
+                  value={sampleSize || ''}
+                  onChange={(e) => setSampleSize(e.target.value ? Number(e.target.value) : null)}
                   placeholder="Leave empty for all prompts"
                   helperText={sampleSize ? `Will sample ${sampleSize} prompts total` : 'Process all prompts'}
+                />
+                <TextField
+                  size="small"
+                  label="Results folder name"
+                  value={resultsName}
+                  onChange={(e) => setResultsName(e.target.value)}
+                  placeholder="Auto-generated from filename"
+                  helperText={resultsName ? `Results will be saved to: ${resultsName}_[timestamp]` : 'Defaults to uploaded filename'}
                 />
                 <Accordion>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
