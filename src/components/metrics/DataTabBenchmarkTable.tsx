@@ -168,6 +168,11 @@ export default function DataTabBenchmarkTable({ operationalRows, method, propert
     return { rows, qualityMetrics: Array.from(metricSet).sort() };
   }, [operationalRows, method, propertiesRows, modelScores]);
 
+  // Don't render anything if there are no quality metrics
+  if (qualityMetrics.length === 0) {
+    return null;
+  }
+
   return (
     <BenchmarkTable data={rows} qualityMetrics={qualityMetrics} showCI={true} />
   );

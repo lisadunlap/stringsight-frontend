@@ -773,25 +773,29 @@ function App() {
     setIsLoadingResults(true);
     setResultsLoadingMessage('Parsing file and preparing data...');
 
-    // Parse the file
-    const { rows, columns } = await parseFile(file);
-
-    // Store raw data and columns
-    setOriginalRows(rows);
-    setAvailableColumns(columns);
-    setFilterNotice(null);
-
-    // Store file name without extension for use in results folder naming
-    const fileNameWithoutExt = file.name.replace(/\.(csv|json|jsonl)$/i, '');
-    setUploadedFileName(fileNameWithoutExt);
-
-    // Prepare UI to select mapping for these columns
-    applyAutoMappingFromColumns(columns);
-
     try {
-      await detectAndValidate(file); // optional backend validation
-    } catch (_) {}
-    finally {
+      // Parse the file
+      const { rows, columns } = await parseFile(file);
+
+      // Store raw data and columns
+      setOriginalRows(rows);
+      setAvailableColumns(columns);
+      setFilterNotice(null);
+
+      // Store file name without extension for use in results folder naming
+      const fileNameWithoutExt = file.name.replace(/\.(csv|json|jsonl)$/i, '');
+      setUploadedFileName(fileNameWithoutExt);
+
+      // Prepare UI to select mapping for these columns
+      applyAutoMappingFromColumns(columns);
+
+      try {
+        await detectAndValidate(file); // optional backend validation
+      } catch (_) {}
+    } catch (e: any) {
+      console.error('❌ Failed to parse file:', e);
+      setResultsError(String(e?.message || e));
+    } finally {
       setIsLoadingResults(false);
       setResultsLoadingMessage('');
       // Reset file input so the same file can be uploaded again
@@ -1394,22 +1398,7 @@ function App() {
         }
       }
 
-      // Include unmapped columns that weren't explicitly selected
-      // This preserves columns like "model" if they exist but weren't mapped
-      const mappedColNames = new Set([
-        mapping.promptCol,
-        ...mapping.responseCols,
-        ...mapping.modelCols,
-        ...mapping.scoreCols,
-        'question_id'
-      ]);
-
-      Object.keys(row).forEach(col => {
-        if (!mappedColNames.has(col) && opRow[col] === undefined) {
-          opRow[col] = row[col];
-        }
-      });
-
+      // Do not include any other columns to keep the operational data clean
       return opRow;
     });
 

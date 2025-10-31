@@ -59,6 +59,46 @@ export function ensureOpenAIFormat(prompt: string, response: any): Message[] {
         id: m.id
       }));
     }
+
+    // Check for nested structure (arrays/objects within the top-level array)
+    // This handles traces with state_info and step-based groupings
+    const flattenedMessages: Message[] = [];
+    for (const item of response) {
+      if (Array.isArray(item)) {
+        // Flatten nested arrays (e.g., state_info messages)
+        for (const msg of item) {
+          if (msg && typeof msg.role === 'string' && typeof msg.content !== 'undefined') {
+            flattenedMessages.push({
+              role: msg.role as Role,
+              content: msg.content,
+              name: msg.name,
+              id: msg.id
+            });
+          }
+        }
+      } else if (item && typeof item === 'object') {
+        // Extract messages from step objects (e.g., {"begin_of_turn_query": [...], "step_0": [...]})
+        for (const key of Object.keys(item)) {
+          const value = item[key];
+          if (Array.isArray(value)) {
+            for (const msg of value) {
+              if (msg && typeof msg.role === 'string' && typeof msg.content !== 'undefined') {
+                flattenedMessages.push({
+                  role: msg.role as Role,
+                  content: msg.content,
+                  name: msg.name || key,  // Use step name as fallback
+                  id: msg.id
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (flattenedMessages.length > 0) {
+      return flattenedMessages;
+    }
   }
 
   // Try to parse if it's a string that looks like JSON or Python list
