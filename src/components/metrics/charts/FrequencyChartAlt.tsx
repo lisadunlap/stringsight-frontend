@@ -51,7 +51,8 @@ function getCategoryDisplayName(category: string): string {
     case 'negative_non_critical': return 'Negative (non-critical)';
     case 'style': return 'Style';
     case 'positive': return 'Positive';
-    default: return category;
+    case '': return 'Uncategorized';
+    default: return category || 'Uncategorized';
   }
 }
 
@@ -79,17 +80,20 @@ export function FrequencyChartAlt({
 }: FrequencyChartAltProps) {
 
   // Local state for list view filters
+  // Include empty string to show uncategorized clusters by default
   const [selectedCategories, setSelectedCategories] = useState<string[]>([
     'negative_critical',
     'negative_non_critical',
-    'style'
+    'style',
+    'positive',
+    '' // Include uncategorized clusters
   ]);
   const [sortBy, setSortBy] = useState<string>('frequency_delta');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   const handleReset = () => {
-    setSelectedCategories(['negative_critical', 'negative_non_critical', 'style']);
+    setSelectedCategories(['negative_critical', 'negative_non_critical', 'style', 'positive', '']);
     setSortBy('frequency_delta');
     setSortDirection('desc');
     setSearchTerm('');
@@ -239,19 +243,9 @@ export function FrequencyChartAlt({
     );
   }
 
-  if (!listData.clusterData.length) {
-    return (
-      <Box>
-        <Alert severity="warning">
-          No data matches the current filters. Try adjusting your model selection.
-        </Alert>
-      </Box>
-    );
-  }
-
   return (
     <Box>
-      {/* Header with controls */}
+      {/* Header with controls - Always visible */}
       <Box sx={{
         display: 'flex',
         flexDirection: 'column',
@@ -310,7 +304,7 @@ export function FrequencyChartAlt({
                   if (selected.length === 0) {
                     return 'All Types';
                   }
-                  if (selected.length === 4) {
+                  if (selected.length === 5) {
                     return 'All Types';
                   }
                   const labels = selected.map(cat => {
@@ -319,7 +313,8 @@ export function FrequencyChartAlt({
                       case 'negative_non_critical': return 'Neg (non-crit)';
                       case 'style': return 'Style';
                       case 'positive': return 'Positive';
-                      default: return cat;
+                      case '': return 'Uncat';
+                      default: return cat || 'Uncat';
                     }
                   });
                   return labels.join(', ');
@@ -341,6 +336,10 @@ export function FrequencyChartAlt({
                 <MenuItem value="positive">
                   <Checkbox checked={selectedCategories.indexOf('positive') > -1} />
                   <ListItemText primary="Positive" />
+                </MenuItem>
+                <MenuItem value="">
+                  <Checkbox checked={selectedCategories.indexOf('') > -1} />
+                  <ListItemText primary="Uncategorized" />
                 </MenuItem>
               </Select>
             </FormControl>
@@ -375,6 +374,12 @@ export function FrequencyChartAlt({
         </Box>
       </Box>
 
+      {/* Results or Empty State */}
+      {!listData.clusterData.length ? (
+        <Alert severity="warning">
+          No data matches the current filters. Try adjusting your category selections or search term above.
+        </Alert>
+      ) : (
       <Stack spacing={1}>
         {listData.clusterData.map(({ cluster, category, modelBars }) => (
           <Paper
@@ -472,30 +477,29 @@ export function FrequencyChartAlt({
             </Box>
 
             {/* Behavior tag at absolute bottom right */}
-            {category && (
-              <Box sx={{
-                position: 'absolute',
-                bottom: 8,
-                right: 8
-              }}>
-                <Chip
-                  label={getCategoryDisplayName(category)}
-                  size="small"
-                  sx={{
-                    height: 20,
-                    fontSize: '0.7rem',
-                    color: getCategoryColor(category),
-                    borderColor: getCategoryColor(category),
-                    bgcolor: 'transparent',
-                    fontWeight: 500
-                  }}
-                  variant="outlined"
-                />
-              </Box>
-            )}
+            <Box sx={{
+              position: 'absolute',
+              bottom: 8,
+              right: 8
+            }}>
+              <Chip
+                label={getCategoryDisplayName(category)}
+                size="small"
+                sx={{
+                  height: 20,
+                  fontSize: '0.7rem',
+                  color: getCategoryColor(category),
+                  borderColor: getCategoryColor(category),
+                  bgcolor: 'transparent',
+                  fontWeight: 500
+                }}
+                variant="outlined"
+              />
+            </Box>
           </Paper>
         ))}
       </Stack>
+      )}
     </Box>
   );
 }

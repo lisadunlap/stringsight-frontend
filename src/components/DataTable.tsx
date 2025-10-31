@@ -122,18 +122,32 @@ const DataTable = React.memo(function DataTable({
             );
           }
           const value = info.getValue();
-          // Treat nested objects as simple strings (scores should be flattened already)
-          if (typeof value === "object" && value !== null) {
-            return <span>[object]</span>;
+
+          // Handle conversation arrays (OpenAI message format)
+          if (Array.isArray(value)) {
+            const hasMessages = value.some((item: any) =>
+              item && typeof item === 'object' && 'role' in item && 'content' in item
+            );
+            if (hasMessages) {
+              const messageCount = value.length;
+              return <span style={{ color: '#6B7280', fontStyle: 'italic' }}>Conversation ({messageCount} message{messageCount !== 1 ? 's' : ''})</span>;
+            }
+            // For non-message arrays, stringify them
+            return <TruncatedCell text={JSON.stringify(value)} />;
           }
-          
+
+          // Treat nested objects as JSON strings (scores should be flattened already)
+          if (typeof value === "object" && value !== null) {
+            return <TruncatedCell text={JSON.stringify(value)} />;
+          }
+
           // Check if this is a score column and round to configured decimals
           const isScoreColumn = col.includes('score');
           let displayValue = value;
           if (isScoreColumn && value !== null && value !== undefined && !isNaN(Number(value)) && value !== '') {
             displayValue = Number(value).toFixed(decimalPrecision);
           }
-          
+
           const str = String(displayValue ?? "");
           
           // Check if this is a numeric column (index or numeric value)

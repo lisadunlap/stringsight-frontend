@@ -9,7 +9,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
-import { flattenScores, normalizeMetricsColumnNames } from "./lib/normalize";
+import { flattenScores, normalizeMetricsColumnNames, enrichModelClusterScoresWithMetadata } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
 import { detectMethodFromColumns, ensureOpenAIFormat } from "./lib/traces";
 import DataTable from "./components/DataTable";
@@ -586,6 +586,17 @@ function App() {
     }
   }, [clusters, isResultsMode]);
 
+  // Demo mode: Check if demo mode is enabled (backend operations will be limited to 100 rows)
+  const isDemoMode = import.meta.env.VITE_DEMO === 'true';
+  const demoSampleSize = 100;
+
+  // Show demo mode notification when data is loaded
+  React.useEffect(() => {
+    if (isDemoMode && originalRows.length > 0 && originalRows.length > demoSampleSize) {
+      setFilterNotice(`Demo mode: Displaying all ${originalRows.length.toLocaleString()} rows, but backend operations (extraction, clustering) will only process first ${demoSampleSize} rows`);
+    }
+  }, [isDemoMode, originalRows.length, demoSampleSize]);
+
   // Highlight extraction icon when data is loaded but no properties exist
   React.useEffect(() => {
     if (operationalRows.length > 0 && propertiesRows.length === 0 && !isLoadingResults) {
@@ -1055,6 +1066,15 @@ function App() {
           // Use pre-computed metrics if available
           const normalizedMetrics = normalizeMetricsColumnNames(metrics);
           console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
+
+          // Enrich model_cluster_scores with cluster metadata (meta.group)
+          if (normalizedMetrics.model_cluster_scores) {
+            normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+              normalizedMetrics.model_cluster_scores,
+              clusters
+            );
+          }
+
           setResultsMetrics(normalizedMetrics);
 
           if (normalizedMetrics.model_cluster_scores) {
@@ -1374,7 +1394,22 @@ function App() {
         }
       }
 
-      // Do not include any other columns to keep the operational data clean
+      // Include unmapped columns that weren't explicitly selected
+      // This preserves columns like "model" if they exist but weren't mapped
+      const mappedColNames = new Set([
+        mapping.promptCol,
+        ...mapping.responseCols,
+        ...mapping.modelCols,
+        ...mapping.scoreCols,
+        'question_id'
+      ]);
+
+      Object.keys(row).forEach(col => {
+        if (!mappedColNames.has(col) && opRow[col] === undefined) {
+          opRow[col] = row[col];
+        }
+      });
+
       return opRow;
     });
 
@@ -1630,7 +1665,11 @@ function App() {
       if (operation.type === 'custom') {
         const customOp = operation as any;
         try {
-          const res = await dfCustom({ rows: opData, code: customOp.code });
+          const res = await dfCustom({
+            rows: opData,
+            code: customOp.code,
+            sample_size: isDemoMode ? demoSampleSize : undefined
+          });
           if (res.error) {
             console.error('Custom operation failed:', res.error);
           } else {
@@ -2602,6 +2641,7 @@ function App() {
           <PropertyExtractionPanel
             method={method}
             uploadedFileName={uploadedFileName}
+            demoSampleSize={isDemoMode ? demoSampleSize : undefined}
             getSelectedRow={() => {
               // Prioritize the row being viewed in the trace drawer, otherwise use the default selection
               return (drawerOpen && selectedRow) ? selectedRow : selectedRowForExtraction;
@@ -2632,12 +2672,13 @@ function App() {
                   return false;
                 });
                 
-                // Add model_response from the matching operational row
+                // Add model_response and __index from the matching operational row
                 return {
                   ...prop,
-                  model_response: matchingRow?.model_response || 
-                                 matchingRow?.model_a_response || 
-                                 matchingRow?.model_b_response || 
+                  __index: matchingRow?.__index,
+                  model_response: matchingRow?.model_response ||
+                                 matchingRow?.model_a_response ||
+                                 matchingRow?.model_b_response ||
                                  'No response found'
                 };
               });
@@ -2661,12 +2702,13 @@ function App() {
                   return false;
                 });
                 
-                // Add model_response from the matching operational row
+                // Add model_response and __index from the matching operational row
                 return {
                   ...prop,
-                  model_response: matchingRow?.model_response || 
-                                 matchingRow?.model_a_response || 
-                                 matchingRow?.model_b_response || 
+                  __index: matchingRow?.__index,
+                  model_response: matchingRow?.model_response ||
+                                 matchingRow?.model_a_response ||
+                                 matchingRow?.model_b_response ||
                                  'No response found'
                 };
               });
@@ -2692,6 +2734,14 @@ function App() {
               let enrichedClusters = data.clusters || [];
               if (data.metrics?.model_cluster_scores) {
                 const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
+
+                // Enrich model_cluster_scores with cluster metadata (meta.group)
+                if (normalizedMetrics.model_cluster_scores) {
+                  normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+                    normalizedMetrics.model_cluster_scores,
+                    data.clusters || []
+                  );
+                }
 
                 enrichedClusters = enrichClustersWithQualityData(
                   data.clusters || [],
@@ -2727,6 +2777,15 @@ function App() {
               // Save metrics so they appear in the Metrics tab
               if (data.metrics) {
                 const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
+
+                // Enrich model_cluster_scores with cluster metadata (meta.group)
+                if (normalizedMetrics.model_cluster_scores) {
+                  normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+                    normalizedMetrics.model_cluster_scores,
+                    data.clusters || []
+                  );
+                }
+
                 console.log('📊 resultsMetrics set:', normalizedMetrics.model_scores?.length || 0, 'model_scores');
                 setResultsMetrics(normalizedMetrics);
               }
@@ -2866,6 +2925,7 @@ function App() {
             rows={originalRows}
             onMappingChange={handleMappingChange}
             onValidationChange={handleValidationChange}
+            onCancel={() => setShowColumnSelector(false)}
             autoDetectedMapping={autoDetectedMapping || undefined}
           />
         )}

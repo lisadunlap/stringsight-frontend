@@ -106,6 +106,7 @@ interface PropertyExtractionPanelProps {
   onBatchDone?: () => void;
   onOpenTrace?: (row: Record<string, any>) => void;
   onCloseTrace?: () => void;
+  demoSampleSize?: number; // When set, backend operations will be limited to this sample size
   onClustersUpdated?: (data: {
     clusters: any[];
     total_conversations_by_model?: Record<string, number>;
@@ -134,6 +135,7 @@ export default function PropertyExtractionPanel({
   onBatchDone,
   onOpenTrace,
   onCloseTrace,
+  demoSampleSize,
   onClustersUpdated,
   onNavigateToMetrics,
 }: PropertyExtractionPanelProps) {
@@ -364,7 +366,7 @@ export default function PropertyExtractionPanel({
         top_p: topP,
         max_tokens: maxTokens,
         max_workers: maxWorkers,
-        sample_size: sampleSize || undefined,
+        sample_size: demoSampleSize || sampleSize || undefined,
         output_dir: outputDir,
       };
 
@@ -500,6 +502,7 @@ export default function PropertyExtractionPanel({
         method,
         model_column_map: modelColumnMap,
         output_dir: outputDir,
+        sample_size: demoSampleSize || sampleSize || undefined,
       };
 
       const res = await runClustering(body as any);
@@ -545,6 +548,13 @@ export default function PropertyExtractionPanel({
 
   return (
     <Stack spacing={1}>
+      {/* Demo mode notification */}
+      {demoSampleSize && (
+        <Box sx={{ mb: 1, p: 1.5, border: '1px solid #3B82F6', background: '#EFF6FF', color: '#1E40AF', borderRadius: 1, fontSize: '0.875rem' }}>
+          Demo mode: Backend operations limited to {demoSampleSize} rows
+        </Box>
+      )}
+
       <Typography variant="body2" sx={{ color: 'warning.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
         Extract interesting properties from your traces. Click 'Extract on Row 0' to see an example.
       </Typography>

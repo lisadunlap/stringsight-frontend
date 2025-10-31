@@ -38,7 +38,12 @@ export default function DataTabBenchmarkTable({ operationalRows, method, propert
         for (const key of Object.keys(row)) {
           if (key.startsWith('quality_')) {
             const metricName = key.replace('quality_', '');
-            metricSet.add(metricName);
+            // Skip CI columns - they're handled via the main metric column
+            if (!metricName.endsWith('_ci_lower') &&
+                !metricName.endsWith('_ci_mean') &&
+                !metricName.endsWith('_ci_upper')) {
+              metricSet.add(metricName);
+            }
           }
         }
       }

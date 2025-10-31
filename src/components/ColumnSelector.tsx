@@ -29,15 +29,17 @@ interface ColumnSelectorProps {
   rows: Record<string, any>[];
   onMappingChange: (mapping: ColumnMapping) => void;
   onValidationChange: (isValid: boolean, errors: string[]) => void;
+  onCancel?: () => void;
   autoDetectedMapping?: ColumnMapping;
 }
 
-export function ColumnSelector({ 
-  columns, 
+export function ColumnSelector({
+  columns,
   rows,
-  onMappingChange, 
+  onMappingChange,
   onValidationChange,
-  autoDetectedMapping 
+  onCancel,
+  autoDetectedMapping
 }: ColumnSelectorProps) {
   const [mapping, setMapping] = useState<ColumnMapping>({
     promptCol: '',
@@ -409,37 +411,27 @@ export function ColumnSelector({
       )}
 
       {/* Persistent footer action */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-        {(() => {
-          const isLegacySbs = mapping.method === 'side_by_side' && mapping.responseCols.length === 2;
-          const isTidySbs = mapping.method === 'side_by_side' 
-            && mapping.responseCols.length >= 1 
-            && mapping.modelCols.length >= 1 
-            && Boolean(mapping.selectedModels?.modelA) 
-            && Boolean(mapping.selectedModels?.modelB) 
-            && mapping.selectedModels!.modelA !== mapping.selectedModels!.modelB;
-          const sideBySideOk = mapping.method !== 'side_by_side' || isLegacySbs || isTidySbs;
-          const legacySbsModelColsOk = !(mapping.method === 'side_by_side' && isLegacySbs && mapping.modelCols.length > 0 && mapping.modelCols.length !== 2);
-          const singleOk = mapping.method !== 'single_model' || (mapping.responseCols.length === 1 && mapping.modelCols.length <= 1);
-          var disable = !mapping.promptCol 
-            || mapping.responseCols.length === 0 
-            || !singleOk 
-            || !sideBySideOk 
-            || !legacySbsModelColsOk 
-            || errors.length > 0;
-          return null;
-        })()}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 2 }}>
+        {onCancel && (
+          <Button
+            variant="outlined"
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+        )}
+        <Box sx={{ flexGrow: 1 }} />
         <Button
           variant="contained"
           color="primary"
           onClick={() => onMappingChange(mapping)}
           disabled={(() => {
             const isLegacySbs = mapping.method === 'side_by_side' && mapping.responseCols.length === 2;
-            const isTidySbs = mapping.method === 'side_by_side' 
-              && mapping.responseCols.length >= 1 
-              && mapping.modelCols.length >= 1 
-              && Boolean(mapping.selectedModels?.modelA) 
-              && Boolean(mapping.selectedModels?.modelB) 
+            const isTidySbs = mapping.method === 'side_by_side'
+              && mapping.responseCols.length >= 1
+              && mapping.modelCols.length >= 1
+              && Boolean(mapping.selectedModels?.modelA)
+              && Boolean(mapping.selectedModels?.modelB)
               && mapping.selectedModels!.modelA !== mapping.selectedModels!.modelB;
             const sideBySideOk = mapping.method !== 'side_by_side' || isLegacySbs || isTidySbs;
             const legacySbsModelColsOk = !(mapping.method === 'side_by_side' && isLegacySbs && mapping.modelCols.length > 0 && mapping.modelCols.length !== 2);

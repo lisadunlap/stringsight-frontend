@@ -220,4 +220,55 @@ export function normalizeMetricsColumnNames(metricsData: {
   return result;
 }
 
+/**
+ * Enrich model_cluster_scores with metadata.group from clusters array.
+ *
+ * Clusters have meta.group which indicates behavior type (positive, negative_critical, etc.)
+ * but model_cluster_scores loaded from JSONL often have empty metadata objects.
+ * This function joins them by cluster label to propagate the group information.
+ */
+export function enrichModelClusterScoresWithMetadata(
+  modelClusterScores: any[] | undefined,
+  clusters: any[]
+): any[] | undefined {
+  if (!modelClusterScores || !clusters) {
+    return modelClusterScores;
+  }
+
+  console.log('[normalize] Enriching model_cluster_scores with cluster metadata');
+
+  // Build map from cluster label -> cluster meta
+  const clusterMetaMap = new Map<string, any>();
+  clusters.forEach(cluster => {
+    const label = cluster.label || cluster.cluster_label || cluster.cluster || '';
+    if (label) {
+      clusterMetaMap.set(label, cluster.meta || {});
+    }
+  });
+
+  console.log(`[normalize] Built metadata map for ${clusterMetaMap.size} clusters`);
+
+  // Enrich each model_cluster_score row
+  const enriched = modelClusterScores.map(row => {
+    const clusterLabel = row.cluster || '';
+    const clusterMeta = clusterMetaMap.get(clusterLabel);
+
+    if (clusterMeta) {
+      return {
+        ...row,
+        metadata: {
+          ...(row.metadata || {}),
+          ...clusterMeta
+        }
+      };
+    }
+
+    return row;
+  });
+
+  console.log('[normalize] Enrichment complete. Sample enriched row:', enriched[1]);
+
+  return enriched;
+}
+
 

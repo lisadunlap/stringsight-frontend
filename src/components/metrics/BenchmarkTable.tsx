@@ -76,9 +76,15 @@ export function BenchmarkTable({ data, qualityMetrics, showCI = false }: Benchma
       })
     ];
 
-    // Add a column for each quality metric (filter out delta metrics)
+    // Add a column for each quality metric (filter out delta metrics and CI columns)
     qualityMetrics
-      .filter(metric => !metric.includes('delta') && !metric.includes('Delta'))
+      .filter(metric =>
+        !metric.includes('delta') &&
+        !metric.includes('Delta') &&
+        !metric.endsWith('_ci_lower') &&
+        !metric.endsWith('_ci_mean') &&
+        !metric.endsWith('_ci_upper')
+      )
       .forEach(metric => {
       const sanitized = sanitizeMetricName(metric);
       const qualityKey = `quality_${sanitized}` as keyof ModelBenchmarkRow;
