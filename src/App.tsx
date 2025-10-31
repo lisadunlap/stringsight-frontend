@@ -1318,12 +1318,27 @@ function App() {
         if (mapping.responseCols[1]) opRow.model_b_response = row[mapping.responseCols[1]];
       }
       
-      // Map model columns
-      if (mapping.method === 'single_model' && mapping.modelCols[0]) {
-        opRow.model = row[mapping.modelCols[0]];
+      // Map model columns (with defaults if not mapped)
+      if (mapping.method === 'single_model') {
+        if (mapping.modelCols[0]) {
+          opRow.model = row[mapping.modelCols[0]];
+        } else {
+          // Default model name if not mapped
+          opRow.model = 'model';
+        }
       } else if (mapping.method === 'side_by_side') {
-        if (mapping.modelCols[0]) opRow.model_a = row[mapping.modelCols[0]];
-        if (mapping.modelCols[1]) opRow.model_b = row[mapping.modelCols[1]];
+        if (mapping.modelCols[0]) {
+          opRow.model_a = row[mapping.modelCols[0]];
+        } else {
+          // Default model_a name if not mapped
+          opRow.model_a = 'model_a';
+        }
+        if (mapping.modelCols[1]) {
+          opRow.model_b = row[mapping.modelCols[1]];
+        } else {
+          // Default model_b name if not mapped
+          opRow.model_b = 'model_b';
+        }
       }
       
       // Build score dictionaries per selected columns (backend contract)
