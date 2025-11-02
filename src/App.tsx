@@ -498,6 +498,7 @@ function App() {
   // Data management layers as suggested
   const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]); // Raw uploaded data
   const [uploadedFileName, setUploadedFileName] = useState<string>(''); // Original file name without extension
+  const [resultsName, setResultsName] = useState<string>(''); // Custom name for results folder (defaults to uploadedFileName)
   const [operationalRows, setOperationalRows] = useState<Record<string, any>[]>([]); // Cleaned, filtered columns
   const [currentRows, setCurrentRows] = useState<Record<string, any>[]>([]); // With filters applied
 
@@ -687,6 +688,7 @@ function App() {
     // Core data and mapping
     setOriginalRows([]);
     setUploadedFileName(''); // Reset filename when switching data sources
+    setResultsName(''); // Reset results name when switching data sources
     setOperationalRows([]);
     setCurrentRows([]);
     setAvailableColumns([]);
@@ -785,6 +787,7 @@ function App() {
       // Store file name without extension for use in results folder naming
       const fileNameWithoutExt = file.name.replace(/\.(csv|json|jsonl)$/i, '');
       setUploadedFileName(fileNameWithoutExt);
+      setResultsName(fileNameWithoutExt);
 
       // Prepare UI to select mapping for these columns
       applyAutoMappingFromColumns(columns);
@@ -840,6 +843,7 @@ function App() {
 
       // Set filename for demo data
       setUploadedFileName('taubench_airline');
+      setResultsName('taubench_airline');
 
       // Auto-detect mapping using legacy detection
       const legacyDetected = detectMethodFromColumns(columns);
@@ -2645,6 +2649,8 @@ function App() {
           <PropertyExtractionPanel
             method={method}
             uploadedFileName={uploadedFileName}
+            resultsName={resultsName}
+            onResultsNameChange={setResultsName}
             demoSampleSize={isDemoMode ? demoSampleSize : undefined}
             getSelectedRow={() => {
               // Prioritize the row being viewed in the trace drawer, otherwise use the default selection
@@ -3039,7 +3045,8 @@ function App() {
                   }
                   
                   const blob = await zip.generateAsync({ type: 'blob' });
-                  const filename = `clustering_results_${new Date().toISOString().slice(0,10)}.zip`;
+                  const baseName = resultsName.trim() || uploadedFileName || 'clustering_results';
+                  const filename = `${baseName}_${new Date().toISOString().slice(0,10)}.zip`;
                   saveAs(blob, filename);
                 } catch (err) {
                   console.error('Download failed:', err);

@@ -13,9 +13,17 @@ import {
   MenuItem,
   Select,
   FormControl,
-  InputLabel
+  InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  InputAdornment
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import CloseIcon from '@mui/icons-material/Close';
 import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering } from '../../lib/api';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
@@ -91,9 +99,20 @@ function transformRowsForBackend(
   return rows;
 }
 
+// Demo mode fixed settings
+const DEMO_MODE_SETTINGS = {
+  modelName: 'gpt-4.1-mini',
+  embeddingModel: 'openai/text-embedding-3-small',
+  summarizationModel: 'gpt-4.1-mini',
+  matchingModel: 'gpt-4.1-mini',
+  groupBy: 'behavior_type' as 'none' | 'category' | 'behavior_type',
+};
+
 interface PropertyExtractionPanelProps {
   method: Method;
   uploadedFileName?: string;
+  resultsName?: string;
+  onResultsNameChange?: (name: string) => void;
   getSelectedRow: () => Record<string, any> | null;
   getAllRows: () => Record<string, any>[];
   getOperationalRows: () => any[];
@@ -123,6 +142,8 @@ interface PropertyExtractionPanelProps {
 export default function PropertyExtractionPanel({
   method,
   uploadedFileName,
+  resultsName: resultsNameProp,
+  onResultsNameChange,
   getSelectedRow,
   getAllRows,
   getOperationalRows,
@@ -152,7 +173,11 @@ export default function PropertyExtractionPanel({
   );
   const [resolvedPrompt, setResolvedPrompt] = React.useState<string>('');
 
-  const [modelName, setModelName] = React.useState<string>('gpt-4.1');
+  // Demo mode detection
+  const isDemoMode = !!demoSampleSize;
+
+  // Use demo mode settings when applicable
+  const [modelName, setModelName] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.modelName : 'gpt-4.1');
   const [temperature, setTemperature] = React.useState<number>(0.6);
   const [topP, setTopP] = React.useState<number>(0.95);
   const [maxTokens, setMaxTokens] = React.useState<number>(2048);
@@ -169,33 +194,27 @@ export default function PropertyExtractionPanel({
 
   // Clustering configuration
   const [minClusterSize, setMinClusterSize] = React.useState<number>(5);
-  const [embeddingModel, setEmbeddingModel] = React.useState<string>('openai/text-embedding-3-small');
+  const [embeddingModel, setEmbeddingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : 'openai/text-embedding-3-small');
   const [embeddingModels, setEmbeddingModels] = React.useState<string[]>([]);
-  const [groupBy, setGroupBy] = React.useState<'none'|'category'|'behavior_type'>('behavior_type');
-  const [summarizationModel, setSummarizationModel] = React.useState<string>('gpt-4.1');
-  const [matchingModel, setMatchingModel] = React.useState<string>('gpt-4.1-mini');
+  const [groupBy, setGroupBy] = React.useState<'none'|'category'|'behavior_type'>(isDemoMode ? DEMO_MODE_SETTINGS.groupBy : 'behavior_type');
+  const [summarizationModel, setSummarizationModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : 'gpt-4.1');
+  const [matchingModel, setMatchingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : 'gpt-4.1-mini');
   const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
   const [currentStage, setCurrentStage] = React.useState<'extraction' | 'clustering' | null>(null);
 
-  // Results folder naming
-  const [resultsName, setResultsName] = React.useState<string>('');
+  // Full-screen prompt viewer
+  const [promptFullscreen, setPromptFullscreen] = React.useState<boolean>(false);
+  const [taskDescFullscreen, setTaskDescFullscreen] = React.useState<boolean>(false);
 
   const selectedPromptMeta = promptOptions.find(p => p.name === selectedPrompt);
   const canTaskDescribe = selectedPromptMeta?.has_task_description || false;
 
-  // Update resultsName when uploadedFileName changes
-  React.useEffect(() => {
-    if (uploadedFileName && !resultsName) {
-      setResultsName(uploadedFileName);
-    }
-  }, [uploadedFileName, resultsName]);
-
   // Generate output directory name with custom name (or filename) and timestamp
   const generateOutputDir = React.useCallback(() => {
-    const baseName = resultsName.trim() || uploadedFileName || 'results';
+    const baseName = resultsNameProp?.trim() || uploadedFileName || 'results';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: YYYY-MM-DDTHH-MM-SS
     return `${baseName}_${timestamp}`;
-  }, [resultsName, uploadedFileName]);
+  }, [resultsNameProp, uploadedFileName]);
 
   // Load prompts and embedding models on mount
   React.useEffect(() => {
@@ -294,7 +313,7 @@ export default function PropertyExtractionPanel({
         method,
         system_prompt: selectedPrompt,
         task_description: canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription : undefined,
-        model_name: modelName,
+        model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
         max_tokens: maxTokens,
@@ -361,7 +380,7 @@ export default function PropertyExtractionPanel({
         method,
         system_prompt: selectedPrompt,
         task_description: canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription : undefined,
-        model_name: modelName,
+        model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
         max_tokens: maxTokens,
@@ -497,7 +516,13 @@ export default function PropertyExtractionPanel({
       const body = {
         operationalRows: transformedRows,
         properties,
-        params: { minClusterSize, embeddingModel, groupBy, summarizationModel, matchingModel },
+        params: {
+          minClusterSize,
+          embeddingModel: isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : embeddingModel,
+          groupBy: isDemoMode ? DEMO_MODE_SETTINGS.groupBy : groupBy,
+          summarizationModel: isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : summarizationModel,
+          matchingModel: isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : matchingModel,
+        },
         score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
         method,
         model_column_map: modelColumnMap,
@@ -551,7 +576,16 @@ export default function PropertyExtractionPanel({
       {/* Demo mode notification */}
       {demoSampleSize && (
         <Box sx={{ mb: 1, p: 1.5, border: '1px solid #3B82F6', background: '#EFF6FF', color: '#1E40AF', borderRadius: 1, fontSize: '0.875rem' }}>
-          Demo mode: Backend operations limited to {demoSampleSize} rows
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Demo mode active</Typography>
+          <Typography variant="caption" component="div">
+            • Backend operations limited to {demoSampleSize} rows
+          </Typography>
+          <Typography variant="caption" component="div">
+            • Models fixed: {DEMO_MODE_SETTINGS.modelName}
+          </Typography>
+          <Typography variant="caption" component="div">
+            • Clustering: {DEMO_MODE_SETTINGS.groupBy} grouping
+          </Typography>
         </Box>
       )}
 
@@ -606,19 +640,34 @@ export default function PropertyExtractionPanel({
           
           {canTaskDescribe && (
             <Stack spacing={1}>
-              <TextField 
-                label="Task description" 
-                value={taskDescription} 
+              <TextField
+                label="Task description"
+                value={taskDescription}
                 onChange={(e) => {
                   const val = e.target.value;
                   setTaskDescription(val);
                   setUserEdited(true);
                   localStorage.setItem('stringsight.taskDescription', val);
                   localStorage.setItem('stringsight.taskDescriptionEdited', 'true');
-                }} 
+                }}
                 minRows={4}
                 maxRows={9}
-                multiline 
+                multiline
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end" sx={{ alignSelf: 'flex-start', mt: 0.5, ml: -1 }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setTaskDescFullscreen(true)}
+                        edge="end"
+                        title="Expand to full screen"
+                        sx={{ p: 0.5 }}
+                      >
+                        <FullscreenIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
                 sx={{
                   '& .MuiInputBase-root': {
                     overflow: 'auto',
@@ -667,11 +716,13 @@ export default function PropertyExtractionPanel({
                 LLM Settings
               </Typography>
               <Stack spacing={1.5}>
-                <TextField 
-                  size="small" 
-                  label="Property Annotator" 
-                  value={modelName} 
-                  onChange={(e) => setModelName(e.target.value)} 
+                <TextField
+                  size="small"
+                  label="Property Annotator"
+                  value={isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  disabled={isDemoMode}
+                  helperText={isDemoMode ? 'Fixed in demo mode' : undefined}
                 />
                 <TextField
                   size="small"
@@ -685,26 +736,36 @@ export default function PropertyExtractionPanel({
                 <TextField
                   size="small"
                   label="Results folder name"
-                  value={resultsName}
-                  onChange={(e) => setResultsName(e.target.value)}
+                  value={resultsNameProp || ''}
+                  onChange={(e) => onResultsNameChange?.(e.target.value)}
                   placeholder="Auto-generated from filename"
-                  helperText={resultsName ? `Results will be saved to: ${resultsName}_[timestamp]` : 'Defaults to uploaded filename'}
+                  helperText={resultsNameProp ? `Results will be saved to: ${resultsNameProp}_[timestamp]` : 'Defaults to uploaded filename'}
                 />
                 <Accordion>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Typography variant="subtitle2">Full system prompt</Typography>
                   </AccordionSummary>
                   <AccordionDetails>
-                    <Box sx={{ 
-                      p: 2, 
-                      border: '1px dashed', 
-                      borderColor: 'divider', 
-                      borderRadius: 1, 
-                      backgroundColor: 'background.default' 
+                    <Box sx={{
+                      p: 2,
+                      border: '1px dashed',
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      backgroundColor: 'background.default'
                     }}>
-                      <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block' }}>
-                        Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
-                      </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          onClick={() => setPromptFullscreen(true)}
+                          sx={{ ml: 1 }}
+                          title="Expand to full screen"
+                        >
+                          <FullscreenIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
                       <Box sx={{
                         p: 1.5,
                         border: '1px solid',
@@ -746,11 +807,11 @@ export default function PropertyExtractionPanel({
                   helperText="Minimum number of properties required to form a cluster"
                 />
 
-                <FormControl size="small">
+                <FormControl size="small" disabled={isDemoMode}>
                   <InputLabel id="embedding-model-label">Embedding model</InputLabel>
                   <Select
                     labelId="embedding-model-label"
-                    value={embeddingModel}
+                    value={isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : embeddingModel}
                     label="Embedding model"
                     onChange={(e) => setEmbeddingModel(String(e.target.value))}
                   >
@@ -758,13 +819,18 @@ export default function PropertyExtractionPanel({
                       <MenuItem key={m} value={m}>{m}</MenuItem>
                     ))}
                   </Select>
+                  {isDemoMode && (
+                    <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                      Fixed in demo mode
+                    </Typography>
+                  )}
                 </FormControl>
 
-                <FormControl size="small">
+                <FormControl size="small" disabled={isDemoMode}>
                   <InputLabel id="group-by-label">Group by</InputLabel>
                   <Select
                     labelId="group-by-label"
-                    value={groupBy}
+                    value={isDemoMode ? DEMO_MODE_SETTINGS.groupBy : groupBy}
                     label="Group by"
                     onChange={(e) => setGroupBy(e.target.value as any)}
                   >
@@ -772,22 +838,29 @@ export default function PropertyExtractionPanel({
                     <MenuItem value={'category'}>category</MenuItem>
                     <MenuItem value={'behavior_type'}>behavior_type</MenuItem>
                   </Select>
+                  {isDemoMode && (
+                    <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                      Fixed in demo mode
+                    </Typography>
+                  )}
                 </FormControl>
 
                 <TextField
                   size="small"
                   label="Summarization model"
-                  value={summarizationModel}
+                  value={isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : summarizationModel}
                   onChange={(e) => setSummarizationModel(e.target.value)}
-                  helperText="Model used for cluster label summarization"
+                  disabled={isDemoMode}
+                  helperText={isDemoMode ? 'Fixed in demo mode' : 'Model used for cluster label summarization'}
                 />
 
                 <TextField
                   size="small"
                   label="Matching model"
-                  value={matchingModel}
+                  value={isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : matchingModel}
                   onChange={(e) => setMatchingModel(e.target.value)}
-                  helperText="Model used for cluster/property matching"
+                  disabled={isDemoMode}
+                  helperText={isDemoMode ? 'Fixed in demo mode' : 'Model used for cluster/property matching'}
                 />
               </Stack>
             </Box>
@@ -1016,6 +1089,135 @@ export default function PropertyExtractionPanel({
           )}
         </Box>
       )}
+
+      {/* Full-screen prompt dialog */}
+      <Dialog
+        open={promptFullscreen}
+        onClose={() => setPromptFullscreen(false)}
+        maxWidth={false}
+        fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            width: '95vw',
+            height: '95vh',
+            maxWidth: '95vw',
+            maxHeight: '95vh',
+          },
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+          <Typography variant="h6">Full System Prompt</Typography>
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={() => setPromptFullscreen(false)}
+            aria-label="close"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
+            </Typography>
+          </Box>
+          <Box sx={{
+            p: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 1,
+            backgroundColor: '#FFFFFF',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
+            fontSize: 14,
+            whiteSpace: 'pre-wrap',
+            lineHeight: 1.8,
+            minHeight: '100%',
+          }}>
+            {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPromptFullscreen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Full-screen task description dialog */}
+      <Dialog
+        open={taskDescFullscreen}
+        onClose={() => setTaskDescFullscreen(false)}
+        maxWidth={false}
+        fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            width: '95vw',
+            height: '95vh',
+            maxWidth: '95vw',
+            maxHeight: '95vh',
+          },
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+          <Typography variant="h6">Task Description</Typography>
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={() => setTaskDescFullscreen(false)}
+            aria-label="close"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Edit your task description for the extraction prompt
+            </Typography>
+          </Box>
+          <TextField
+            value={taskDescription}
+            onChange={(e) => {
+              const val = e.target.value;
+              setTaskDescription(val);
+              setUserEdited(true);
+              localStorage.setItem('stringsight.taskDescription', val);
+              localStorage.setItem('stringsight.taskDescriptionEdited', 'true');
+            }}
+            multiline
+            fullWidth
+            variant="outlined"
+            autoFocus
+            sx={{
+              '& .MuiInputBase-root': {
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
+                fontSize: 14,
+                lineHeight: 1.8,
+                minHeight: '70vh',
+                alignItems: 'flex-start',
+              },
+              '& .MuiInputBase-input': {
+                minHeight: '70vh !important',
+              },
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3 }}>
+          <Button
+            onClick={() => {
+              const def = method === 'side_by_side' ? (selectedPromptMeta?.default_task_description_sbs || '') : (selectedPromptMeta?.default_task_description_single || '');
+              setTaskDescription(def);
+              setUserEdited(false);
+              localStorage.setItem('stringsight.taskDescription', def);
+              localStorage.setItem('stringsight.taskDescriptionEdited', 'false');
+            }}
+          >
+            Reset to default
+          </Button>
+          <Button onClick={() => setTaskDescFullscreen(false)} variant="contained">
+            Done
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
