@@ -1,29 +1,13 @@
 import React from 'react';
-import { Box, Typography, Accordion, AccordionSummary, AccordionDetails, Button, Stack, Chip, Tooltip, IconButton, Fade } from '@mui/material';
-import Plotly from 'plotly.js-dist-min';
-import createPlotlyComponent from 'react-plotly.js/factory';
-const Plot = createPlotlyComponent(Plotly);
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { Box, Typography, Button, Stack, Chip, Tooltip, IconButton, Fade } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { FormControl, InputLabel, Select, MenuItem, TextField, Checkbox, ListItemText, OutlinedInput } from '@mui/material';
-
-// Shared base layout to avoid label/tick overlap and redundant config
-const CLUSTER_PLOT_LAYOUT_BASE = {
-  // Extra left margin to separate y tick labels from bars and value labels
-  margin: { l: 80, r: 10, t: 10, b: 110 },
-  // Ensure axes allocate space for tick labels
-  xaxis: { tickangle: -30 as const, automargin: true },
-  yaxis: { automargin: true },
-  // Hide data labels automatically if they would collide
-  uniformtext_minsize: 10,
-  uniformtext_mode: 'hide' as const,
-};
 
 interface ClustersTabProps {
   clusters: any[];
   totalConversationsByModel?: Record<string, number> | null;
   totalUniqueConversations?: number | null;
-  onOpenPropertyById: (id: string) => void;
+  onClusterClick: (cluster: any) => void;
   getPropertiesRows?: () => any[];
   onRequestRecompute?: (included_property_ids?: string[]) => void;
   externalSearchQuery?: string;
@@ -35,7 +19,7 @@ function formatPercent(p?: number): string {
   return `${(p * 100).toFixed(1)}%`;
 }
 
-function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversations, onOpenPropertyById, getPropertiesRows, onRequestRecompute, externalSearchQuery, modelClusterScores }: ClustersTabProps) {
+function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversations, onClusterClick, getPropertiesRows, onRequestRecompute, externalSearchQuery, modelClusterScores }: ClustersTabProps) {
 
   // Enrich clusters with metrics data at render time
   const enrichedClusters = React.useMemo(() => {
@@ -53,14 +37,24 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
 
       // Build proportion_by_model, quality_by_model, and quality_delta_by_model
       const proportionByModel: Record<string, number> = {};
+      const proportionCIByModel: Record<string, { lower: number; upper: number }> = {};
       const qualityByModel: Record<string, any> = {};
       const qualityDeltaByModel: Record<string, any> = {};
+      const qualityDeltaCIByModel: Record<string, Record<string, { lower: number; upper: number }>> = {};
       let proportionOverall: number | undefined = undefined;
 
       clusterMetrics.forEach((m: any) => {
         const model = m.model;
         if (model) {
           proportionByModel[model] = m.proportion;
+
+          // Capture proportion confidence intervals
+          if (m.proportion_ci_lower !== undefined && m.proportion_ci_upper !== undefined) {
+            proportionCIByModel[model] = {
+              lower: m.proportion_ci_lower,
+              upper: m.proportion_ci_upper
+            };
+          }
 
           // Capture overall proportion if available (should be same across models for a cluster)
           if (m.proportion_overall !== undefined && proportionOverall === undefined) {
@@ -70,6 +64,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
           // Extract quality scores and deltas
           const qualityScores: Record<string, number> = {};
           const qualityDeltas: Record<string, number> = {};
+          const qualityDeltaCIs: Record<string, { lower: number; upper: number }> = {};
 
           Object.keys(m).forEach(key => {
             if (key.startsWith('quality_delta_')) {
@@ -77,6 +72,16 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
               const metricName = key.replace('quality_delta_', '');
               if (!key.includes('_ci_') && !key.includes('_significant')) {
                 qualityDeltas[metricName] = m[key];
+                
+                // Check for CI bounds
+                const ciLowerKey = `quality_delta_${metricName}_ci_lower`;
+                const ciUpperKey = `quality_delta_${metricName}_ci_upper`;
+                if (m[ciLowerKey] !== undefined && m[ciUpperKey] !== undefined) {
+                  qualityDeltaCIs[metricName] = {
+                    lower: m[ciLowerKey],
+                    upper: m[ciUpperKey]
+                  };
+                }
               }
             } else if (key.startsWith('quality_')) {
               // Pattern: quality_Helpfulness -> Helpfulness OR quality_helpfulness_delta (old format)
@@ -94,6 +99,9 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
 
           qualityByModel[model] = qualityScores;
           qualityDeltaByModel[model] = qualityDeltas;
+          if (Object.keys(qualityDeltaCIs).length > 0) {
+            qualityDeltaCIByModel[model] = qualityDeltaCIs;
+          }
         }
       });
 
@@ -107,8 +115,10 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         meta: {
           ...cluster.meta,
           proportion_by_model: proportionByModel,
+          proportion_ci_by_model: proportionCIByModel,
           quality_by_model: qualityByModel,
           quality_delta_by_model: qualityDeltaByModel,
+          quality_delta_ci_by_model: qualityDeltaCIByModel,
           total_unique_conversations: clusterConversationCount,
           proportion_overall: proportionOverall ?? cluster.meta?.proportion_overall
         }
@@ -131,18 +141,12 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
   const [sortBy, setSortBy] = React.useState<'freqAsc' | 'freqDesc' | 'qualAsc' | 'qualDesc'>('freqDesc');
   const debouncedApplyRef = React.useRef<number | null>(null);
 
-  // Track which accordion is expanded
-  const [expandedKey, setExpandedKey] = React.useState<string | number | null>(null);
-
-  // Update search when externalSearchQuery changes and expand the first match
+  // Update search when externalSearchQuery changes
   React.useEffect(() => {
     if (externalSearchQuery !== undefined && externalSearchQuery !== search) {
       setSearch(externalSearchQuery);
-      const q = String(externalSearchQuery).trim().toLowerCase();
-      const match = (enrichedClusters || []).find(c => String(c.label || '').toLowerCase().includes(q));
-      if (match) setExpandedKey(match.id ?? String(match.label || ''));
     }
-  }, [externalSearchQuery, enrichedClusters]);
+  }, [externalSearchQuery]);
 
   const allModels = React.useMemo<string[]>(() => {
     // Prefer stable model list from properties if available
@@ -466,28 +470,38 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         const overallQualityDelta: Record<string, number> = meta.quality_delta || {};
         const overallProp: number | undefined = meta.proportion_overall;
         const group: string | undefined = meta.group;
-        const perModelProps: Record<string, number> = meta.proportion_by_model || {};
         const clusterUniqueConversations: number | undefined = meta.total_unique_conversations;
 
-        const accordion = (
-          <Accordion key={c.id ?? idx} expanded={(expandedKey === (c.id ?? String(c.label || '')))} onChange={(_, isExpanded) => setExpandedKey(isExpanded ? (c.id ?? String(c.label || '')) : null)} sx={{ '&:before': { display: 'none' }, boxShadow: 'none', borderBottom: '1px solid #E5E7EB' }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { my: 1 } }}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, width: '100%' }}>
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: '#111827' }}>{String(c.label || '')}</Typography>
-                  {/* Overall quality metrics (cluster-level) */}
+        const row = (
+          <Box
+            key={c.id ?? idx}
+            onClick={() => onClusterClick(c)}
+            sx={{
+              p: 2,
+              borderBottom: '1px solid #E5E7EB',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+              '&:hover': {
+                background: '#F9FAFB',
+              },
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 1 }}>
+              <Typography variant="body1" sx={{ fontWeight: 600, color: '#111827' }}>
+                {String(c.label || '')}
+              </Typography>
+              {/* Overall quality metrics */}
                   {overallQuality && Object.keys(overallQuality).length > 0 && (
-                    <Tooltip title="Overall cluster quality across all models">
-                      <Stack direction="column" spacing={0.25} sx={{ minWidth: 360, maxWidth: '50%', alignItems: 'flex-end' }}>
+                <Stack direction="column" spacing={0.25} sx={{ minWidth: 300, maxWidth: '40%', alignItems: 'flex-end' }}>
                         {Object.entries(overallQuality).map(([k, v]) => {
                           const d = overallQualityDelta && typeof overallQualityDelta[k] === 'number' ? overallQualityDelta[k] : undefined;
                           let deltaColor = '#6B7280';
                           if (typeof d === 'number') {
-                            if (d > 0.02) deltaColor = '#16A34A'; // green-600
-                            else if (d < -0.02) deltaColor = '#DC2626'; // red-600
+                      if (d > 0.02) deltaColor = '#16A34A';
+                      else if (d < -0.02) deltaColor = '#DC2626';
                           }
                           return (
-                            <Typography key={k} variant="body2" sx={{ color: '#334155', textAlign: 'right' }}>
+                      <Typography key={k} variant="body2" sx={{ color: '#334155', textAlign: 'right', fontSize: '0.875rem' }}>
                               {k}: {typeof v === 'number' ? v.toFixed(decimals) : String(v)}
                               {typeof d === 'number' && (
                                 <Box component="span" sx={{ ml: 0.5, color: deltaColor }}>
@@ -498,28 +512,21 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                           );
                         })}
                       </Stack>
-                    </Tooltip>
                   )}
                 </Box>
-                {/* Chips: size (with overall proportion) and group */}
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Tooltip title="Number of unique conversations in this cluster and their percentage of total conversations">
-                    <Box sx={{ color: '#6B7280', fontSize: 12 }}>
+            {/* Metadata row */}
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <Box sx={{ color: '#6B7280', fontSize: 13 }}>
                       {(() => {
-                        // Prioritize showing conversation count
                         if (clusterUniqueConversations !== undefined && clusterUniqueConversations > 0) {
                           const propText = overallProp !== undefined ? ` (${formatPercent(overallProp)})` : '';
                           return `${clusterUniqueConversations.toLocaleString()} conversations${propText}`;
                         }
-
-                        // Fallback: show property count if conversation count not available
                         const clusterSize = c.size ?? 0;
                         return `${clusterSize.toLocaleString()} properties`;
                       })()}
                     </Box>
-                  </Tooltip>
                   {group && (() => {
-                    // Determine chip color and variant based on group name
                     let chipColor: 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success' = 'default';
                     let chipVariant: 'filled' | 'outlined' = 'outlined';
                     let chipStyle = {};
@@ -555,244 +562,16 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                   })()}
                 </Stack>
               </Box>
-            </AccordionSummary>
-            <AccordionDetails sx={{ background: '#FAFAFA' }}>
-              <Box sx={{ p: 2 }}>
-                {/* Plots container - side by side layout */}
-                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                  {/* Per-model proportions */}
-                  {perModelProps && Object.keys(perModelProps).length > 0 && (
-                    <Box sx={{ flex: 1, minWidth: 400 }}>
-                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
-                        <Typography variant="subtitle2" sx={{ color: '#334155' }}>Per-model proportions</Typography>
-                        <Tooltip title="Fraction of each model's conversations that appear in this cluster">
-                          <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
-                        </Tooltip>
-                      </Stack>
-                      {(() => {
-                        // Sort entries: non-zero values first (by descending value), then zero values alphabetically
-                        const entries = Object.entries(perModelProps).sort((a, b) => {
-                          const aVal = Number(a[1]);
-                          const bVal = Number(b[1]);
-
-                          // If both are zero, sort alphabetically
-                          if (aVal === 0 && bVal === 0) {
-                            return a[0].localeCompare(b[0]);
-                          }
-                          // If one is zero and one isn't, non-zero comes first
-                          if (aVal === 0) return 1;
-                          if (bVal === 0) return -1;
-                          // Both non-zero, sort by value descending
-                          return bVal - aVal;
-                        });
-                        const x = entries.map(([m]) => m);
-                        const y = entries.map(([, v]) => Number(v));
-                        return (
-                          <Plot
-                            data={[{
-                              type: 'bar' as const, x, y,
-                              marker: { color: '#3B82F6' },
-                              hovertemplate: `%{x}: %{y:.${decimals}f}<extra></extra>`,
-                              text: y.map(v => v.toFixed(decimals)),
-                              textposition: 'outside' as const,
-                              cliponaxis: false
-                            }]}
-                            layout={{
-                              height: 320,
-                              margin: { l: 70, r: 10, t: 10, b: 110 },
-                              xaxis: { tickangle: -30, automargin: true },
-                              yaxis: { title: { text: 'Proportion', standoff: 15 }, rangemode: 'tozero', tickformat: `.${decimals}f` },
-                              showlegend: false,
-                              paper_bgcolor: '#FAFAFA',
-                              plot_bgcolor: '#FAFAFA'
-                            }}
-                            config={{ displayModeBar: false, responsive: true }}
-                            style={{ width: '100%' }}
-                          />
-                        );
-                      })()}
-                    </Box>
-                  )}
-
-                  {/* Per-model quality delta - grouped by metric */}
-                  {meta.quality_delta_by_model && Object.keys(meta.quality_delta_by_model).length > 0 && (
-                      <Box sx={{ flex: 1, minWidth: 400 }}>
-                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
-                          <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Delta per Model</Typography>
-                          <Tooltip title="Quality delta for each model, grouped by metric">
-                            <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
-                          </Tooltip>
-                        </Stack>
-                        {(() => {
-                          const qualityDeltaByModel: Record<string, Record<string, number>> = meta.quality_delta_by_model;
-                          const models = Object.keys(qualityDeltaByModel);
-                          const metricKeys = Array.from(new Set(models.flatMap(m => Object.keys(qualityDeltaByModel[m] || {}))));
-                          const palette = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#14B8A6'];
-
-                        // Create traces where each metric is a separate bar group
-                        const traces = metricKeys.map((metric, i) => ({
-                          type: 'bar' as const,
-                          name: metric,
-                          x: models,
-                          y: models.map(m => Number((qualityDeltaByModel[m] || {})[metric] || 0)),
-                          marker: { color: palette[i % palette.length] },
-                          hovertemplate: `${metric} · %{x}: %{y:.${decimals}f}<extra></extra>`,
-                          text: models.map(m => Number((qualityDeltaByModel[m] || {})[metric] || 0).toFixed(decimals)),
-                          textposition: 'outside' as const,
-                          cliponaxis: false
-                        }));
-
-                        return (
-                          <Plot
-                            data={traces}
-                            layout={{
-                              barmode: 'group',
-                              height: 320,
-                              margin: { l: 70, r: 10, t: 60, b: 110 },
-                              xaxis: { tickangle: -30, automargin: true },
-                              yaxis: { title: { text: 'Quality Δ', standoff: 15 }, tickformat: `.${decimals}f` },
-                              paper_bgcolor: '#FAFAFA',
-                              plot_bgcolor: '#FAFAFA',
-                              legend: { orientation: 'h', y: 1.15, x: 0.5, xanchor: 'center', yanchor: 'bottom' }
-                            }}
-                            config={{ displayModeBar: false, responsive: true }}
-                            style={{ width: '100%' }}
-                          />
-                        );
-                      })()}
-                    </Box>
-                  )}
-                </Box>
-
-                <Typography variant="subtitle2" sx={{ mb: 1, color: '#334155' }}>Properties</Typography>
-                {(() => {
-                  const hasItems = Array.isArray((c.meta && (c.meta as any).property_items)) && (c.meta as any).property_items.length > 0;
-                  const items: any[] = hasItems ? (c.meta as any).property_items : [];
-                  const showFromItems = hasItems;
-                  const filterByModel = selectedModels.length > 0;
-                  if (showFromItems) {
-                    const filtered = !filterByModel ? items : items.filter((it: any) => {
-                      const m = it?.model != null ? String(it.model) : null;
-                      return m ? selectedModels.includes(m) : false;
-                    });
-                    if (filtered.length > 0) {
-                      const limited = filtered.slice(0, 50);
-                      return (
-                        <Box sx={{ 
-                          maxHeight: '400px', 
-                          overflow: 'auto',
-                          border: '1px solid #E5E7EB', 
-                          borderRadius: 1, 
-                          background: '#FFFFFF'
-                        }}>
-                          <Stack spacing={1} sx={{ p: 1 }}>
-                            {limited.map((item: any, i: number) => (
-                              <Box key={`${c.id}-${item.property_id || i}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #E5E7EB', borderRadius: 1, p: 1, background: '#FAFAFA' }}>
-                                <Box sx={{ mr: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                  <Typography variant="body2">
-                                    {String(item.property_description || '')}
-                                  </Typography>
-                                  {item.model && (
-                                    <Typography 
-                                      variant="caption" 
-                                      sx={{ 
-                                        color: '#6B7280', 
-                                        fontWeight: 500,
-                                        fontSize: '0.75rem',
-                                        backgroundColor: '#F3F4F6',
-                                        px: 1,
-                                        py: 0.25,
-                                        borderRadius: 0.75,
-                                        border: '1px solid #E5E7EB'
-                                      }}
-                                    >
-                                      {String(item.model)}
-                                    </Typography>
-                                  )}
-                                </Box>
-                                <Button size="small" variant="outlined" onClick={() => {
-                                  const pid = item.property_id;
-                                  if (pid) onOpenPropertyById(String(pid));
-                                }}>Open</Button>
-                              </Box>
-                            ))}
-                          </Stack>
-                        </Box>
-                      );
-                    }
-                  }
-                  const descriptions: string[] = Array.isArray(c.property_descriptions) ? c.property_descriptions : [];
-                  const ids: any[] = Array.isArray((c as any).property_ids) ? (c as any).property_ids : [];
-                  const tuples = descriptions.map((pd, i) => ({ pd, pid: ids[i] != null ? String(ids[i]) : undefined }));
-                  const filteredTuples = !filterByModel ? tuples : tuples.filter(({ pid }) => {
-                    if (!pid) return false;
-                    const prop = propertiesById.get(String(pid));
-                    const m = prop?.model != null ? String(prop.model) : null;
-                    return m ? selectedModels.includes(m) : false;
-                  });
-                  if (filteredTuples.length > 0) {
-                    const limitedTuples = filteredTuples.slice(0, 50);
-                    return (
-                      <Box sx={{ 
-                        maxHeight: '400px', 
-                        overflow: 'auto',
-                        border: '1px solid #E5E7EB', 
-                        borderRadius: 1, 
-                        background: '#FFFFFF'
-                      }}>
-                        <Stack spacing={1} sx={{ p: 1 }}>
-                          {limitedTuples.map(({ pd, pid }, i) => {
-                            const prop = pid ? propertiesById.get(String(pid)) : null;
-                            const modelName = prop?.model != null ? String(prop.model) : null;
-                            
-                            return (
-                              <Box key={`${c.id}-${pid || i}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #E5E7EB', borderRadius: 1, p: 1, background: '#FAFAFA' }}>
-                                <Box sx={{ mr: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                  <Typography variant="body2">
-                                    {pd}
-                                  </Typography>
-                                  {modelName && (
-                                    <Typography 
-                                      variant="caption" 
-                                      sx={{ 
-                                        color: '#6B7280', 
-                                        fontWeight: 500,
-                                        fontSize: '0.75rem',
-                                        backgroundColor: '#F3F4F6',
-                                        px: 1,
-                                        py: 0.25,
-                                        borderRadius: 0.75,
-                                        border: '1px solid #E5E7EB'
-                                      }}
-                                    >
-                                      {modelName}
-                                    </Typography>
-                                  )}
-                                </Box>
-                                <Button size="small" variant="outlined" onClick={() => { if (pid) onOpenPropertyById(String(pid)); }}>Open</Button>
-                              </Box>
-                            );
-                          })}
-                        </Stack>
-                      </Box>
-                    );
-                  }
-                  return (
-                  <Typography variant="body2" color="text.secondary">No properties listed for this cluster.</Typography>
-                  );
-                })()}
-              </Box>
-            </AccordionDetails>
-          </Accordion>
         );
+
         if (animateOnMountRef.current && idx < 20) {
           return (
             <Fade in timeout={Math.min(900 + idx * 140, 2600)} key={`fade-${c.id ?? idx}`}>
-              {accordion}
+              {row}
             </Fade>
           );
         }
-        return accordion;
+        return row;
       })}
     </Box>
   );

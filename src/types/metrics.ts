@@ -109,6 +109,7 @@ export interface QualityMetricsResponse {
  */
 export interface MetricsFilters {
   selectedModels: string[];
+  selectedMetrics: string[];  // Selected quality metrics to display
   selectedGroups: string[];  // Based on metadata.group values
   topN: number;
   sortBy: MetricsSortOption;

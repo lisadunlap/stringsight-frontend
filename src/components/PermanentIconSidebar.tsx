@@ -2,8 +2,7 @@ import React from 'react';
 import { Box, IconButton, Tooltip } from '@mui/material';
 import {
   TableView as DataViewIcon,
-  FindInPage as PropertyExtractionIcon,
-  Analytics as MetricsIcon
+  FindInPage as PropertyExtractionIcon
 } from '@mui/icons-material';
 
 export type SidebarSection = 'data' | 'extraction' | 'metrics';
@@ -85,13 +84,6 @@ export default function PermanentIconSidebar({ activeSection, onSectionChange, h
         active={activeSection === 'extraction'}
         onClick={() => onSectionChange('extraction')}
         highlight={activeSection !== 'extraction'}
-      />
-
-      <IconButtonItem
-        icon={<MetricsIcon />}
-        tooltip="Insights - Get model & dataset level insights"
-        active={activeSection === 'metrics'}
-        onClick={() => onSectionChange('metrics')}
       />
     </Box>
   );

@@ -26,6 +26,7 @@ import {
 } from '@mui/material';
 import { MetricsMainContent } from './MetricsMainContent';
 import { MetricsOverviewBanner } from './MetricsOverviewBanner';
+import { MetricsFilterBar } from './MetricsFilterBar';
 import type { MetricsFilters, MetricsSummary, ModelClusterPayload, ModelBenchmarkPayload, ModelClusterRow } from '../../types/metrics';
 
 interface MetricsTabProps {
@@ -38,6 +39,9 @@ interface MetricsTabProps {
 
   /** Filters controlled by the sidebar */
   filters: MetricsFilters;
+
+  /** Callback to update filters */
+  onFiltersChange?: (filters: MetricsFilters) => void;
 
   /** Callback to update available data for sidebar */
   onDataProcessed?: (data: {
@@ -71,6 +75,7 @@ interface MetricsTabProps {
 export function MetricsTab({
   resultsData,
   filters,
+  onFiltersChange,
   onDataProcessed,
   debug = false,
   showBenchmark = true,
@@ -318,6 +323,15 @@ export function MetricsTab({
         <MetricsOverviewBanner
           data={modelClusterData.data}
           qualityMetrics={qualityMetrics || []}
+        />
+
+        {/* Filter Bar */}
+        <MetricsFilterBar
+          filters={filters}
+          onFiltersChange={onFiltersChange || (() => {})}
+          availableModels={modelClusterData.models}
+          availableQualityMetrics={qualityMetrics || []}
+          hasConfidenceIntervals={summary?.has_confidence_intervals || false}
         />
 
         {/* Main Content Area - Full Width */}

@@ -447,9 +447,11 @@ export default function PropertiesTab({
         }}>
         {/* Property Counts */}
         <Box>
-          <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
-            Property Counts
-          </Typography>
+          <Tooltip title="Properties of traces are labeled as Positive, Negative, or Stylistic by the LLM annotator based on the trace and task description" arrow>
+            <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px', cursor: 'help' }}>
+              Property Counts
+            </Typography>
+          </Tooltip>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Chip
               label={

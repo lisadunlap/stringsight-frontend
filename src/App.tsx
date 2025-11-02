@@ -30,7 +30,8 @@ import PropertyExtractionPanel from "./components/sidebar-sections/PropertyExtra
 // ClusteringPanel removed - clustering now integrated into PropertyExtractionPanel
 // ClustersTab kept for viewing cluster results
 import ClustersTab from "./components/ClustersTab";
-import MetricsPanel from "./components/sidebar-sections/MetricsPanel";
+import ClusterSidecard from "./components/ClusterSidecard";
+// MetricsPanel removed - now using horizontal filter bar in MetricsTab
 import type { MetricsFilters, MetricsSummary } from "./types/metrics";
 import { ColumnSelector, type ColumnMapping } from "./components/ColumnSelector";
 import { MetricsTab } from "./components/metrics/MetricsTab";
@@ -520,6 +521,10 @@ function App() {
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
   const [clusterSearchQuery, setClusterSearchQuery] = useState<string>('');
   
+  // Cluster sidecard state
+  const [clusterSidecardOpen, setClusterSidecardOpen] = useState<boolean>(false);
+  const [selectedCluster, setSelectedCluster] = useState<any | null>(null);
+  
   // Highlight extraction icon when data is loaded but no properties exist
   const [highlightExtractionIcon, setHighlightExtractionIcon] = useState<boolean>(false);
   
@@ -543,6 +548,7 @@ function App() {
   // -------- Metrics Tab State ---------
   const [metricsFilters, setMetricsFilters] = useState<MetricsFilters>({
     selectedModels: [],
+    selectedMetrics: [],
     selectedGroups: [],
     qualityMetric: '',
     sortBy: 'proportion_delta_desc',
@@ -563,6 +569,7 @@ function App() {
       // Reset filters to defaults when new data is loaded
       setMetricsFilters({
         selectedModels: [],
+        selectedMetrics: [],
         selectedGroups: [],
         qualityMetric: '',
         sortBy: 'proportion_delta_desc',
@@ -1571,6 +1578,14 @@ function App() {
     if (activeTab === 'clusters' && !hasViewedClusters) setHasViewedClusters(true);
   }, [activeTab, hasViewedClusters]);
 
+  // Close cluster sidecard when navigating away from clusters tab
+  React.useEffect(() => {
+    if (activeTab !== 'clusters') {
+      setClusterSidecardOpen(false);
+      setSelectedCluster(null);
+    }
+  }, [activeTab]);
+
   // Get allowed columns from current (display) data with proper ordering
   const allowedColumns = useMemo(() => {
     if (currentRows.length === 0) return [];
@@ -2503,10 +2518,22 @@ function App() {
   // Utility: Guarantee examples is always an array when setting clusters
   const ensureExamplesArray = (clusters) => (clusters || []).map(c => ({ ...c, examples: c.examples || [] }));
 
-  // View Clusters navigation handler
+  // View Clusters navigation handler - opens cluster sidecard
   const handleNavigateToCluster = (clusterName: string) => {
-    setClusterSearchQuery(clusterName);
-    setActiveTab('clusters');
+    // Find the cluster by name/label
+    const cluster = clusters.find((c: any) => 
+      String(c.label || c.cluster_label || '').toLowerCase() === clusterName.toLowerCase()
+    );
+    if (cluster) {
+      console.log('[App] Opening cluster sidecard:', clusterName);
+      console.log('[App] Cluster data:', cluster);
+      console.log('[App] Has quality_delta_by_model?', !!cluster.meta?.quality_delta_by_model);
+      setSelectedCluster(cluster);
+      setClusterSidecardOpen(true);
+    } else {
+      console.warn('[App] Could not find cluster with name:', clusterName);
+      console.warn('[App] Available clusters:', clusters.map((c: any) => c.label || c.cluster_label));
+    }
   };
 
   return (
@@ -2629,38 +2656,39 @@ function App() {
 
       {/* Removed expand chevron button; opening is handled by clicking icon sidebar */}
 
-      {/* Expanded Sidebar */}
-      <ExpandedSidebar
-        activeSection={activeSection}
-        expanded={sidebarExpanded}
-        onToggleExpanded={() => setSidebarExpanded(!sidebarExpanded)}
-      >
-        {activeSection === 'data' && (
-          <DataStatsPanel 
-            dataOverview={dataOverview} 
-            method={method} 
-            operationalRows={operationalRows}
-            decimalPrecision={decimalPrecision}
-            onDecimalPrecisionChange={setDecimalPrecision}
-          />
-        )}
-        {activeSection === 'extraction' && (
-          <Box sx={{ position: 'relative' }}>
-          <PropertyExtractionPanel
-            method={method}
-            uploadedFileName={uploadedFileName}
-            resultsName={resultsName}
-            onResultsNameChange={setResultsName}
-            demoSampleSize={isDemoMode ? demoSampleSize : undefined}
-            getSelectedRow={() => {
-              // Prioritize the row being viewed in the trace drawer, otherwise use the default selection
-              return (drawerOpen && selectedRow) ? selectedRow : selectedRowForExtraction;
-            }}
-            getAllRows={() => currentRows}
-            getOperationalRows={getOperationalRowsCb}
-            getPropertiesRows={getPropertiesRowsCb}
-            onPropertiesMerged={(props) => {
-              const newMap = new Map(propertiesByKey);
+      {/* Expanded Sidebar - Hidden for metrics (filters now in tab) */}
+      {activeSection !== 'metrics' && (
+        <ExpandedSidebar
+          activeSection={activeSection}
+          expanded={sidebarExpanded}
+          onToggleExpanded={() => setSidebarExpanded(!sidebarExpanded)}
+        >
+          {activeSection === 'data' && (
+            <DataStatsPanel 
+              dataOverview={dataOverview} 
+              method={method} 
+              operationalRows={operationalRows}
+              decimalPrecision={decimalPrecision}
+              onDecimalPrecisionChange={setDecimalPrecision}
+            />
+          )}
+          {activeSection === 'extraction' && (
+            <Box sx={{ position: 'relative' }}>
+            <PropertyExtractionPanel
+              method={method}
+              uploadedFileName={uploadedFileName}
+              resultsName={resultsName}
+              onResultsNameChange={setResultsName}
+              demoSampleSize={isDemoMode ? demoSampleSize : undefined}
+              getSelectedRow={() => {
+                // Prioritize the row being viewed in the trace drawer, otherwise use the default selection
+                return (drawerOpen && selectedRow) ? selectedRow : selectedRowForExtraction;
+              }}
+              getAllRows={() => currentRows}
+              getOperationalRows={getOperationalRowsCb}
+              getPropertiesRows={getPropertiesRowsCb}
+              onPropertiesMerged={(props) => {
+                const newMap = new Map(propertiesByKey);
               props.forEach(p => {
                 const key = `${p.question_id}-${p.model}`;
                 if (!newMap.has(key)) newMap.set(key, []);
@@ -2851,17 +2879,9 @@ function App() {
           </Box>
         )}
         {/* Clustering section removed - now integrated into Property Extraction */}
-        {activeSection === 'metrics' && (
-          <MetricsPanel
-            filters={metricsFilters}
-            onFiltersChange={setMetricsFilters}
-            availableModels={metricsAvailableModels}
-            availableGroups={metricsAvailableGroups}
-            availableQualityMetrics={metricsAvailableQualityMetrics}
-            summary={metricsSummary || undefined}
-          />
-        )}
-      </ExpandedSidebar>
+        {/* Metrics control panel removed - now using horizontal filter bar in MetricsTab */}
+        </ExpandedSidebar>
+      )}
 
             <Container maxWidth={false} sx={{
         py: 2,
@@ -3075,57 +3095,9 @@ function App() {
               onRequestRecompute={onRequestRecomputeCb}
               modelClusterScores={resultsMetrics?.model_cluster_scores}
               externalSearchQuery={clusterSearchQuery}
-              onOpenPropertyById={(pid) => {
-                // Find property row in propertiesRows and open in the right drawer
-                const prop = propertiesRows.find((p: any) => String(p.id) === String(pid));
-                if (!prop) return;
-
-                const idx = (prop as any).__index ?? (prop as any).row_index;
-                let row: any | null = null;
-                if (idx != null) {
-                  row = operationalRows.find(r => Number(r?.__index) === Number(idx)) || null;
-                }
-                if (!row) {
-                  const qid = (prop as any).question_id;
-                  const modelName = String((prop as any).model || '');
-                  row = operationalRows.find(r => {
-                    const rq = r?.question_id;
-                    if (method === 'single_model') {
-                      return rq === qid && String(r?.model || '') === modelName;
-                    } else if (method === 'side_by_side') {
-                      return rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName);
-                    }
-                    return false;
-                  }) || null;
-                }
-
-                if (!row) {
-                  console.warn('[App] Could not locate row for property', { prop, idx, method });
-                }
-
-                // Process evidence (same logic as PropertiesTab)
-                const rawEvidence = (prop as any).evidence;
-                let ev: string[] = [];
-
-                if (Array.isArray(rawEvidence)) {
-                  ev = rawEvidence;
-                } else if (rawEvidence && typeof rawEvidence === 'string') {
-                  ev = rawEvidence
-                    .split(',')
-                    .map(s => s.trim())
-                    .map(s => s.replace(/^["']|["']$/g, ''))
-                    .filter(s => s.length > 0);
-                } else if (rawEvidence) {
-                  ev = [String(rawEvidence)];
-                }
-
-                setSelectedEvidence(ev);
-                setEvidenceTargetModel((prop as any).model);
-                setSelectedProperty(prop);
-
-                if (row) {
-                  onView(row, true);
-                }
+              onClusterClick={(cluster) => {
+                setSelectedCluster(cluster);
+                setClusterSidecardOpen(true);
               }}
             />
           </Box>
@@ -3136,6 +3108,7 @@ function App() {
               <MetricsTab
                 resultsData={resultsMetrics}
                 filters={metricsFilters}
+                onFiltersChange={setMetricsFilters}
                 totalUniqueConversations={totalUniqueConversations}
                 method={method}
                 onDataProcessed={(data) => {
@@ -3154,6 +3127,10 @@ function App() {
 
                     if (prev.selectedModels.length === 0 && data.availableModels.length > 0) {
                       updates.selectedModels = data.availableModels;
+                    }
+
+                    if (prev.selectedMetrics.length === 0 && data.availableQualityMetrics.length > 0) {
+                      updates.selectedMetrics = data.availableQualityMetrics;
                     }
 
                     return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
@@ -3365,6 +3342,23 @@ function App() {
             )}
           </>
       </Drawer>
+
+      {/* Cluster Sidecard */}
+      <ClusterSidecard
+        open={clusterSidecardOpen}
+        onClose={() => {
+          setClusterSidecardOpen(false);
+          setSelectedCluster(null);
+        }}
+        cluster={selectedCluster}
+        method={method}
+        decimals={3}
+        getPropertiesRows={getPropertiesRowsCb}
+        getOperationalRows={getOperationalRowsCb}
+        modelClusterScores={resultsMetrics?.model_cluster_scores}
+        totalUniqueConversations={totalUniqueConversations}
+        showCI={metricsFilters.showCI}
+      />
     </Box>
   );
 }

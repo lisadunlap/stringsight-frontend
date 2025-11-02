@@ -7,6 +7,7 @@
 // Main components
 export { MetricsTab } from './MetricsTab';
 export { MetricsControlPanel } from './MetricsControlPanel';
+export { MetricsFilterBar } from './MetricsFilterBar';
 export { MetricsMainContent } from './MetricsMainContent';
 
 // Section components
