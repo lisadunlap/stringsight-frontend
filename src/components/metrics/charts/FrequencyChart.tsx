@@ -157,7 +157,7 @@ export function FrequencyChart({
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
         <Typography variant="h6" component="h3">
-          Frequency by Cluster
+          All Property Clusters
         </Typography>
         <Typography variant="body2" color="text.secondary">
           Proportion of conversations per model in each cluster

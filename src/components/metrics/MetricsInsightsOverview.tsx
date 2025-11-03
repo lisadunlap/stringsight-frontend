@@ -7,7 +7,7 @@
  * 3. Misaligned Patterns (negative behaviors with positive quality delta, or stylistic behaviors with significant quality impact)
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Stack,
@@ -20,13 +20,22 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  TableSortLabel
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
 
 // Threshold for displaying common failures (show any pattern where at least one model has > this frequency)
 const COMMON_FAILURE_MIN_FREQUENCY = 0.05; // 5%
+
+// Model color palette (matches FrequencyChartAlt)
+const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
+
+function getModelColor(model: string, allModels: string[]): string {
+  const index = allModels.indexOf(model);
+  return MODEL_COLORS[index % MODEL_COLORS.length];
+}
 
 interface MetricsInsightsOverviewProps {
   data: ModelClusterRow[];
@@ -51,7 +60,7 @@ function normalizeGroup(value: unknown): string {
 interface CommonFailure {
   cluster: string;
   totalSize: number;
-  modelFrequencies: { model: string; proportion: number; size: number }[];
+  modelFrequencies: { model: string; proportion: number; size: number; proportionDelta?: number }[];
   category: string;
 }
 
@@ -75,7 +84,6 @@ export function MetricsInsightsOverview({
   onNavigateToCluster,
   method = 'unknown'
 }: MetricsInsightsOverviewProps) {
-
   // Debug logging
   console.log('[MetricsInsightsOverview] Rendering with:', {
     dataLength: data.length,
@@ -124,13 +132,21 @@ export function MetricsInsightsOverview({
     const commonFailures: CommonFailure[] = Array.from(clusterGroups.entries())
       .map(([cluster, { category, rows }]) => {
         // Create a map of existing model data
-        const modelDataMap = new Map(rows.map(r => [r.model, { proportion: r.proportion || 0, size: r.size || 0 }]));
+        const modelDataMap = new Map(rows.map(r => [
+          r.model,
+          {
+            proportion: r.proportion || 0,
+            size: r.size || 0,
+            proportionDelta: r.proportion_delta
+          }
+        ]));
 
         // Create frequencies for all models, filling in 0 for missing ones
         const modelFrequencies = allModels.map(model => ({
           model,
           proportion: modelDataMap.get(model)?.proportion || 0,
-          size: modelDataMap.get(model)?.size || 0
+          size: modelDataMap.get(model)?.size || 0,
+          proportionDelta: modelDataMap.get(model)?.proportionDelta
         }));
 
         return {
@@ -300,10 +316,6 @@ export function MetricsInsightsOverview({
 
   return (
     <Box sx={{ mb: 4 }}>
-      <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-        Overview
-      </Typography>
-
       <Stack spacing={3}>
         {/* 1. COMMON FAILURES */}
         <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
@@ -316,136 +328,148 @@ export function MetricsInsightsOverview({
               No common failure patterns found
             </Typography>
           ) : (
-            <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 1 }}>
-              <Stack spacing={2}>
-                {insights.commonFailures.map((failure, idx) => {
-                // Get category color for the chip
-                const categoryColor = failure.category === 'negative_critical' ? '#DC2626' : '#CA8A04';
-
-                return (
-                  <Paper
-                    key={idx}
-                    variant="outlined"
-                    onClick={() => onNavigateToCluster?.(failure.cluster)}
-                    sx={{
-                      p: 1.5,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      position: 'relative',
-                      '&:hover': {
-                        bgcolor: 'action.hover',
-                        boxShadow: 1
-                      }
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                      {/* Left side: Model bars with names */}
-                      <Stack spacing={0.125} sx={{ minWidth: 220 }}>
-                        {failure.modelFrequencies.map((mf, mIdx) => {
-                          const modelColors = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
-                          const barColor = modelColors[insights.allModels.indexOf(mf.model) % modelColors.length];
-
-                          return (
-                            <Tooltip
-                              key={mIdx}
-                              title={`${mf.model}: ${(mf.proportion * 100).toFixed(1)}% (${mf.size} conversations)`}
-                              arrow
-                              placement="top"
-                            >
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                {/* Visual bar */}
-                                <Box
-                                  sx={{
-                                    width: 140,
-                                    height: 10,
-                                    bgcolor: 'grey.100',
-                                    borderRadius: 0.5,
-                                    position: 'relative',
-                                    overflow: 'hidden'
-                                  }}
-                                >
-                                  <Box
-                                    sx={{
-                                      position: 'absolute',
-                                      left: 0,
-                                      top: 0,
-                                      height: '100%',
-                                      width: `${mf.proportion * 100}%`,
-                                      bgcolor: barColor,
-                                      opacity: 0.8,
-                                      transition: 'width 0.3s ease'
-                                    }}
-                                  />
-                                </Box>
-
-                                {/* Model name */}
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    fontSize: '0.8rem',
-                                    color: 'text.secondary',
-                                    minWidth: 100,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
-                                  }}
-                                >
-                                  {shortModelName(mf.model)}
-                                </Typography>
-                              </Box>
-                            </Tooltip>
-                          );
-                        })}
-                      </Stack>
-
-                      {/* Middle: Cluster description */}
-                      <Box sx={{ flex: 1, minWidth: 0, maxWidth: 600 }}>
-                        <Typography
-                          variant="body1"
-                          sx={{
-                            color: 'text.primary',
-                            lineHeight: 1.6,
-                            fontSize: '1rem'
-                          }}
-                        >
+            <TableContainer>
+              <Table size="small" sx={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell
+                      sx={{
+                        fontWeight: 600,
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                        py: 1.5,
+                        minWidth: 400
+                      }}
+                    >
+                      Failure Pattern (Cluster Label)
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        fontWeight: 600,
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                        py: 1.5,
+                        minWidth: 350
+                      }}
+                    >
+                      Frequency
+                    </TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        fontWeight: 600,
+                        borderBottom: '2px solid',
+                        borderColor: 'divider',
+                        py: 1.5,
+                        minWidth: 120
+                      }}
+                    >
+                      Severity
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {insights.commonFailures.map((failure, idx) => (
+                    <TableRow
+                      key={idx}
+                      sx={{
+                        '&:hover': { bgcolor: 'action.hover' },
+                        borderBottom: idx === insights.commonFailures.length - 1 ? 'none' : '1px solid',
+                        borderColor: 'divider'
+                      }}
+                    >
+                      <TableCell
+                        sx={{
+                          py: 1.5,
+                          cursor: 'pointer',
+                          '&:hover': { color: 'primary.main' }
+                        }}
+                        onClick={() => onNavigateToCluster?.(failure.cluster)}
+                      >
+                        <Typography variant="body2" sx={{ fontSize: '0.95rem' }}>
                           {failure.cluster}
                         </Typography>
-                      </Box>
+                      </TableCell>
+                      <TableCell sx={{ py: 1.5 }}>
+                        <Stack spacing={0.5}>
+                          {failure.modelFrequencies.map(mf => {
+                            const hasData = mf.proportion > 0;
+                            const modelShortName = shortModelName(mf.model);
+                            const tooltipText = `${modelShortName}: ${(mf.proportion * 100).toFixed(1)}% (${mf.size} conversations)`;
+                            
+                            return (
+                              <Tooltip key={mf.model} title={tooltipText} arrow placement="top">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  {/* Visual bar */}
+                                  <Box
+                                    sx={{
+                                      width: 180,
+                                      height: 10,
+                                      bgcolor: 'grey.100',
+                                      borderRadius: 0.5,
+                                      position: 'relative',
+                                      overflow: 'hidden'
+                                    }}
+                                  >
+                                    {hasData && (
+                                      <Box
+                                        sx={{
+                                          position: 'absolute',
+                                          left: 0,
+                                          top: 0,
+                                          height: '100%',
+                                          width: `${mf.proportion * 100}%`,
+                                          bgcolor: getModelColor(mf.model, insights.allModels),
+                                          opacity: 0.8,
+                                          transition: 'width 0.3s ease'
+                                        }}
+                                      />
+                                    )}
+                                  </Box>
 
-                      {/* Arrow icon - at the very right */}
-                      <Tooltip
-                        title="View examples from cluster"
-                        arrow
-                        placement="top"
+                                  {/* Model name */}
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      fontSize: '0.75rem',
+                                      color: hasData ? 'text.primary' : 'text.disabled',
+                                      minWidth: 120,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {modelShortName}
+                                  </Typography>
+                                </Box>
+                              </Tooltip>
+                            );
+                          })}
+                        </Stack>
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{ py: 1.5 }}
                       >
-                        <Box sx={{ display: 'flex', alignItems: 'center', color: 'action.active', ml: 'auto' }}>
-                          →
-                        </Box>
-                      </Tooltip>
-                    </Box>
-
-                    {/* Category chip - bottom right */}
-                    <Chip
-                      label={failure.category === 'negative_critical' ? 'Negative (critical)' : 'Negative (non-critical)'}
-                      size="small"
-                      sx={{
-                        position: 'absolute',
-                        bottom: 8,
-                        right: 8,
-                        height: 20,
-                        fontSize: '0.7rem',
-                        color: categoryColor,
-                        borderColor: categoryColor,
-                        bgcolor: 'background.paper',
-                        fontWeight: 500
-                      }}
-                      variant="outlined"
-                    />
-                  </Paper>
-                );
-              })}
-              </Stack>
-            </Box>
+                        <Chip
+                          label={failure.category === 'negative_critical' ? 'Critical' : 'Non-critical'}
+                          size="small"
+                          sx={{
+                            height: 24,
+                            fontSize: '0.75rem',
+                            color: failure.category === 'negative_critical' ? '#DC2626' : '#CA8A04',
+                            borderColor: failure.category === 'negative_critical' ? '#DC2626' : '#CA8A04',
+                            bgcolor: 'background.paper',
+                            fontWeight: 500
+                          }}
+                          variant="outlined"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
         </Paper>
 
@@ -579,7 +603,7 @@ export function MetricsInsightsOverview({
             </Stack>
 
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Shows only statistically significant quality metric impacts. Negative behaviors that improve metrics, and style behaviors with quality impact.
+              Negative behaviors that improve metrics, and style behaviors with quality impact. Only shows patterns that are statistically significant.
             </Typography>
 
           {insights.misalignedPatterns.length === 0 ? (

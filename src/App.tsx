@@ -3358,6 +3358,7 @@ function App() {
         modelClusterScores={resultsMetrics?.model_cluster_scores}
         totalUniqueConversations={totalUniqueConversations}
         showCI={metricsFilters.showCI}
+        showSignificance={true}
       />
     </Box>
   );

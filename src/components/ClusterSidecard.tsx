@@ -36,6 +36,9 @@ interface ClusterSidecardProps {
   
   // Show confidence intervals
   showCI?: boolean;
+  
+  // Show significance tags
+  showSignificance?: boolean;
 }
 
 function formatPercent(p?: number): string {
@@ -54,6 +57,7 @@ export default function ClusterSidecard({
   modelClusterScores,
   totalUniqueConversations,
   showCI = false,
+  showSignificance = false,
 }: ClusterSidecardProps) {
   const [viewMode, setViewMode] = useState<'cluster-details' | 'property-trace'>('cluster-details');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
@@ -89,6 +93,8 @@ export default function ClusterSidecard({
     const qualityByModel: Record<string, any> = {};
     const qualityDeltaByModel: Record<string, any> = {};
     const qualityDeltaCIByModel: Record<string, Record<string, { lower: number; upper: number }>> = {};
+    const proportionDeltaSignificantByModel: Record<string, boolean> = {};
+    const qualityDeltaSignificantByModel: Record<string, Record<string, boolean>> = {};
     let proportionOverall: number | undefined = undefined;
 
     clusterMetrics.forEach((m: any) => {
@@ -109,15 +115,24 @@ export default function ClusterSidecard({
           proportionOverall = m.proportion_overall;
         }
 
+        // Capture proportion delta significance
+        if (m.proportion_delta_significant !== undefined) {
+          proportionDeltaSignificantByModel[model] = m.proportion_delta_significant;
+        }
+
         // Extract quality scores and deltas
         const qualityScores: Record<string, number> = {};
         const qualityDeltas: Record<string, number> = {};
         const qualityDeltaCIs: Record<string, { lower: number; upper: number }> = {};
+        const qualityDeltaSignificant: Record<string, boolean> = {};
 
         Object.keys(m).forEach(key => {
           if (key.startsWith('quality_delta_')) {
             const metricName = key.replace('quality_delta_', '');
-            if (!key.includes('_ci_') && !key.includes('_significant')) {
+            if (key.endsWith('_significant')) {
+              const metricNameClean = metricName.replace('_significant', '');
+              qualityDeltaSignificant[metricNameClean] = m[key];
+            } else if (!key.includes('_ci_') && !key.includes('_significant')) {
               qualityDeltas[metricName] = m[key];
               
               // Check for CI bounds
@@ -146,6 +161,9 @@ export default function ClusterSidecard({
         if (Object.keys(qualityDeltaCIs).length > 0) {
           qualityDeltaCIByModel[model] = qualityDeltaCIs;
         }
+        if (Object.keys(qualityDeltaSignificant).length > 0) {
+          qualityDeltaSignificantByModel[model] = qualityDeltaSignificant;
+        }
       }
     });
 
@@ -160,9 +178,11 @@ export default function ClusterSidecard({
         ...cluster.meta,
         proportion_by_model: proportionByModel,
         proportion_ci_by_model: proportionCIByModel,
+        proportion_delta_significant_by_model: proportionDeltaSignificantByModel,
         quality_by_model: qualityByModel,
         quality_delta_by_model: qualityDeltaByModel,
         quality_delta_ci_by_model: qualityDeltaCIByModel,
+        quality_delta_significant_by_model: qualityDeltaSignificantByModel,
         total_unique_conversations: clusterConversationCount,
         proportion_overall: proportionOverall ?? cluster.meta?.proportion_overall
       }
@@ -214,14 +234,28 @@ export default function ClusterSidecard({
   const group: string | undefined = meta.group;
   const perModelProps: Record<string, number> = meta.proportion_by_model || {};
   const proportionCIByModel: Record<string, { lower: number; upper: number }> = meta.proportion_ci_by_model || {};
+  const proportionDeltaSignificantByModel: Record<string, boolean> = meta.proportion_delta_significant_by_model || {};
   const qualityDeltaByModel: Record<string, Record<string, number>> = meta.quality_delta_by_model || {};
   const qualityDeltaCIByModel: Record<string, Record<string, { lower: number; upper: number }>> = meta.quality_delta_ci_by_model || {};
+  const qualityDeltaSignificantByModel: Record<string, Record<string, boolean>> = meta.quality_delta_significant_by_model || {};
   const clusterUniqueConversations: number | undefined = meta.total_unique_conversations;
+
+  // Compute overall significance flags
+  const isSignificantInFrequency = Object.values(proportionDeltaSignificantByModel).some(v => v === true);
+  const isSignificantInQuality = Object.values(qualityDeltaSignificantByModel).some(metrics => 
+    Object.values(metrics).some(v => v === true)
+  );
 
   console.log('[ClusterSidecard] Enriched cluster meta:', meta);
   console.log('[ClusterSidecard] qualityDeltaByModel:', qualityDeltaByModel);
   console.log('[ClusterSidecard] qualityDeltaByModel keys:', Object.keys(qualityDeltaByModel));
   console.log('[ClusterSidecard] qualityDeltaCIByModel:', qualityDeltaCIByModel);
+  console.log('[ClusterSidecard] Significance flags:', { 
+    isSignificantInFrequency, 
+    isSignificantInQuality,
+    proportionDeltaSignificantByModel,
+    qualityDeltaSignificantByModel
+  });
 
   // Property trace view logic
   if (viewMode === 'property-trace' && selectedPropertyId) {
@@ -484,6 +518,46 @@ export default function ClusterSidecard({
                   </Typography>
                 );
               })()}
+              
+              {/* Significance tags */}
+              {showSignificance && (
+                <>
+                  {isSignificantInFrequency && (
+                    <Tooltip title="This cluster shows statistically significant differences in frequency across models">
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: 1,
+                          backgroundColor: '#DBEAFE',
+                          color: '#1E40AF',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Sig. Freq
+                      </Typography>
+                    </Tooltip>
+                  )}
+                  {isSignificantInQuality && (
+                    <Tooltip title="This cluster shows statistically significant differences in quality across models">
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: 1,
+                          backgroundColor: '#FCE7F3',
+                          color: '#9F1239',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Sig. Quality
+                      </Typography>
+                    </Tooltip>
+                  )}
+                </>
+              )}
             </Stack>
 
             {/* Overall quality metrics */}
@@ -517,11 +591,11 @@ export default function ClusterSidecard({
           <Divider sx={{ my: 2 }} />
 
           {/* Plots */}
-          <Box sx={{ mb: 2 }}>
+          <Box sx={{ mb: 0.5 }}>
             {/* Frequency (Per-model proportions) */}
             {perModelProps && Object.keys(perModelProps).length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
+              <Box sx={{ mb: 1 }}>
+                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0 }}>
                   <Typography variant="subtitle2" sx={{ color: '#334155' }}>Frequency</Typography>
                   <Tooltip title="Fraction of each model's conversations that appear in this cluster">
                     <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
@@ -571,8 +645,8 @@ export default function ClusterSidecard({
                         error_y: errorY,
                       }]}
                       layout={{
-                        height: 320,
-                        margin: { l: 70, r: 10, t: 10, b: 110 },
+                        height: 260,
+                        margin: { l: 70, r: 10, t: 4, b: 110 },
                         xaxis: { tickangle: -30, automargin: true },
                         yaxis: { title: { text: 'Proportion', standoff: 15 }, rangemode: 'tozero', tickformat: `.${decimals}f` },
                         showlegend: false,
@@ -589,10 +663,10 @@ export default function ClusterSidecard({
 
             {/* Quality (Per-model quality delta) */}
             {qualityDeltaByModel && Object.keys(qualityDeltaByModel).length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
+              <Box sx={{ mb: 0 }}>
+                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0 }}>
                   <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality</Typography>
-                  <Tooltip title="Quality delta for each model, grouped by metric">
+                  <Tooltip title="Difference in quality between conversations which exhibit this property VS the average quality of all conversations">
                     <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
                   </Tooltip>
                 </Stack>
@@ -654,8 +728,8 @@ export default function ClusterSidecard({
                       data={traces}
                       layout={{
                         barmode: 'group',
-                        height: 320,
-                        margin: { l: 70, r: 10, t: 60, b: 110 },
+                        height: 260,
+                        margin: { l: 70, r: 10, t: 10, b: 110 },
                         xaxis: { tickangle: -30, automargin: true },
                         yaxis: { title: { text: 'Quality Δ', standoff: 15 }, tickformat: `.${decimals}f` },
                         paper_bgcolor: '#FFFFFF',
@@ -671,7 +745,7 @@ export default function ClusterSidecard({
             )}
           </Box>
 
-          <Divider sx={{ my: 2 }} />
+          <Divider sx={{ my: 1 }} />
 
           {/* Properties list */}
           <Box>

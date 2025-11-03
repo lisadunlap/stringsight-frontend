@@ -101,7 +101,7 @@ export default function PropertyTraceHeader({
             p: 1,
             mb: 1
           }}>
-            <Typography variant="body2" sx={{ fontWeight: 500, textAlign: 'center', color: '#1565C0' }}>
+            <Typography variant="body2" sx={{ textAlign: 'center', color: '#1565C0' }}>
               {selectedProperty.property_description}
             </Typography>
           </Box>
@@ -113,13 +113,12 @@ export default function PropertyTraceHeader({
             mb: 1,
             p: 1,
             backgroundColor: 'rgba(76, 175, 80, 0.08)',
-            borderRadius: 1,
-            border: '1px solid rgba(76, 175, 80, 0.3)'
+            borderRadius: 1
           }}>
             <Typography variant="caption" sx={{ fontWeight: 700, color: '#2E7D32', display: 'block', mb: 0.25 }}>
               Applies to Model:
             </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: '#388E3C' }}>
+            <Typography variant="body2" sx={{ color: '#388E3C' }}>
               {selectedProperty.model}
             </Typography>
           </Box>

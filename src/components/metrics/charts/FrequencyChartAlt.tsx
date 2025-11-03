@@ -258,7 +258,7 @@ export function FrequencyChartAlt({
         {/* Title and Reset */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="h6" component="h3">
-            Frequency by Cluster
+            All Property Clusters
           </Typography>
 
           {/* Reset Button */}

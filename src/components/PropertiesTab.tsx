@@ -4,6 +4,12 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterBar from './FilterBar';
 import FormattedCell from './FormattedCell';
+// @ts-ignore - Plotly types issue
+import Plotly from 'plotly.js-dist-min';
+// @ts-ignore - React-plotly types issue  
+import createPlotlyComponent from 'react-plotly.js/factory';
+
+const Plot = createPlotlyComponent(Plotly);
 
 interface Filter {
   column: string;
@@ -419,6 +425,45 @@ export default function PropertiesTab({
     return counts;
   }, [filtered, availableColumns]);
 
+  // Calculate property counts by model and behavior type for grouped bar chart
+  const propertyCountsByModel = React.useMemo(() => {
+    // Find behavior type column
+    const behaviorTypeColumn = availableColumns.find(col => 
+      col.toLowerCase().includes('behavior') && col.toLowerCase().includes('type')
+    );
+    
+    if (!behaviorTypeColumn || !availableColumns.includes('model')) {
+      return null;
+    }
+
+    // Initialize counts map: model -> { positive, negativeCritical, negativeNonCritical, style }
+    const countsByModel = new Map<string, { positive: number; negativeCritical: number; negativeNonCritical: number; style: number }>();
+
+    filtered.forEach(row => {
+      const model = String(row?.model || '');
+      if (!model) return;
+
+      if (!countsByModel.has(model)) {
+        countsByModel.set(model, { positive: 0, negativeCritical: 0, negativeNonCritical: 0, style: 0 });
+      }
+
+      const counts = countsByModel.get(model)!;
+      const behaviorType = String(row[behaviorTypeColumn] || '').toLowerCase().trim();
+      
+      if (behaviorType === 'positive') {
+        counts.positive++;
+      } else if (behaviorType === 'negative (critical)' || behaviorType === 'negative(critical)') {
+        counts.negativeCritical++;
+      } else if (behaviorType === 'negative (non-critical)' || behaviorType === 'negative(non-critical)') {
+        counts.negativeNonCritical++;
+      } else if (behaviorType === 'style') {
+        counts.style++;
+      }
+    });
+
+    return countsByModel;
+  }, [filtered, availableColumns]);
+
   return (
     <Box>
       {/* (Prompt/task description controls intentionally not included here) */}
@@ -427,24 +472,20 @@ export default function PropertiesTab({
       <Box sx={{ 
         mb: 1.5, 
         mt: 2,
+        p: 2.5, 
+        backgroundColor: '#ffffff',
+        borderRadius: 2,
+        border: '2px solid transparent',
+        backgroundImage: 'linear-gradient(white, white), linear-gradient(90deg, #2563eb, #10b981)',
+        backgroundOrigin: 'border-box',
+        backgroundClip: 'padding-box, border-box',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08)',
         display: 'flex',
-        justifyContent: 'center'
+        flexWrap: 'wrap',
+        gap: 6,
+        alignItems: 'flex-start',
+        justifyContent: 'space-around'
       }}>
-        <Box sx={{ 
-          p: 2.5, 
-          backgroundColor: '#ffffff',
-          borderRadius: 2,
-          border: '2px solid transparent',
-          backgroundImage: 'linear-gradient(white, white), linear-gradient(90deg, #2563eb, #10b981)',
-          backgroundOrigin: 'border-box',
-          backgroundClip: 'padding-box, border-box',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08)',
-          display: 'inline-flex',
-          flexWrap: 'wrap',
-          gap: 6,
-          alignItems: 'flex-start',
-          justifyContent: 'center'
-        }}>
         {/* Property Counts */}
         <Box>
           <Tooltip title="Properties of traces are labeled as Positive, Negative, or Stylistic by the LLM annotator based on the trace and task description" arrow>
@@ -589,8 +630,99 @@ export default function PropertiesTab({
             />
           </Box>
         </Box>
-        </Box>
       </Box>
+
+      {/* Grouped Bar Chart: Property Distribution by Model */}
+      {propertyCountsByModel && propertyCountsByModel.size > 0 && (
+        <Box sx={{ 
+          mb: 2,
+          p: 1.5, 
+          backgroundColor: '#ffffff',
+          borderRadius: 1,
+          border: '1px solid #E5E7EB',
+        }}>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Property Distribution by Model
+          </Typography>
+          <Plot
+            data={(() => {
+              const models = Array.from(propertyCountsByModel.keys());
+              const values = Array.from(propertyCountsByModel.values());
+              
+              // Calculate total for each model
+              const totals = values.map(c => c.positive + c.negativeCritical + c.negativeNonCritical + c.style);
+              
+              return [
+                {
+                  type: 'bar' as const,
+                  name: 'Positive',
+                  x: models,
+                  y: values.map((c, i) => totals[i] > 0 ? c.positive / totals[i] : 0),
+                  marker: { color: '#10B981' },
+                  hovertemplate: '%{x}<br>Positive: %{y:.2%}<extra></extra>',
+                },
+                {
+                  type: 'bar' as const,
+                  name: 'Negative (Critical)',
+                  x: models,
+                  y: values.map((c, i) => totals[i] > 0 ? c.negativeCritical / totals[i] : 0),
+                  marker: { color: '#EF4444' },
+                  hovertemplate: '%{x}<br>Negative (Critical): %{y:.2%}<extra></extra>',
+                },
+                {
+                  type: 'bar' as const,
+                  name: 'Negative (Non-Critical)',
+                  x: models,
+                  y: values.map((c, i) => totals[i] > 0 ? c.negativeNonCritical / totals[i] : 0),
+                  marker: { color: '#F97316' },
+                  hovertemplate: '%{x}<br>Negative (Non-Critical): %{y:.2%}<extra></extra>',
+                },
+                {
+                  type: 'bar' as const,
+                  name: 'Style',
+                  x: models,
+                  y: values.map((c, i) => totals[i] > 0 ? c.style / totals[i] : 0),
+                  marker: { color: '#8B5CF6' },
+                  hovertemplate: '%{x}<br>Style: %{y:.2%}<extra></extra>',
+                },
+              ];
+            })()}
+            layout={{
+              height: 280,
+              margin: { l: 50, r: 20, t: 10, b: 50 },
+              xaxis: { 
+                tickangle: 0,
+                automargin: true,
+                tickfont: { size: 10 },
+              },
+              yaxis: { 
+                title: { text: 'Proportion', font: { size: 11 } },
+                gridcolor: '#eee',
+                tickfont: { size: 10 },
+                tickformat: '.0%',
+              },
+              barmode: 'group',
+              legend: {
+                orientation: 'h' as const,
+                x: 0.5,
+                y: 1.05,
+                xanchor: 'center',
+                yanchor: 'bottom',
+                font: { size: 10 },
+              },
+              paper_bgcolor: '#FFFFFF',
+              plot_bgcolor: '#FFFFFF',
+            }}
+            config={{ 
+              displayModeBar: false,
+              displaylogo: false,
+              responsive: true,
+            }}
+            style={{ width: '100%', height: '100%' }}
+            useResizeHandler={true}
+          />
+        </Box>
+      )}
 
       <FilterBar
         searchValue={query}

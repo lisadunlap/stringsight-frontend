@@ -1,7 +1,25 @@
 import React from 'react';
-import { Box, Typography, Button, Stack, Chip, Tooltip, IconButton, Fade } from '@mui/material';
+import { Box, Typography, Button, Stack, Chip, Tooltip, IconButton, Fade, Paper } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { FormControl, InputLabel, Select, MenuItem, TextField, Checkbox, ListItemText, OutlinedInput } from '@mui/material';
+
+// Model color palette (matches FrequencyChartAlt and MetricsInsightsOverview)
+const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
+
+function getModelColor(model: string, allModels: string[]): string {
+  const index = allModels.indexOf(model);
+  return MODEL_COLORS[index % MODEL_COLORS.length];
+}
+
+// Get color for each category
+function getCategoryColor(category: string): string {
+  const categoryLower = category.toLowerCase();
+  if (categoryLower === 'positive') return '#16A34A';
+  if (categoryLower === 'negative (critical)') return '#DC2626';
+  if (categoryLower === 'negative (non-critical)') return '#CA8A04';
+  if (categoryLower === 'style') return '#9C27B0';
+  return '#9E9E9E';
+}
 
 interface ClustersTabProps {
   clusters: any[];
@@ -38,6 +56,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
       // Build proportion_by_model, quality_by_model, and quality_delta_by_model
       const proportionByModel: Record<string, number> = {};
       const proportionCIByModel: Record<string, { lower: number; upper: number }> = {};
+      const sizeByModel: Record<string, number> = {};
       const qualityByModel: Record<string, any> = {};
       const qualityDeltaByModel: Record<string, any> = {};
       const qualityDeltaCIByModel: Record<string, Record<string, { lower: number; upper: number }>> = {};
@@ -47,6 +66,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         const model = m.model;
         if (model) {
           proportionByModel[model] = m.proportion;
+          sizeByModel[model] = m.size || 0;
 
           // Capture proportion confidence intervals
           if (m.proportion_ci_lower !== undefined && m.proportion_ci_upper !== undefined) {
@@ -116,6 +136,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
           ...cluster.meta,
           proportion_by_model: proportionByModel,
           proportion_ci_by_model: proportionCIByModel,
+          size_by_model: sizeByModel,
           quality_by_model: qualityByModel,
           quality_delta_by_model: qualityDeltaByModel,
           quality_delta_ci_by_model: qualityDeltaCIByModel,
@@ -138,7 +159,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
   const [search, setSearch] = React.useState<string>('');
   const [selectedModels, setSelectedModels] = React.useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = React.useState<string[]>([]);
-  const [sortBy, setSortBy] = React.useState<'freqAsc' | 'freqDesc' | 'qualAsc' | 'qualDesc'>('freqDesc');
+  const [sortBy, setSortBy] = React.useState<'freqAsc' | 'freqDesc' | 'freqDeltaAsc' | 'freqDeltaDesc' | 'qualAsc' | 'qualDesc'>('freqDeltaDesc');
   const debouncedApplyRef = React.useRef<number | null>(null);
 
   // Update search when externalSearchQuery changes
@@ -251,6 +272,23 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
       return sum / vals.length;
     };
 
+    const maxAbsFreqDelta = (c: any): number => {
+      const meta = (c && c.meta) || {};
+      const proportionByModel = meta.proportion_by_model || {};
+      
+      // Get all models from the cluster
+      const models = Object.keys(proportionByModel);
+      if (models.length === 0) return 0;
+      
+      // Calculate average proportion across models
+      const proportions = Object.values(proportionByModel).map((p: any) => Number(p) || 0);
+      const avgProportion = proportions.reduce((a, b) => a + b, 0) / proportions.length;
+      
+      // Find max absolute deviation from average (proxy for delta)
+      const maxDelta = Math.max(...proportions.map(p => Math.abs(p - avgProportion)));
+      return maxDelta;
+    };
+
     let list = (enrichedClusters || []).filter((c) => {
       const meta = (c && c.meta) || {};
 
@@ -299,6 +337,12 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
       case 'freqAsc':
         list = [...list].sort((a, b) => (Number(a.size || 0) - Number(b.size || 0)));
         break;
+      case 'freqDeltaAsc':
+        list = [...list].sort((a, b) => maxAbsFreqDelta(a) - maxAbsFreqDelta(b));
+        break;
+      case 'freqDeltaDesc':
+        list = [...list].sort((a, b) => maxAbsFreqDelta(b) - maxAbsFreqDelta(a));
+        break;
       case 'freqDesc':
       default:
         list = [...list].sort((a, b) => (Number(b.size || 0) - Number(a.size || 0)));
@@ -306,6 +350,21 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
     }
     return list;
   }, [enrichedClusters, search, selectedModels, selectedGroups, sortBy]);
+
+  // Calculate max proportion across all clusters for bar scaling
+  const maxProportion = React.useMemo(() => {
+    let max = 0;
+    visibleClusters.forEach((c) => {
+      const meta = (c && c.meta) || {};
+      const proportionByModel = meta.proportion_by_model || {};
+      Object.values(proportionByModel).forEach((prop: any) => {
+        if (typeof prop === 'number' && prop > max) {
+          max = prop;
+        }
+      });
+    });
+    return Math.max(max, 0.01); // minimum for scaling
+  }, [visibleClusters]);
   if (!clusters || clusters.length === 0) {
     return (
       <Box sx={{ p: 2, border: '1px solid #E5E7EB', borderRadius: 0.5, background: '#FFFFFF' }}>
@@ -318,12 +377,12 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
     <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'hidden', background: '#FFFFFF' }}>
       {/* Legend / helper text */}
       <Box sx={{ p: 1.5, background: '#F3F4F6', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        {/* <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <InfoOutlinedIcon sx={{ fontSize: 16, color: '#6B7280' }} />
           <Typography variant="caption" color="text.secondary">
             Overall proportion = share of all conversations in this cluster. Per-model proportion = share of that model's conversations in this cluster.
           </Typography>
-        </Box>
+        </Box> */}
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField
             size="small"
@@ -385,10 +444,12 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel id="sortby-label">Sort By</InputLabel>
             <Select labelId="sortby-label" value={sortBy} label="Sort By" onChange={(e) => setSortBy(e.target.value as any)}>
-              <MenuItem value={'freqAsc'}>Frequency ▲</MenuItem>
               <MenuItem value={'freqDesc'}>Frequency ▼</MenuItem>
-              <MenuItem value={'qualAsc'}>Quality ▲</MenuItem>
+              <MenuItem value={'freqAsc'}>Frequency ▲</MenuItem>
+              <MenuItem value={'freqDeltaDesc'}>Frequency Δ ▼</MenuItem>
+              <MenuItem value={'freqDeltaAsc'}>Frequency Δ ▲</MenuItem>
               <MenuItem value={'qualDesc'}>Quality ▼</MenuItem>
+              <MenuItem value={'qualAsc'}>Quality ▲</MenuItem>
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 120 }}>
@@ -466,102 +527,168 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
       )}
       {visibleClusters.map((c, idx) => {
         const meta = (c && c.meta) || {};
-        const overallQuality: Record<string, number> = meta.quality || {};
-        const overallQualityDelta: Record<string, number> = meta.quality_delta || {};
         const overallProp: number | undefined = meta.proportion_overall;
         const group: string | undefined = meta.group;
         const clusterUniqueConversations: number | undefined = meta.total_unique_conversations;
+        const proportionByModel = meta.proportion_by_model || {};
+        const sizeByModel = meta.size_by_model || {};
+
+        // Use selected models if filter is active, otherwise use all models
+        const modelsToShow = selectedModels.length > 0 ? selectedModels : allModels;
+
+        // Build model bars for this cluster
+        const modelBars = modelsToShow.map(model => {
+          const proportion = proportionByModel[model] || 0;
+          const modelShortName = model.split('/').pop() || model;
+          const color = getModelColor(model, allModels);
+          
+          // Use size directly from the enriched data
+          const size = sizeByModel[model] || 0;
+
+          return {
+            model,
+            modelShortName,
+            proportion,
+            size,
+            color
+          };
+        });
 
         const row = (
-          <Box
+          <Paper
             key={c.id ?? idx}
+            variant="outlined"
             onClick={() => onClusterClick(c)}
             sx={{
-              p: 2,
-              borderBottom: '1px solid #E5E7EB',
+              p: 1.5,
               cursor: 'pointer',
-              transition: 'background 0.2s',
+              transition: 'all 0.2s',
+              borderBottom: '1px solid #E5E7EB',
+              borderRadius: 0,
               '&:hover': {
-                background: '#F9FAFB',
+                bgcolor: '#F9FAFB',
+                boxShadow: 1
               },
+              position: 'relative'
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 1 }}>
-              <Typography variant="body1" sx={{ fontWeight: 600, color: '#111827' }}>
-                {String(c.label || '')}
-              </Typography>
-              {/* Overall quality metrics */}
-                  {overallQuality && Object.keys(overallQuality).length > 0 && (
-                <Stack direction="column" spacing={0.25} sx={{ minWidth: 300, maxWidth: '40%', alignItems: 'flex-end' }}>
-                        {Object.entries(overallQuality).map(([k, v]) => {
-                          const d = overallQualityDelta && typeof overallQualityDelta[k] === 'number' ? overallQualityDelta[k] : undefined;
-                          let deltaColor = '#6B7280';
-                          if (typeof d === 'number') {
-                      if (d > 0.02) deltaColor = '#16A34A';
-                      else if (d < -0.02) deltaColor = '#DC2626';
-                          }
-                          return (
-                      <Typography key={k} variant="body2" sx={{ color: '#334155', textAlign: 'right', fontSize: '0.875rem' }}>
-                              {k}: {typeof v === 'number' ? v.toFixed(decimals) : String(v)}
-                              {typeof d === 'number' && (
-                                <Box component="span" sx={{ ml: 0.5, color: deltaColor }}>
-                                  ({d >= 0 ? '+' : ''}{d.toFixed(decimals)})
-                                </Box>
-                              )}
-                            </Typography>
-                          );
-                        })}
-                      </Stack>
-                  )}
-                </Box>
-            {/* Metadata row */}
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-              <Box sx={{ color: '#6B7280', fontSize: 13 }}>
-                      {(() => {
-                        if (clusterUniqueConversations !== undefined && clusterUniqueConversations > 0) {
-                          const propText = overallProp !== undefined ? ` (${formatPercent(overallProp)})` : '';
-                          return `${clusterUniqueConversations.toLocaleString()} conversations${propText}`;
-                        }
-                        const clusterSize = c.size ?? 0;
-                        return `${clusterSize.toLocaleString()} properties`;
-                      })()}
-                    </Box>
-                  {group && (() => {
-                    let chipColor: 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success' = 'default';
-                    let chipVariant: 'filled' | 'outlined' = 'outlined';
-                    let chipStyle = {};
-                    
-                    const groupLower = group.toLowerCase();
-                    if (groupLower === 'positive') {
-                      chipColor = 'success';
-                      chipVariant = 'filled';
-                    } else if (groupLower === 'negative (critical)') {
-                      chipColor = 'error';
-                      chipVariant = 'filled';
-                    } else if (groupLower === 'negative (non-critical)') {
-                      chipColor = 'warning';
-                      chipVariant = 'filled';
-                    } else if (groupLower === 'style') {
-                      chipVariant = 'filled';
-                      chipStyle = { 
-                        backgroundColor: '#9C27B0', 
-                        color: 'white',
-                        '&:hover': { backgroundColor: '#7B1FA2' }
-                      };
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+              {/* Left side: Model bars with names */}
+              <Stack spacing={0.25} sx={{ minWidth: 220 }}>
+                {modelBars.map(bar => {
+                  const tooltipText = `${bar.model}: ${(bar.proportion * 100).toFixed(1)}% (${bar.size} conversations)`;
+
+                  return (
+                    <Tooltip key={bar.model} title={tooltipText} arrow placement="top">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {/* Visual bar */}
+                        <Box
+                          sx={{
+                            width: 140,
+                            height: 10,
+                            bgcolor: 'grey.100',
+                            borderRadius: 0.5,
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              left: 0,
+                              top: 0,
+                              height: '100%',
+                              width: `${(bar.proportion / maxProportion) * 100}%`,
+                              bgcolor: bar.color,
+                              opacity: 0.8,
+                              transition: 'width 0.3s ease'
+                            }}
+                          />
+                        </Box>
+
+                        {/* Model name */}
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontSize: '0.75rem',
+                            color: 'text.secondary',
+                            minWidth: 100,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {bar.modelShortName}
+                        </Typography>
+                      </Box>
+                    </Tooltip>
+                  );
+                })}
+              </Stack>
+
+              {/* Middle: Cluster description */}
+              <Box sx={{ flex: 1, minWidth: 0, pr: group ? 10 : 0 }}>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: '#111827',
+                    lineHeight: 1.6,
+                    fontSize: '1rem',
+                    mb: 0.5
+                  }}
+                >
+                  {String(c.label || '')}
+                </Typography>
+                <Box sx={{ color: '#6B7280', fontSize: 13 }}>
+                  {(() => {
+                    // When models are filtered, show count for only selected models
+                    if (selectedModels.length > 0) {
+                      const filteredSize = modelBars.reduce((sum, bar) => sum + bar.size, 0);
+                      if (filteredSize > 0) {
+                        return `${filteredSize.toLocaleString()} conversations`;
+                      }
                     }
                     
-                    return (
-                      <Chip 
-                        size="small" 
-                        color={chipColor} 
-                        variant={chipVariant}
-                        label={group}
-                        sx={Object.keys(chipStyle).length > 0 ? chipStyle : undefined}
-                      />
-                    );
+                    // Otherwise show overall count
+                    if (clusterUniqueConversations !== undefined && clusterUniqueConversations > 0) {
+                      const propText = overallProp !== undefined ? ` (${formatPercent(overallProp)})` : '';
+                      return `${clusterUniqueConversations.toLocaleString()} conversations${propText}`;
+                    }
+                    const clusterSize = c.size ?? 0;
+                    return `${clusterSize.toLocaleString()} properties`;
                   })()}
-                </Stack>
+                </Box>
               </Box>
+
+              {/* Arrow icon - at the very right */}
+              <Box sx={{ color: 'action.active', ml: 'auto' }}>
+                →
+              </Box>
+            </Box>
+
+            {/* Category chip at absolute bottom right - aligned with arrow */}
+            {group && (
+              <Box sx={{
+                position: 'absolute',
+                bottom: 8,
+                right: 12
+              }}>
+                <Chip
+                  label={group}
+                  size="small"
+                  sx={{
+                    height: 22,
+                    fontSize: '0.75rem',
+                    color: getCategoryColor(group),
+                    borderColor: getCategoryColor(group),
+                    bgcolor: 'white',
+                    fontWeight: 500
+                  }}
+                  variant="outlined"
+                />
+              </Box>
+            )}
+          </Paper>
         );
 
         if (animateOnMountRef.current && idx < 20) {

@@ -101,7 +101,7 @@ function transformRowsForBackend(
 
 // Demo mode fixed settings
 const DEMO_MODE_SETTINGS = {
-  modelName: 'gpt-4.1-mini',
+  modelName: 'gpt-4.1',
   embeddingModel: 'openai/text-embedding-3-small',
   summarizationModel: 'gpt-4.1-mini',
   matchingModel: 'gpt-4.1-mini',
