@@ -272,7 +272,14 @@ export async function runClustering(body: {
   output_dir?: string | null;
   sample_size?: number;
 }) {
-  const res = await fetch(`${API_BASE}/cluster/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  // No timeout - let the request run as long as needed. The backend may take many minutes
+  // for large clustering jobs. Browser/proxy timeouts may still occur, but we don't
+  // artificially limit the request duration.
+  const res = await fetch(`${API_BASE}/cluster/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<{
     clusters: any[];

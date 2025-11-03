@@ -561,8 +561,16 @@ export default function PropertyExtractionPanel({
       onBatchStatus?.(1, 'done', 'clustering', 'Clustering complete');
     } catch (error) {
       console.error('Clustering failed:', error);
-      setErrorMsg(`Clustering failed: ${String(error)}`);
-      onBatchStatus?.(0, 'error', 'clustering', `Clustering failed: ${String(error)}`);
+      const errorMessage = String(error);
+      // Provide more helpful messages for network/timeout errors
+      let userMessage = errorMessage;
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('timeout')) {
+        userMessage = 'Network timeout: The clustering request timed out, but the backend may still be processing. ' +
+          'Please wait a few minutes and check if results were saved. If you specified an output directory, ' +
+          'you can try reloading the results from that location.';
+      }
+      setErrorMsg(`Clustering failed: ${userMessage}`);
+      onBatchStatus?.(0, 'error', 'clustering', `Clustering failed: ${userMessage}`);
     } finally {
       setClusteringBusy(false);
       setCurrentStage(null);
