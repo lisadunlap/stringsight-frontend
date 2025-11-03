@@ -882,8 +882,8 @@ export default function PropertyExtractionPanel({
             variant={(jobProgress||0) > 0 && currentStage === 'extraction' ? 'determinate' : 'indeterminate'}
             value={(jobProgress||0)*100}
           />
-          {/* Cancel button for batch jobs */}
-          {jobId && jobState && currentStage === 'extraction' && !['done', 'error', 'cancelled'].includes(jobState) && (
+          {/* Cancel button for batch jobs - temporarily removed */}
+          {/* {jobId && jobState && currentStage === 'extraction' && !['done', 'error', 'cancelled'].includes(jobState) && (
             <Button
               size="small"
               variant="outlined"
@@ -893,7 +893,7 @@ export default function PropertyExtractionPanel({
             >
               Cancel Extraction
             </Button>
-          )}
+          )} */}
         </Box>
       )}
 
