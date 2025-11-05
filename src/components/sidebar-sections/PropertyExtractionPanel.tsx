@@ -490,11 +490,16 @@ export default function PropertyExtractionPanel({
 
       onBatchStatus?.(0, 'clustering', 'clustering', `Clustering ${properties.length} properties...`);
 
-      // Detect score columns from transformed data
-      const scoreColumns = transformedRows[0] ? Object.keys(transformedRows[0]).filter(k => {
-        const key = k.toLowerCase();
-        return key.startsWith('score') || key === 'scores';
-      }) : [];
+      // Note: score_columns is NOT needed when sending nested dict format (score/scores: {metric: value})
+      // The transformRowsForBackend() keeps scores as nested objects, so backend will auto-detect them.
+      // Only send score_columns if scores are flattened into separate columns (e.g., reward: 0.8, accuracy: 0.9)
+      
+      console.log('🔍 Operational row sample:', {
+        method,
+        originalScore: operationalRows[0]?.score || operationalRows[0]?.score_a,
+        transformedScore: transformedRows[0]?.scores,
+        note: 'Scores are in nested dict format, no score_columns param needed'
+      });
 
       // For side-by-side: create model-to-column mapping so backend knows which score belongs to which model
       let modelColumnMap: Record<string, string> | undefined;
@@ -523,7 +528,7 @@ export default function PropertyExtractionPanel({
           summarizationModel: isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : summarizationModel,
           matchingModel: isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : matchingModel,
         },
-        score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
+        // score_columns omitted - scores are already in nested dict format (scores: {reward: 0})
         method,
         model_column_map: modelColumnMap,
         output_dir: outputDir,

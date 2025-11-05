@@ -16,6 +16,9 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_BACKEND || 'http://localhost:8000',
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api/, ''),
+          // Set high timeouts for long-running operations like clustering
+          timeout: 600000, // 10 minutes for the request to connect
+          proxyTimeout: 600000, // 10 minutes for the response to complete
         },
       },
     },

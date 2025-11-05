@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Stack, Divider, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Box, Typography, Stack, Divider, FormControl, InputLabel, Select, MenuItem, Button } from '@mui/material';
 
 interface DataStatsPanelProps {
   dataOverview: {
@@ -12,6 +12,8 @@ interface DataStatsPanelProps {
   decimalPrecision?: number;
   onDecimalPrecisionChange?: (precision: number) => void;
   uploadedFilename?: string | null;
+  showConfigureColumns?: boolean;
+  onConfigureColumns?: () => void;
 }
 
 
@@ -21,7 +23,9 @@ export default function DataStatsPanel({
   operationalRows = [], 
   decimalPrecision = 2, 
   onDecimalPrecisionChange,
-  uploadedFilename 
+  uploadedFilename,
+  showConfigureColumns = false,
+  onConfigureColumns
 }: DataStatsPanelProps) {
   // Debug logging
   console.log('[DataStatsPanel] uploadedFilename:', uploadedFilename, 'dataOverview:', dataOverview);
@@ -177,6 +181,27 @@ export default function DataStatsPanel({
           </Select>
         </FormControl>
       </Box>
+
+      {showConfigureColumns && (
+        <>
+          <Divider />
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+              Column Mapping
+            </Typography>
+            <Button 
+              variant="outlined" 
+              onClick={onConfigureColumns}
+              fullWidth
+            >
+              Configure Columns
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              Change how your data columns are mapped to prompts, responses, models, and scores.
+            </Typography>
+          </Box>
+        </>
+      )}
 
       <Box>
         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>

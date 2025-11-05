@@ -54,6 +54,129 @@ function getTextContent(content: any): string {
   return String(content ?? '');
 }
 
+// Content blocks used for rendering mixed text and images
+type ContentBlock = { kind: 'text'; text: string } | { kind: 'image'; url: string };
+
+/**
+ * Normalize assorted message content shapes into ordered blocks of text and images.
+ * Supported inputs:
+ * - string: returns one text block
+ * - object with text/content/image/image_url
+ * - OpenAI-style array: [{type: 'text', text: string}, {type: 'image_url', image_url: {url: string} | string}, ...]
+ * - object containing content: Array<...> (same shapes as above)
+ */
+function getContentBlocks(content: any): ContentBlock[] {
+  const blocks: ContentBlock[] = [];
+
+  // Helper to push image URL if present and string-like
+  const pushImage = (maybeUrl: any) => {
+    if (!maybeUrl) return;
+    if (typeof maybeUrl === 'string') {
+      blocks.push({ kind: 'image', url: maybeUrl });
+      return;
+    }
+    if (typeof maybeUrl === 'object' && maybeUrl !== null && typeof maybeUrl.url === 'string') {
+      blocks.push({ kind: 'image', url: maybeUrl.url });
+    }
+  };
+
+  // Helper to push text if present and string-like
+  const pushText = (maybeText: any) => {
+    if (typeof maybeText === 'string' && maybeText.trim().length > 0) {
+      blocks.push({ kind: 'text', text: maybeText });
+    }
+  };
+
+  // string content → try to parse JSON, else single text block
+  if (typeof content === 'string') {
+    const trimmed = content.trim();
+    if ((trimmed.startsWith('[') || trimmed.startsWith('{'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return getContentBlocks(parsed);
+      } catch (_e) {
+        // fallthrough
+      }
+    }
+    pushText(content);
+    return blocks;
+  }
+  
+  // array content → iterate OpenAI-style parts
+  if (Array.isArray(content)) {
+    for (const part of content) {
+      if (part && typeof part === 'object') {
+        if (part.type === 'text') {
+          pushText(part.text);
+        } else if (part.type === 'image_url') {
+          pushImage(part.image_url);
+        } else if (typeof part.text === 'string') {
+          pushText(part.text);
+        } else if (part.image || part.image_url) {
+          pushImage(part.image ?? part.image_url);
+        }
+      } else if (typeof part === 'string') {
+        pushText(part);
+      }
+    }
+    return blocks;
+  }
+
+  // object content
+  if (typeof content === 'object' && content !== null) {
+    // If it contains a nested content array, normalize that
+    if (Array.isArray((content as any).content)) {
+      return getContentBlocks((content as any).content);
+    }
+
+    // image fields
+    if ((content as any).image || (content as any).image_url) {
+      pushImage((content as any).image ?? (content as any).image_url);
+    }
+
+    // text-like fields (attempt JSON parse if they look like JSON)
+    if (typeof (content as any).text === 'string') {
+      const t = (content as any).text as string;
+      const trimmed = t.trim();
+      if ((trimmed.startsWith('[') || trimmed.startsWith('{'))) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          return getContentBlocks(parsed);
+        } catch (_e) {
+          // keep as text
+        }
+      }
+      pushText(t);
+    } else if (typeof (content as any).content === 'string') {
+      const t = (content as any).content as string;
+      const trimmed = t.trim();
+      if ((trimmed.startsWith('[') || trimmed.startsWith('{'))) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          return getContentBlocks(parsed);
+        } catch (_e) {
+          // keep as text
+        }
+      }
+      pushText(t);
+    } else {
+      // Fallback: stringify object as text if no explicit fields found
+      try {
+        const asText = getTextContent(content);
+        if (asText && asText.trim().length > 0) pushText(asText);
+      } catch (_e) {
+        // ignore
+      }
+    }
+
+    return blocks;
+  }
+
+  // final fallback
+  pushText(String(content ?? ''));
+  return blocks;
+}
+
 /**
  * Normalize text for fuzzy matching:
  * - Collapse multiple whitespace to single space
@@ -467,6 +590,7 @@ export function ConversationTrace({
       {messages.map((m, i) => {
         const isStructuredContent = typeof m.content === 'object' && m.content !== null;
         const hasToolCalls = isStructuredContent && m.content.tool_calls;
+        const structuredBlocks = getContentBlocks(m.content);
         const content = prettyPrintEnabled ? getTextContent(m.content) : (
           typeof m.content === 'object' && m.content !== null
             ? (m.content.text ? String(m.content.text) : (m.content.content ? String(m.content.content) : JSON.stringify(m.content)))
@@ -593,7 +717,95 @@ export function ConversationTrace({
               </Box>
             )}
 
-            {content && content.trim() && (() => {
+            {structuredBlocks.length > 0 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 0.5 }}>
+                {structuredBlocks.map((blk, idx) => {
+                  if ((blk as any).kind === 'image') {
+                    const b = blk as { kind: 'image'; url: string };
+                    return (
+                      <Box key={`img-${idx}`} sx={{ my: 0.5 }}>
+                        <Box
+                          component="img"
+                          src={b.url}
+                          alt={`image-${i}-${idx}`}
+                          sx={{
+                            maxWidth: '100%',
+                            maxHeight: 480,
+                            borderRadius: 1,
+                            border: '1px solid #e5e7eb',
+                            display: 'block',
+                          }}
+                        />
+                      </Box>
+                    );
+                  }
+                  const t = (blk as { kind: 'text'; text: string }).text ?? '';
+                  if (!t.trim()) return null;
+
+                  const isFormattedJson = (() => {
+                    const trimmed = t.trim();
+                    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+                    return /\n\s+["{[]/.test(trimmed);
+                  })();
+
+                  if (isFormattedJson) {
+                    return (
+                      <Typography key={`txt-json-${idx}`} component="pre" variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: 1.5, m: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
+                        {highlights && highlights.length > 0 ? highlightContent(t, highlights, highlightRefs).content : t}
+                      </Typography>
+                    );
+                  }
+
+                  const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(t);
+                  const hasLaTeX = /\$\$[^$]*\$\$|\\[a-zA-Z]+\{|\\\\\(|\\\\\[/.test(t);
+                  if (hasMarkdown || hasLaTeX) {
+                    return (
+                      <Box key={`txt-md-${idx}`} sx={{
+                        '& p': { margin: '4px 0', wordBreak: 'break-word', overflowWrap: 'anywhere' },
+                        '& code': { backgroundColor: '#f5f5f5', padding: '2px 4px', borderRadius: '4px', fontSize: '0.9em', fontFamily: 'monospace', wordBreak: 'break-word' },
+                        '& pre': { backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+                        '& pre code': { fontFamily: 'monospace' },
+                        '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600, wordBreak: 'break-word' },
+                        '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
+                        '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0', wordBreak: 'break-word' },
+                        '& .katex': { fontSize: '1em' },
+                        '& .katex-display': { margin: '8px 0' },
+                        fontSize: '0.875rem',
+                        lineHeight: 1.5,
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere',
+                      }}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
+                          components={{
+                            p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, highlights, highlightRefs)}</p>,
+                            span: ({ children }) => <span>{applyHighlightToChildren(children, highlights, highlightRefs)}</span>,
+                            li: ({ children }) => <li>{applyHighlightToChildren(children, highlights, highlightRefs)}</li>,
+                            strong: ({ children }) => <strong>{applyHighlightToChildren(children, highlights, highlightRefs)}</strong>,
+                            em: ({ children }) => <em>{applyHighlightToChildren(children, highlights, highlightRefs)}</em>,
+                            h1: ({ children }) => <h1>{applyHighlightToChildren(children, highlights, highlightRefs)}</h1>,
+                            h2: ({ children }) => <h2>{applyHighlightToChildren(children, highlights, highlightRefs)}</h2>,
+                            h3: ({ children }) => <h3>{applyHighlightToChildren(children, highlights, highlightRefs)}</h3>,
+                            h4: ({ children }) => <h4>{applyHighlightToChildren(children, highlights, highlightRefs)}</h4>,
+                            h5: ({ children }) => <h5>{applyHighlightToChildren(children, highlights, highlightRefs)}</h5>,
+                            h6: ({ children }) => <h6>{applyHighlightToChildren(children, highlights, highlightRefs)}</h6>,
+                          }}
+                        >
+                          {t}
+                        </ReactMarkdown>
+                      </Box>
+                    );
+                  }
+
+                  return (
+                    <Typography key={`txt-${idx}`} variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                      {highlights && highlights.length > 0 ? highlightContent(t, highlights, highlightRefs).content : t}
+                    </Typography>
+                  );
+                })}
+              </Box>
+            )}
+
+            {structuredBlocks.length === 0 && content && content.trim() && (() => {
             // Check if content is formatted JSON first (before markdown detection)
             const isFormattedJson = (() => {
               const trimmed = content.trim();

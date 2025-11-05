@@ -78,7 +78,8 @@ export function FrequencyChart({
         };
       });
 
-      const proportions = modelData.map(d => d.proportion);
+      // Scale proportions to percentage (0-100)
+      const proportions = modelData.map(d => d.proportion * 100);
       const clusterLabels = clustersToShow.map(cluster => truncateLabel(cluster, 20));
 
 
@@ -94,11 +95,12 @@ export function FrequencyChart({
         // Values shown in hover only
         hovertemplate: clustersToShow.map((cluster, i) => 
           createHoverTemplate(
-            cluster, 
-            proportions[i] * 100, 
-            'Frequency (%)', 
+            cluster,
+            // Use actual percent value (0-100)
+            modelData[i].proportion * 100,
+            'Frequency (%)',
             1
-          ) + 
+          ) +
           `<br>Conversations: ${modelData[i].size}`
         )
       };
@@ -108,13 +110,14 @@ export function FrequencyChart({
         // For bar charts, error bars should extend from the bar top
         // arrayminus: how far DOWN from the bar value (proportion)
         // arrayplus: how far UP from the bar value (proportion)
+        // Scale CI deltas to percentage (0-100)
         const arrayminus = modelData.map(d => 
           (d.ciLower !== undefined && d.proportion !== undefined) ? 
-            Math.max(0, d.proportion - d.ciLower) : 0
+            Math.max(0, (d.proportion - d.ciLower) * 100) : 0
         );
         const arrayplus = modelData.map(d => 
           (d.ciUpper !== undefined && d.proportion !== undefined) ? 
-            Math.max(0, d.ciUpper - d.proportion) : 0
+            Math.max(0, (d.ciUpper - d.proportion) * 100) : 0
         );
         
         trace.error_y = {
@@ -168,14 +171,15 @@ export function FrequencyChart({
       <PlotlyChartBase
         data={plotData}
         height={height}
-        yAxisLabel="Frequency (Proportion)"
+        yAxisLabel="Frequency (%)"
         layout={{
           barmode: 'group',
           bargap: 0.2,
           bargroupgap: 0.1,
           yaxis: {
-            tickformat: '.3~%',
-            range: [0, Math.max(1, Math.max(...plotData.flatMap(trace => trace.y)) * 1.1)]
+            tickformat: '.1f',
+            ticksuffix: '%',
+            range: [0, Math.min(100, Math.max(1, Math.max(...plotData.flatMap(trace => trace.y)) * 1.1))]
           },
           xaxis: {
             tickangle: -45

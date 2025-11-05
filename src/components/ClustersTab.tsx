@@ -351,20 +351,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
     return list;
   }, [enrichedClusters, search, selectedModels, selectedGroups, sortBy]);
 
-  // Calculate max proportion across all clusters for bar scaling
-  const maxProportion = React.useMemo(() => {
-    let max = 0;
-    visibleClusters.forEach((c) => {
-      const meta = (c && c.meta) || {};
-      const proportionByModel = meta.proportion_by_model || {};
-      Object.values(proportionByModel).forEach((prop: any) => {
-        if (typeof prop === 'number' && prop > max) {
-          max = prop;
-        }
-      });
-    });
-    return Math.max(max, 0.01); // minimum for scaling
-  }, [visibleClusters]);
+  // Bars now use absolute percentage width (0–100), so no max scaling is needed.
   if (!clusters || clusters.length === 0) {
     return (
       <Box sx={{ p: 2, border: '1px solid #E5E7EB', borderRadius: 0.5, background: '#FFFFFF' }}>
@@ -598,7 +585,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                               left: 0,
                               top: 0,
                               height: '100%',
-                              width: `${(bar.proportion / maxProportion) * 100}%`,
+                              width: `${Math.min(100, bar.proportion * 100)}%`,
                               bgcolor: bar.color,
                               opacity: 0.8,
                               transition: 'width 0.3s ease'

@@ -230,7 +230,7 @@ export function FrequencyChartAlt({
       return sortDirection === 'desc' ? comparison : -comparison;
     });
 
-    return { clusterData: sortedClusterData, maxProportion: maxProp };
+      return { clusterData: sortedClusterData, maxProportion: maxProp };
   }, [data, filters, showCI, selectedCategories, sortBy, sortDirection, searchTerm]);
 
   if (!data.length) {
@@ -428,7 +428,8 @@ export function FrequencyChartAlt({
                             left: 0,
                             top: 0,
                             height: '100%',
-                            width: `${(bar.proportion / Math.max(listData.maxProportion, 0.01)) * 100}%`,
+                            // Absolute percentage scale (0-100)
+                            width: `${Math.min(100, bar.proportion * 100)}%`,
                             bgcolor: bar.color,
                             opacity: 0.8,
                             transition: 'width 0.3s ease'

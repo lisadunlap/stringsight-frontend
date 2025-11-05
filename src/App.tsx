@@ -2459,14 +2459,9 @@ function App() {
           originalSample: operationalRows[0],
           transformedSample: transformedRows[0],
           originalCount: operationalRows.length,
-          transformedCount: transformedRows.length
+          transformedCount: transformedRows.length,
+          note: 'Scores are in nested dict format, no score_columns param needed'
         });
-
-        // Detect score columns from transformed data
-        const scoreColumns = transformedRows[0] ? Object.keys(transformedRows[0]).filter(k => {
-          const key = k.toLowerCase();
-          return key.startsWith('score') || key === 'scores';
-        }) : [];
 
         // For side-by-side: create model-to-column mapping
         // Note: After transformation, this is no longer needed since we use arrays
@@ -2484,9 +2479,9 @@ function App() {
 
         console.log('🔍 SENDING TO BACKEND:', {
           transformedRows_sample: transformedRows[0],
-          score_columns: scoreColumns,
           method: method,
-          model_column_map: modelColumnMap
+          model_column_map: modelColumnMap,
+          note: 'score_columns omitted - using nested dict format'
         });
 
         const res = await recomputeClusterMetrics({
@@ -2494,7 +2489,7 @@ function App() {
           properties: propertiesRows,
           operationalRows: transformedRows,
           included_property_ids,
-          score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
+          // score_columns omitted - scores are already in nested dict format (scores: {reward: 0})
           method,
           model_column_map: modelColumnMap,
         });
@@ -2620,16 +2615,6 @@ function App() {
                 }}
               />
             </Button>
-            {availableColumns.length > 0 && !showColumnSelector && (
-              <Button 
-                variant="outlined" 
-                onClick={() => setShowColumnSelector(true)}
-                size="small"
-              >
-                Configure Columns
-              </Button>
-            )}
-            
           </Stack>
         </Toolbar>
       </AppBar>
@@ -2670,6 +2655,9 @@ function App() {
               operationalRows={operationalRows}
               decimalPrecision={decimalPrecision}
               onDecimalPrecisionChange={setDecimalPrecision}
+              uploadedFilename={uploadedFileName}
+              showConfigureColumns={availableColumns.length > 0 && !showColumnSelector}
+              onConfigureColumns={() => setShowColumnSelector(true)}
             />
           )}
           {activeSection === 'extraction' && (

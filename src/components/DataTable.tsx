@@ -206,7 +206,8 @@ const DataTable = React.memo(function DataTable({
                     fontSize: 12, 
                     letterSpacing: 0.4,
                     cursor: onSort ? 'pointer' : 'default',
-                    '&:hover': onSort ? { backgroundColor: '#F9FAFB' } : {}
+                    '&:hover': onSort ? { backgroundColor: '#F9FAFB' } : {},
+                    ...(h.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {})
                   }}
                   onClick={() => onSort && onSort(h.column.id)}
                 >
@@ -225,8 +226,10 @@ const DataTable = React.memo(function DataTable({
             const rowEl = (
               <TableRow hover key={r.id}>
                 {r.getVisibleCells().map((c) => (
-                  <TableCell key={c.id} sx={{ borderBottom: '1px solid #E5E7EB' }}>
-                    {flexRender(c.column.columnDef.cell, c.getContext())}
+                  <TableCell key={c.id} sx={{ borderBottom: '1px solid #E5E7EB', ...(c.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {}) }}>
+                    <Box sx={c.column.id === 'prompt' ? { maxWidth: 420, wordBreak: 'break-all', overflowWrap: 'anywhere', whiteSpace: 'normal' } : undefined}>
+                      {flexRender(c.column.columnDef.cell, c.getContext())}
+                    </Box>
                   </TableCell>
                 ))}
               </TableRow>

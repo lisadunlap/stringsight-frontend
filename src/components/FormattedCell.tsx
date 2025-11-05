@@ -39,7 +39,7 @@ const FormattedCell: React.FC<FormattedCellProps> = ({
   // Render content based on type
   const renderContent = (content: string, truncated: boolean = false) => {
     if (!contentAnalysis.hasFormatting) {
-      return <span>{content}</span>;
+      return <span style={{ wordBreak: 'break-all', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{content}</span>;
     }
 
     if (contentAnalysis.type === 'html') {
@@ -56,7 +56,10 @@ const FormattedCell: React.FC<FormattedCellProps> = ({
             '& pre': { backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px', overflow: 'auto' },
             '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600 },
             '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
-            '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0', fontStyle: 'italic' }
+            '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0', fontStyle: 'italic' },
+            wordBreak: 'break-all',
+            overflowWrap: 'anywhere',
+            whiteSpace: 'normal',
           }}
           dangerouslySetInnerHTML={{ __html: sanitizedHTML }}
         />
@@ -74,7 +77,10 @@ const FormattedCell: React.FC<FormattedCellProps> = ({
             '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
             '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0' },
             '& .katex': { fontSize: '1em' },
-            '& .katex-display': { margin: '8px 0' }
+            '& .katex-display': { margin: '8px 0' },
+            wordBreak: 'break-all',
+            overflowWrap: 'anywhere',
+            whiteSpace: 'normal',
           }}
         >
           <ReactMarkdown
@@ -97,7 +103,7 @@ const FormattedCell: React.FC<FormattedCellProps> = ({
       );
     }
 
-    return <span>{content}</span>;
+    return <span style={{ wordBreak: 'break-all', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{content}</span>;
   };
 
   // Handle truncation logic
@@ -106,7 +112,7 @@ const FormattedCell: React.FC<FormattedCellProps> = ({
   const needsTruncation = text.length > maxLength;
 
   return (
-    <Box>
+    <Box sx={{ wordBreak: 'break-all', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>
       {renderContent(displayText, shouldTruncate)}
       {shouldTruncate && <span>…</span>}
       {needsTruncation && (
