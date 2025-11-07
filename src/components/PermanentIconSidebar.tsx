@@ -2,13 +2,15 @@ import React from 'react';
 import { Box, IconButton, Tooltip } from '@mui/material';
 import {
   TableView as DataViewIcon,
-  FindInPage as PropertyExtractionIcon
+  FindInPage as PropertyExtractionIcon,
+  MenuBook as DocsIcon
 } from '@mui/icons-material';
 
 export type SidebarSection = 'data' | 'extraction' | 'metrics';
 
 interface PermanentIconSidebarProps {
   activeSection: SidebarSection;
+  sidebarExpanded: boolean;
   onSectionChange: (section: SidebarSection) => void;
   highlightExtraction?: boolean;
 }
@@ -20,9 +22,13 @@ interface IconButtonItemProps {
   onClick: () => void;
   disabled?: boolean;
   highlight?: boolean;
+  customColor?: string;
+  showActiveBackground?: boolean;
 }
 
-function IconButtonItem({ icon, tooltip, active, onClick, disabled = false, highlight = false }: IconButtonItemProps) {
+function IconButtonItem({ icon, tooltip, active, onClick, disabled = false, highlight = false, customColor, showActiveBackground = true }: IconButtonItemProps) {
+  const shouldShowActiveBackground = active && showActiveBackground;
+  
   return (
     <Tooltip title={tooltip} placement="right">
       <Box sx={{ mb: 1 }}>
@@ -33,10 +39,10 @@ function IconButtonItem({ icon, tooltip, active, onClick, disabled = false, high
             width: 48,
             height: 48,
             borderRadius: 2,
-            backgroundColor: active ? 'primary.main' : 'transparent',
-            color: active ? 'primary.contrastText' : highlight ? 'warning.main' : 'text.secondary',
+            backgroundColor: shouldShowActiveBackground ? 'primary.main' : 'transparent',
+            color: shouldShowActiveBackground ? 'primary.contrastText' : customColor || (highlight ? 'warning.main' : 'text.secondary'),
             '&:hover': {
-              backgroundColor: active ? 'primary.dark' : 'action.hover',
+              backgroundColor: shouldShowActiveBackground ? 'primary.dark' : 'action.hover',
             },
             '&.Mui-disabled': {
               color: 'action.disabled',
@@ -51,12 +57,12 @@ function IconButtonItem({ icon, tooltip, active, onClick, disabled = false, high
   );
 }
 
-export default function PermanentIconSidebar({ activeSection, onSectionChange, highlightExtraction = false }: PermanentIconSidebarProps) {
+export default function PermanentIconSidebar({ activeSection, sidebarExpanded, onSectionChange, highlightExtraction = false }: PermanentIconSidebarProps) {
   return (
     <Box
       sx={{
         width: 60,
-        height: '100vh',
+        height: (theme) => `calc(100vh - ${theme.mixins.toolbar.minHeight}px)`,
         backgroundColor: 'background.paper',
         borderRight: '1px solid',
         borderColor: 'divider',
@@ -67,7 +73,6 @@ export default function PermanentIconSidebar({ activeSection, onSectionChange, h
         position: 'fixed',
         left: 0,
         top: (theme) => theme.mixins.toolbar.minHeight, // Start below header
-        bottom: 0,
         zIndex: 1200,
       }}
     >
@@ -76,15 +81,43 @@ export default function PermanentIconSidebar({ activeSection, onSectionChange, h
         tooltip="Data - View model responses"
         active={activeSection === 'data'}
         onClick={() => onSectionChange('data')}
+        customColor="#6B7280" // Muted blue-grey, almost grey
+        showActiveBackground={sidebarExpanded} // Only show active background when sidebar is expanded
       />
 
       <IconButtonItem
         icon={<PropertyExtractionIcon />}
-        tooltip="Properties - View extracted behaviors per trace"
+        tooltip="Extract interesting behaviors"
         active={activeSection === 'extraction'}
         onClick={() => onSectionChange('extraction')}
         highlight={activeSection !== 'extraction'}
+        customColor="#4C6EF5" // Blue for primary button
+        showActiveBackground={sidebarExpanded} // Only show active background when sidebar is expanded
       />
+
+      {/* Spacer to push docs icon to bottom */}
+      <Box sx={{ flex: 1, minHeight: 0 }} />
+
+      <Tooltip title="Documentation - View StringSight documentation" placement="right">
+        <Box sx={{ mb: 0 }}>
+          <IconButton
+            onClick={() => window.open('https://lisadunlap.github.io/StringSight/', '_blank', 'noopener,noreferrer')}
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: 2,
+              backgroundColor: 'transparent',
+              color: 'text.secondary',
+              '&:hover': {
+                backgroundColor: 'action.hover',
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            <DocsIcon />
+          </IconButton>
+        </Box>
+      </Tooltip>
     </Box>
   );
 }

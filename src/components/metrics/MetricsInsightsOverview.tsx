@@ -692,7 +692,7 @@ export function MetricsInsightsOverview({
                               >
                                 {pattern.cluster}
                               </Typography>
-                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
                                 {pattern.metricsImpacted.map((mi, miIdx) => {
                                   const isPositive = mi.avgDelta > 0;
                                   return (
@@ -702,7 +702,13 @@ export function MetricsInsightsOverview({
                                       sx={{
                                         color: isPositive ? 'success.main' : 'error.main',
                                         fontWeight: 500,
-                                        fontSize: '0.85rem'
+                                        fontSize: '0.85rem',
+                                        flex: '1 1 33%',
+                                        maxWidth: '33%',
+                                        minWidth: 0,
+                                        whiteSpace: 'normal',
+                                        wordBreak: 'break-word',
+                                        lineHeight: 1.2
                                       }}
                                     >
                                       {isPositive ? '+' : ''}{mi.avgDelta.toFixed(2)} {mi.metric}

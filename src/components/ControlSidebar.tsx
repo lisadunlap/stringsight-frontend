@@ -32,6 +32,15 @@ export default function ControlSidebar({
   onBatchStatus?: (progress: number, state: string | null) => void;
   onBatchDone?: () => void;
 }) {
+  // Helper function to map prompt names to display labels
+  const getPromptDisplayLabel = (name: string): string => {
+    const labelMap: Record<string, string> = {
+      'default': 'chatbot',
+      'agent': 'agents'
+    };
+    return labelMap[name] || name;
+  };
+  
   const [promptOptions, setPromptOptions] = React.useState<{ name: string; label: string; has_task_description: boolean; preview: string; }[]>([]);
   const [selectedPrompt, setSelectedPrompt] = React.useState<string>('single_model_system_prompt');
   const [taskDescription, setTaskDescription] = React.useState<string>('');
@@ -221,6 +230,7 @@ export default function ControlSidebar({
             size="small"
             options={promptOptions.map(p => p.name)}
             value={selectedPrompt}
+            getOptionLabel={(option) => getPromptDisplayLabel(option)}
             onChange={(_, v) => v && setSelectedPrompt(v)}
             renderInput={(params) => <TextField {...params} label="Prompt" />}
           />

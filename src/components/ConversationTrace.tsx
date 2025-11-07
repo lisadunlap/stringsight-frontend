@@ -10,6 +10,18 @@ import 'katex/dist/katex.min.css';
 
 function escapeRegex(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
+// Normalize LaTeX delimiters to formats supported by remark-math
+// Convert \[...\] to $$...$$ and \(...\) to $...$
+function normalizeLatexDelimiters(text: string): string {
+  // Replace \[...\] with $$...$$ (display math)
+  // In replacement strings, $$ = one $, so $$$$$1$$$$ = $$ + content + $$
+  text = text.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$');
+  // Replace \(...\) with $...$ (inline math)
+  // $$$1$$ = $ + content + $
+  text = text.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+  return text;
+}
+
 // Helper to extract text content from various content formats
 function getTextContent(content: any): string {
   if (typeof content === 'string') {
@@ -510,6 +522,14 @@ export function ConversationTrace({
     });
   };
 
+  // Check if any message has JSON content to determine if we should show the toggle
+  const hasAnyJsonContent = messages.some((m) => {
+    const content = getTextContent(m.content);
+    const trimmed = content.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+    return /\n\s+["{[]/.test(trimmed) || (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'));
+  });
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
       {/* Model name and score header */}
@@ -527,6 +547,28 @@ export function ConversationTrace({
               ))}
             </Box>
           )}
+        </Box>
+      )}
+      {/* Pretty-print toggle at the top */}
+      {hasAnyJsonContent && (
+        <Box sx={{ mb: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={prettyPrintEnabled}
+                onChange={(e) => setPrettyPrintEnabled(e.target.checked)}
+                size="small"
+              />
+            }
+            label="Pretty-print"
+            sx={{
+              margin: 0,
+              '& .MuiFormControlLabel-label': {
+                fontSize: '0.75rem',
+                color: 'text.secondary'
+              }
+            }}
+          />
         </Box>
       )}
       {/* Navigation bar */}
@@ -653,34 +695,13 @@ export function ConversationTrace({
 
             {/* Message content */}
             <Box sx={{ flex: 1, pb: 2 }}>
-              {/* Role label and controls */}
-              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: isCollapsed ? 0 : 0.5 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: dotColor, textTransform: 'capitalize' }}>
-                    {m.role}
-                    {m.name && `: ${m.name}`}
-                    {isCollapsed && ' (collapsed)'}
-                  </Typography>
-                </Stack>
-                {!isCollapsed && hasJsonContent && (
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={prettyPrintEnabled}
-                        onChange={(e) => setPrettyPrintEnabled(e.target.checked)}
-                        size="small"
-                      />
-                    }
-                    label="Pretty-print"
-                    sx={{
-                      margin: 0,
-                      '& .MuiFormControlLabel-label': {
-                        fontSize: '0.7rem',
-                        color: 'text.secondary'
-                      }
-                    }}
-                  />
-                )}
+              {/* Role label */}
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: isCollapsed ? 0 : 0.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: dotColor, textTransform: 'capitalize' }}>
+                  {m.role}
+                  {m.name && `: ${m.name}`}
+                  {isCollapsed && ' (collapsed)'}
+                </Typography>
               </Stack>
 
             {!isCollapsed && (
@@ -757,7 +778,9 @@ export function ConversationTrace({
                   }
 
                   const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(t);
-                  const hasLaTeX = /\$\$[^$]*\$\$|\\[a-zA-Z]+\{|\\\\\(|\\\\\[/.test(t);
+                  // Detect LaTeX: $$...$$ (display math), $...$ (inline math), \[...\], \(...\), or LaTeX commands like \sum, \frac, etc.
+                  // Use [\s\S] to match across newlines, and non-greedy matching with *?
+                  const hasLaTeX = /\$\$[\s\S]*?\$\$|\$[^\s$][\s\S]*?[^\s$]\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+\{/.test(t);
                   if (hasMarkdown || hasLaTeX) {
                     return (
                       <Box key={`txt-md-${idx}`} sx={{
@@ -768,7 +791,8 @@ export function ConversationTrace({
                         '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600, wordBreak: 'break-word' },
                         '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
                         '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0', wordBreak: 'break-word' },
-                        '& .katex': { fontSize: '1em' },
+                        '& .katex, & .katex *': { fontFamily: 'KaTeX_Main, "Times New Roman", serif !important' },
+                        '& .katex': { fontSize: '1.1em' },
                         '& .katex-display': { margin: '8px 0' },
                         fontSize: '0.875rem',
                         lineHeight: 1.5,
@@ -790,7 +814,7 @@ export function ConversationTrace({
                             h6: ({ children }) => <h6>{applyHighlightToChildren(children, highlights, highlightRefs)}</h6>,
                           }}
                         >
-                          {t}
+                          {normalizeLatexDelimiters(t)}
                         </ReactMarkdown>
                       </Box>
                     );
@@ -837,8 +861,9 @@ export function ConversationTrace({
             }
 
             const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(content);
-            // Only detect LaTeX if it has $$ or \commands, not single $ followed by numbers (to avoid treating $255 as LaTeX)
-            const hasLaTeX = /\$\$[^$]*\$\$|\\[a-zA-Z]+\{|\\\\\(|\\\\\[/.test(content);
+            // Detect LaTeX: $$...$$ (display math), $...$ (inline math), \[...\], \(...\), or LaTeX commands like \sum, \frac, etc.
+            // Use [\s\S] to match across newlines, and non-greedy matching with *?
+            const hasLaTeX = /\$\$[\s\S]*?\$\$|\$[^\s$][\s\S]*?[^\s$]\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+\{/.test(content);
 
             // Render Markdown/LaTeX if detected
             if (hasMarkdown || hasLaTeX) {
@@ -852,7 +877,8 @@ export function ConversationTrace({
                     '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600, wordBreak: 'break-word' },
                     '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
                     '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0', wordBreak: 'break-word' },
-                    '& .katex': { fontSize: '1em' },
+                    '& .katex, & .katex *': { fontFamily: 'KaTeX_Main, "Times New Roman", serif !important' },
+                    '& .katex': { fontSize: '1.1em' },
                     '& .katex-display': { margin: '8px 0' },
                     fontSize: '0.875rem',
                     lineHeight: 1.5,
@@ -877,7 +903,7 @@ export function ConversationTrace({
                       h6: ({ children }) => <h6>{applyHighlightToChildren(children, highlights, highlightRefs)}</h6>,
                     }}
                   >
-                    {content}
+                    {normalizeLatexDelimiters(content)}
                   </ReactMarkdown>
                 </Box>
               );

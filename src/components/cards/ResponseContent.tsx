@@ -7,6 +7,18 @@ import rehypeKatex from 'rehype-katex';
 import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 
+// Normalize LaTeX delimiters to formats supported by remark-math
+// Convert \[...\] to $$...$$ and \(...\) to $...$
+function normalizeLatexDelimiters(text: string): string {
+  // Replace \[...\] with $$...$$ (display math)
+  // In replacement strings, $$ = one $, so $$$$$1$$$$ = $$ + content + $$
+  text = text.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$');
+  // Replace \(...\) with $...$ (inline math)
+  // $$$1$$ = $ + content + $
+  text = text.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+  return text;
+}
+
 export interface HighlightRange {
   start: number;
   end: number;
@@ -161,7 +173,8 @@ export default function ResponseContent({ content, highlightedRanges = [], class
   }
 
   const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(text);
-  const hasLaTeX = /\$\$[^$]*\$\$|\$[^$]+\$|\\[a-zA-Z]+\{/.test(text);
+  // Detect LaTeX: $$...$$ (display math), $...$ (inline math), \[...\], \(...\), or LaTeX commands
+  const hasLaTeX = /\$\$[\s\S]*?\$\$|\$[^\s$][\s\S]*?[^\s$]\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+\{/.test(text);
   const hasHTML = /<[^>]+>/.test(text);
 
   if (hasHTML) {
@@ -197,7 +210,8 @@ export default function ResponseContent({ content, highlightedRanges = [], class
           '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600 },
           '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
           '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0' },
-          '& .katex': { fontSize: '1em' },
+          '& .katex, & .katex *': { fontFamily: 'KaTeX_Main, "Times New Roman", serif !important' },
+          '& .katex': { fontSize: '1.1em' },
           '& .katex-display': { margin: '8px 0' },
           fontFamily: 'monospace',
           fontSize: '0.875rem',
@@ -216,7 +230,7 @@ export default function ResponseContent({ content, highlightedRanges = [], class
             p: ({ children }) => <span>{children}</span>,
           }}
         >
-          {text}
+          {normalizeLatexDelimiters(text)}
         </ReactMarkdown>
       </Box>
     );

@@ -78,13 +78,14 @@ export function MetricsFilterBar({
         <TuneIcon color="primary" sx={{ mr: 1 }} />
 
         {/* Model Selection */}
-        <Box sx={{ minWidth: 200, flex: '0 0 auto' }}>
+        <Box sx={{ minWidth: 220, maxWidth: 480, flex: '1 1 320px' }}>
           <Autocomplete
             multiple
             size="small"
             options={availableModels}
             value={filters.selectedModels}
             onChange={(_, newValue) => updateFilters({ selectedModels: newValue })}
+            sx={{ width: '100%' }}
             renderTags={(value, getTagProps) =>
               value.map((option, index) => {
                 const props = getTagProps({ index });
@@ -95,6 +96,14 @@ export function MetricsFilterBar({
                     label={option.split('/').pop() || option}
                     size="small"
                     variant="outlined"
+                    sx={{
+                      maxWidth: 160,
+                      '& .MuiChip-label': {
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }
+                    }}
                   />
                 );
               })
@@ -111,13 +120,14 @@ export function MetricsFilterBar({
         </Box>
 
         {/* Metric Selection */}
-        <Box sx={{ minWidth: 200, flex: '0 0 auto' }}>
+        <Box sx={{ minWidth: 220, maxWidth: 520, flex: '1 1 360px' }}>
           <Autocomplete
             multiple
             size="small"
             options={availableQualityMetrics}
             value={filters.selectedMetrics}
             onChange={(_, newValue) => updateFilters({ selectedMetrics: newValue })}
+            sx={{ width: '100%' }}
             renderTags={(value, getTagProps) =>
               value.map((option, index) => {
                 const props = getTagProps({ index });
@@ -128,6 +138,14 @@ export function MetricsFilterBar({
                     label={getDisplayName(option)}
                     size="small"
                     variant="outlined"
+                    sx={{
+                      maxWidth: 180,
+                      '& .MuiChip-label': {
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }
+                    }}
                   />
                 );
               })

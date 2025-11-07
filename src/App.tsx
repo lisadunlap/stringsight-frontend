@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, Component } from "react";
-import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton } from "@mui/material";
+import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton, Tooltip } from "@mui/material";
 import DownloadIcon from '@mui/icons-material/Download';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -8,6 +8,9 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CodeIcon from '@mui/icons-material/Code';
+import GitHubIcon from '@mui/icons-material/GitHub';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
 import { flattenScores, normalizeMetricsColumnNames, enrichModelClusterScoresWithMetadata } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
@@ -866,10 +869,10 @@ function App() {
         method: legacyDetected === 'unknown' ? 'single_model' : legacyDetected
       };
       setAutoDetectedMapping(autoMapping);
-      setShowColumnSelector(true);
-      setMethod('unknown');
-      setOperationalRows([]);
-      setCurrentRows([]);
+      
+      // Automatically apply the mapping and process data (skip column selector for demo data)
+      processDataWithMapping(rows, autoMapping);
+      setShowColumnSelector(false);
     } catch (e: any) {
       setResultsError(String(e?.message || e));
     } finally {
@@ -2059,13 +2062,6 @@ function App() {
       });
       return (
         <>
-        {/* Hint message for extraction feature */}
-        <Box sx={{ mb: 2, p: 1.5, backgroundColor: '#FFF4E5', border: '1px solid #FFB020', borderRadius: 1 }}>
-          <Typography variant="body2" sx={{ color: '#663C00', fontWeight: 500 }}>
-            Click <strong>🔍</strong> in the sidebar to analyze your traces
-          </Typography>
-        </Box>
-
         {/* Benchmark Metrics Table (same style as Metrics tab) */}
         <DataTabBenchmarkTable
           operationalRows={operationalRows}
@@ -2257,13 +2253,6 @@ function App() {
     // Normal flat table view when no groupBy
     return (
       <>
-        {/* Hint message for extraction feature */}
-        <Box sx={{ mb: 2, p: 1.5, backgroundColor: '#FFF4E5', border: '1px solid #FFB020', borderRadius: 1 }}>
-          <Typography variant="body2" sx={{ color: '#663C00', fontWeight: 500 }}>
-            Click <strong>🔍</strong> in the sidebar to analyze your traces
-          </Typography>
-        </Box>
-
         {/* Benchmark Metrics Table (same style as Metrics tab) */}
         <DataTabBenchmarkTable
           operationalRows={operationalRows}
@@ -2547,7 +2536,15 @@ function App() {
       )}
       <AppBar position="fixed">
         <Toolbar sx={{ gap: 0, pl: 0 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', ml: -1 }}>
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              ml: -1, 
+              cursor: 'pointer'
+            }}
+            onClick={() => resetUiStateForNewSource('file')}
+          >
             <Box
               component="img"
               src="/icon.png"
@@ -2555,7 +2552,16 @@ function App() {
               sx={{ width: 40, height: 40 }}
             />
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, ml: 1 }}>
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              flexGrow: 1, 
+              ml: 1,
+              cursor: 'pointer'
+            }}
+            onClick={() => resetUiStateForNewSource('file')}
+          >
             <Typography variant="h6">StringSight</Typography>
             <Typography variant="body2" sx={{ ml: 1, color: 'text.secondary', fontSize: '0.875rem' }}>
               Automatically analyze your traces
@@ -2573,7 +2579,14 @@ function App() {
             <Button
               variant="contained"
               component="label"
-              color="primary"
+              size="small"
+              sx={{
+                color: 'white',
+                backgroundColor: '#4C6EF5', // Same blue as sidebar (primary.main)
+                '&:hover': {
+                  backgroundColor: '#3B5BDB', // Darker blue on hover
+                }
+              }}
             >
               Upload File
               <input
@@ -2585,18 +2598,16 @@ function App() {
               />
             </Button>
             <Button
-              variant="outlined"
-              color="secondary"
-              size="small"
-              onClick={onLoadDemoData}
-            >
-              Load Demo Data
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
+              variant="contained"
               size="small"
               component="label"
+              sx={{
+                color: 'white',
+                backgroundColor: '#7C3AED', // Purple used in app (secondary.main)
+                '&:hover': {
+                  backgroundColor: '#6D28D9', // Darker purple on hover
+                }
+              }}
             >
               Load Results
               <input
@@ -2615,6 +2626,20 @@ function App() {
                 }}
               />
             </Button>
+            <Button
+              variant="contained"
+              size="small"
+              onClick={onLoadDemoData}
+              sx={{
+                color: 'white',
+                backgroundColor: '#10B981', // Brighter green
+                '&:hover': {
+                  backgroundColor: '#059669', // Darker green on hover
+                }
+              }}
+            >
+              Demo Data
+            </Button>
           </Stack>
         </Toolbar>
       </AppBar>
@@ -2624,6 +2649,7 @@ function App() {
       {/* Permanent Icon Sidebar */}
           <PermanentIconSidebar 
         activeSection={activeSection} 
+        sidebarExpanded={sidebarExpanded}
         onSectionChange={(section) => {
           setActiveSection(section);
           setSidebarExpanded(true);
@@ -2890,22 +2916,62 @@ function App() {
             mb: 2, py: 3, px: 2, borderRadius: 2,
             background: '#F8FAFC', color: 'text.secondary'
           }}>
-            <Box sx={{ textAlign: 'left', maxWidth: 760 }}>
-              <Typography variant="h6" sx={{ mb: 1, color: 'primary.dark' }}>Easily Visualize and Analyze your Model Outputs</Typography>
-              <Typography variant="body2" sx={{ color: 'primary.dark' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
-              <Typography variant="body2" sx={{ color: 'primary.dark' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
-              <Typography variant="body2" sx={{ color: 'primary.dark' }}>3) Click Done to load your table and explore</Typography>
+            <Box sx={{ textAlign: 'left', width: '100%' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="h6" sx={{ color: '#374151' }}>Easily Visualize and Analyze your Model Outputs</Typography>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  <Tooltip title="Starter Notebook">
+                    <IconButton
+                      component="a"
+                      href="https://drive.google.com/file/d/1KQiLi6slA29BPMDMAMh_J7xXAYMuyZC_/view?usp=sharing"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      size="small"
+                      sx={{ color: 'primary.main' }}
+                    >
+                      <CodeIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="GitHub Repository">
+                    <IconButton
+                      component="a"
+                      href="https://github.com/lisabdunlap/StringSight"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      size="small"
+                      sx={{ color: 'primary.main' }}
+                    >
+                      <GitHubIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Documentation">
+                    <IconButton
+                      component="a"
+                      href="https://lisadunlap.github.io/StringSight/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      size="small"
+                      sx={{ color: 'primary.main' }}
+                    >
+                      <MenuBookIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </Box>
+              <Typography variant="body2" sx={{ color: '#374151' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
+              <Typography variant="body2" sx={{ color: '#374151' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
+              <Typography variant="body2" sx={{ color: '#374151' }}>3) Click Done to load your table and explore</Typography>
               
               <Box sx={{ mt: 2, mb: 1 }}>
-                <Typography variant="subtitle1" sx={{ color: 'primary.dark', fontWeight: 600, mb: 1 }}>What data format should I use?</Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+                <Typography variant="subtitle1" sx={{ color: '#374151', fontWeight: 600, mb: 1 }}>What data format should I use?</Typography>
+                <Typography variant="body2" sx={{ color: '#374151', mb: 1.5, fontSize: '0.875rem' }}>
                   StringSight accepts <strong>.jsonl</strong>, <strong>.json</strong>, or <strong>.csv</strong> files with the following:
                 </Typography>
 
-                <Typography variant="body2" sx={{ color: 'primary.dark', fontWeight: 600, fontSize: '0.875rem', mb: 0.5 }}>
+                <Typography variant="body2" sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', mb: 0.5 }}>
                   Required:
                 </Typography>
-                <Box component="ol" sx={{ color: 'text.secondary', fontSize: '0.875rem', ml: 3, mb: 1.5, pl: 0 }}>
+                <Box component="ol" sx={{ color: '#374151', fontSize: '0.875rem', ml: 3, mb: 1.5, pl: 0 }}>
                   <li>
                     <strong>The prompt/task identifier</strong> - any identifier for the specific task (can be the actual prompt or a unique ID)
                   </li>
@@ -2914,10 +2980,10 @@ function App() {
                   </li>
                 </Box>
 
-                <Typography variant="body2" sx={{ color: 'primary.dark', fontWeight: 600, fontSize: '0.875rem', mb: 0.5 }}>
+                <Typography variant="body2" sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', mb: 0.5 }}>
                   Optional:
                 </Typography>
-                <Box component="ol" start={3} sx={{ color: 'text.secondary', fontSize: '0.875rem', ml: 3, mb: 1.5, pl: 0 }}>
+                <Box component="ol" start={3} sx={{ color: '#374151', fontSize: '0.875rem', ml: 3, mb: 1.5, pl: 0 }}>
                   <li>
                     <strong>Model name</strong> - include if analyzing multiple models, methods, or prompts (e.g., model name, agent scaffolding, prompt variant)
                   </li>
@@ -2926,7 +2992,7 @@ function App() {
                   </li>
                 </Box>
 
-                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2, fontSize: '0.875rem', fontStyle: 'italic' }}>
+                <Typography variant="body2" sx={{ color: '#374151', mb: 2, fontSize: '0.875rem', fontStyle: 'italic' }}>
                   You can name these columns whatever you want and assign them during upload.
                 </Typography>
 
@@ -2986,13 +3052,14 @@ function App() {
 
             {/* Tabs for switching between Data, Properties, and Clusters */}
             <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
           <Tabs
             value={activeTab}
             onChange={(_, v) => {
               setActiveTab(v);
               if (v === 'metrics') setActiveSection('metrics');
             }}
-            textColor="primary"
+            textColor="inherit"
             indicatorColor="primary"
             sx={{ 
               flex: 1,
@@ -3004,16 +3071,39 @@ function App() {
                 backgroundColor: '#f8fafc',
                 border: '1px solid #e2e8f0',
                 borderBottom: 'none',
+                color: 'black',
                 '&.Mui-selected': {
                   backgroundColor: '#ffffff',
                   boxShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)',
                   zIndex: 1,
-                  position: 'relative'
+                  position: 'relative',
+                  color: 'black'
                 }
               }
             }}
           >
             <Tab value="table" label="Data" title="View model responses" />
+            {/* Hint message for extraction feature - shown when data is loaded but no properties */}
+            {originalRows.length > 0 && !showColumnSelector && propertiesRows.length === 0 && (
+              <Box
+                component="span"
+                sx={{ 
+                  px: 2, 
+                  py: 1, 
+                  backgroundColor: '#EFF6FF', 
+                  border: '1px solid #4C6EF5', 
+                  borderRadius: 1,
+                  ml: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  height: '36px'
+                }}
+              >
+                <Typography variant="body2" sx={{ color: '#4C6EF5', fontWeight: 600 }}>
+                  Click <strong>🔍</strong> in the sidebar to analyze your traces
+                </Typography>
+              </Box>
+            )}
             {propertiesRows.length > 0 && (
               <Tab value="properties" label={`Properties (${propertiesRows.length})`} title="View extracted behaviors per trace" />
             )}
@@ -3024,6 +3114,7 @@ function App() {
               <Tab value="metrics" label="Insights" title="Get model & dataset level insights" />
             )}
           </Tabs>
+          </Box>
           {clusters.length > 0 && (
             <Button
               startIcon={<DownloadIcon />}

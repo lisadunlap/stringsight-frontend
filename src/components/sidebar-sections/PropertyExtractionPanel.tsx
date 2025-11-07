@@ -161,6 +161,16 @@ export default function PropertyExtractionPanel({
   onNavigateToMetrics,
 }: PropertyExtractionPanelProps) {
   const resultsRef = useRef<HTMLDivElement>(null);
+  
+  // Helper function to map prompt names to display labels
+  const getPromptDisplayLabel = (name: string): string => {
+    const labelMap: Record<string, string> = {
+      'default': 'chatbot',
+      'agent': 'agents'
+    };
+    return labelMap[name] || name;
+  };
+  
   const [promptOptions, setPromptOptions] = React.useState<{ name: string; label: string; has_task_description: boolean; preview: string; default_task_description_single?: string | null; default_task_description_sbs?: string | null; }[]>([]);
   const [selectedPrompt, setSelectedPrompt] = React.useState<string>(
     () => localStorage.getItem('stringsight.selectedPrompt') || 'default'
@@ -588,7 +598,7 @@ export default function PropertyExtractionPanel({
     <Stack spacing={1}>
       {/* Demo mode notification */}
       {demoSampleSize && (
-        <Box sx={{ mb: 1, p: 1.5, border: '1px solid #3B82F6', background: '#EFF6FF', color: '#1E40AF', borderRadius: 1, fontSize: '0.875rem' }}>
+        <Box sx={{ mb: 1, p: 1.5, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#92400E', borderRadius: 1, fontSize: '0.875rem' }}>
           <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Demo mode active</Typography>
           <Typography variant="caption" component="div">
             • Backend operations limited to {demoSampleSize} rows
@@ -602,30 +612,9 @@ export default function PropertyExtractionPanel({
         </Box>
       )}
 
-      <Typography variant="body2" sx={{ color: 'warning.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
+      <Typography variant="body2" sx={{ color: 'primary.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
         Extract interesting properties from your traces. Click 'Extract on Row 0' to see an example.
       </Typography>
-      
-      {/* View Selected Response Button */}
-      <Button
-        variant="outlined"
-        onClick={() => {
-          const row = getSelectedRow();
-          if (onOpenTrace && row) {
-            onOpenTrace(row);
-          }
-        }}
-        disabled={!getSelectedRow() || !onOpenTrace}
-        fullWidth
-        sx={{ mb: 1 }}
-      >
-        {(() => {
-          const row = getSelectedRow();
-          if (!row) return 'No Response Selected';
-          const index = (row as any)?.__index;
-          return index !== undefined ? `View Response (Row ${index})` : 'View Selected Response';
-        })()}
-      </Button>
       <Box>
         <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
           Extraction Prompt
@@ -635,6 +624,7 @@ export default function PropertyExtractionPanel({
             size="small"
             options={promptOptions.map(p => p.name)}
             value={selectedPrompt}
+            getOptionLabel={(option) => getPromptDisplayLabel(option)}
             onChange={(_, v) => {
               if (v) {
                 setSelectedPrompt(v);
