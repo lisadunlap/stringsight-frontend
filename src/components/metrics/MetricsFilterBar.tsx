@@ -12,15 +12,12 @@
 import {
   Box,
   Paper,
-  Autocomplete,
-  TextField,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
   FormControlLabel,
   Switch,
-  Chip,
   Stack,
 } from '@mui/material';
 import TuneIcon from '@mui/icons-material/Tune';
@@ -35,7 +32,19 @@ interface MetricsFilterBarProps {
   onFiltersChange: (filters: MetricsFilters) => void;
   availableModels: string[];
   availableQualityMetrics: string[];
+  availableBehaviorTypes?: string[];
   hasConfidenceIntervals?: boolean;
+}
+
+// Helper to get display label for behavior type
+function getBehaviorTypeLabel(behaviorType: string): string {
+  const labels: Record<string, string> = {
+    'negative_critical': 'Negative (Critical)',
+    'negative_non_critical': 'Negative (Non-Critical)',
+    'positive': 'Positive',
+    'style': 'Stylistic',
+  };
+  return labels[behaviorType] || behaviorType;
 }
 
 export function MetricsFilterBar({
@@ -43,6 +52,7 @@ export function MetricsFilterBar({
   onFiltersChange,
   availableModels,
   availableQualityMetrics,
+  availableBehaviorTypes = [],
   hasConfidenceIntervals = false,
 }: MetricsFilterBarProps) {
   // Handle filter updates
@@ -78,104 +88,99 @@ export function MetricsFilterBar({
         <TuneIcon color="primary" sx={{ mr: 1 }} />
 
         {/* Model Selection */}
-        <Box sx={{ minWidth: 220, maxWidth: 480, flex: '1 1 320px' }}>
-          <Autocomplete
-            multiple
-            size="small"
-            options={availableModels}
-            value={filters.selectedModels}
-            onChange={(_, newValue) => updateFilters({ selectedModels: newValue })}
-            sx={{ width: '100%' }}
-            renderTags={(value, getTagProps) =>
-              value.map((option, index) => {
-                const props = getTagProps({ index });
-                return (
-                  <Chip
-                    {...props}
-                    key={option}
-                    label={option.split('/').pop() || option}
-                    size="small"
-                    variant="outlined"
-                    sx={{
-                      maxWidth: 160,
-                      '& .MuiChip-label': {
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }
-                    }}
-                  />
-                );
-              })
-            }
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Models"
-                placeholder={filters.selectedModels.length === 0 ? "All models" : ""}
-              />
-            )}
-            ChipProps={{ size: 'small' }}
-          />
+        <Box sx={{ minWidth: 180, flex: '0 0 auto' }}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Models</InputLabel>
+            <Select
+              multiple
+              value={filters.selectedModels}
+              onChange={(e) => updateFilters({ selectedModels: e.target.value as string[] })}
+              label="Models"
+              renderValue={(selected) => {
+                if ((selected as string[]).length === 0) return 'All models';
+                if ((selected as string[]).length === 1) {
+                  return ((selected as string[])[0] || '').split('/').pop() || (selected as string[])[0];
+                }
+                return `${(selected as string[]).length} selected`;
+              }}
+            >
+              {availableModels.map((model) => (
+                <MenuItem key={model} value={model}>
+                  {model.split('/').pop() || model}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Box>
 
         {/* Metric Selection */}
-        <Box sx={{ minWidth: 220, maxWidth: 520, flex: '1 1 360px' }}>
-          <Autocomplete
-            multiple
-            size="small"
-            options={availableQualityMetrics}
-            value={filters.selectedMetrics}
-            onChange={(_, newValue) => updateFilters({ selectedMetrics: newValue })}
-            sx={{ width: '100%' }}
-            renderTags={(value, getTagProps) =>
-              value.map((option, index) => {
-                const props = getTagProps({ index });
-                return (
-                  <Chip
-                    {...props}
-                    key={option}
-                    label={getDisplayName(option)}
-                    size="small"
-                    variant="outlined"
-                    sx={{
-                      maxWidth: 180,
-                      '& .MuiChip-label': {
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }
-                    }}
-                  />
-                );
-              })
-            }
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Metrics"
-                placeholder={filters.selectedMetrics.length === 0 ? "All metrics" : ""}
-              />
-            )}
-            ChipProps={{ size: 'small' }}
-          />
+        <Box sx={{ minWidth: 180, flex: '0 0 auto' }}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Metrics</InputLabel>
+            <Select
+              multiple
+              value={filters.selectedMetrics}
+              onChange={(e) => updateFilters({ selectedMetrics: e.target.value as string[] })}
+              label="Metrics"
+              renderValue={(selected) => {
+                if ((selected as string[]).length === 0) return 'All metrics';
+                if ((selected as string[]).length === 1) {
+                  return getDisplayName((selected as string[])[0]);
+                }
+                return `${(selected as string[]).length} selected`;
+              }}
+            >
+              {availableQualityMetrics.map((metric) => (
+                <MenuItem key={metric} value={metric}>
+                  {getDisplayName(metric)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Box>
 
-        {/* Show CI Toggle */}
-        {hasConfidenceIntervals && (
-          <FormControlLabel
-            control={
-              <Switch
-                checked={filters.showCI}
-                onChange={(e) => updateFilters({ showCI: e.target.checked })}
-                size="small"
-                color="primary"
-              />
-            }
-            label="Show CI's"
-            sx={{ flex: '0 0 auto' }}
-          />
+        {/* Behavior Type Selection */}
+        {availableBehaviorTypes.length > 0 && (
+          <Box sx={{ minWidth: 180, flex: '0 0 auto' }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Behavior Types</InputLabel>
+              <Select
+                multiple
+                value={filters.selectedBehaviorTypes || []}
+                onChange={(e) => updateFilters({ selectedBehaviorTypes: e.target.value as string[] })}
+                label="Behavior Types"
+                renderValue={(selected) => {
+                  if ((selected as string[]).length === 0) return 'All types';
+                  if ((selected as string[]).length === 1) {
+                    return getBehaviorTypeLabel((selected as string[])[0]);
+                  }
+                  return `${(selected as string[]).length} selected`;
+                }}
+              >
+                {availableBehaviorTypes.map((behaviorType) => (
+                  <MenuItem key={behaviorType} value={behaviorType}>
+                    {getBehaviorTypeLabel(behaviorType)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
         )}
+
+        {/* Show CI Toggle */}
+        <FormControlLabel
+          control={
+            <Switch
+              checked={filters.showCI}
+              onChange={(e) => updateFilters({ showCI: e.target.checked })}
+              size="small"
+              color="primary"
+              disabled={!hasConfidenceIntervals}
+            />
+          }
+          label="Show CI's"
+          sx={{ flex: '0 0 auto' }}
+        />
 
         {/* Significant Only Toggle */}
         <FormControlLabel

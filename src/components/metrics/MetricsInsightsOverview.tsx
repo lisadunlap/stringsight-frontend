@@ -5,6 +5,7 @@
  * 1. Common Failures (negative behaviors where at least one model has >5% frequency, with model frequency bars)
  * 2. Unique Stylistic Behaviors (top 3 per model where delta > 0, showing freq and delta)
  * 3. Misaligned Patterns (negative behaviors with positive quality delta, or stylistic behaviors with significant quality impact)
+ * 4. Model Cards (negative or stylistic behaviors with positive, significant frequency delta >15% per model)
  */
 
 import React, { useMemo, useState } from 'react';
@@ -28,6 +29,9 @@ import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
 
 // Threshold for displaying common failures (show any pattern where at least one model has > this frequency)
 const COMMON_FAILURE_MIN_FREQUENCY = 0.05; // 5%
+
+// Threshold for model cards (only show behaviors with frequency delta > this)
+const MODEL_CARD_MIN_DELTA = 0.15; // 15%
 
 // Model color palette (matches FrequencyChartAlt)
 const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
@@ -77,6 +81,19 @@ interface MisalignedPattern {
   metricsImpacted: { metric: string; avgDelta: number; significant: boolean }[];
 }
 
+interface ModelCardBehavior {
+  cluster: string;
+  category: string;
+  proportion: number;
+  proportionDelta: number;
+  size: number;
+}
+
+interface ModelCard {
+  model: string;
+  behaviors: ModelCardBehavior[];
+}
+
 export function MetricsInsightsOverview({
   data,
   filters,
@@ -100,6 +117,7 @@ export function MetricsInsightsOverview({
         commonFailures: [],
         uniqueBehaviors: [],
         misalignedPatterns: [],
+        modelCards: [],
         allModels: []
       };
     }
@@ -290,10 +308,54 @@ export function MetricsInsightsOverview({
       });
     }
 
+    // 4. MODEL CARDS - Negative or stylistic behaviors with positive, significant frequency delta per model
+    const modelCardsMap = new Map<string, ModelCardBehavior[]>();
+    
+    filteredData.forEach(row => {
+      const group = normalizeGroup(row.metadata?.group);
+      const isNegative = group === 'negative_critical' || group === 'negative_non_critical';
+      const isStylistic = group === 'style';
+      
+      // Only include negative or stylistic behaviors
+      if (!isNegative && !isStylistic) return;
+      
+      // Must have positive frequency delta
+      const proportionDelta = row.proportion_delta || 0;
+      if (proportionDelta <= 0) return;
+      
+      // Must exceed threshold (>15%)
+      if (proportionDelta <= MODEL_CARD_MIN_DELTA) return;
+      
+      // Must be significant
+      if (row.proportion_delta_significant !== true) return;
+      
+      if (!modelCardsMap.has(row.model)) {
+        modelCardsMap.set(row.model, []);
+      }
+      
+      modelCardsMap.get(row.model)!.push({
+        cluster: row.cluster,
+        category: group,
+        proportion: row.proportion || 0,
+        proportionDelta,
+        size: row.size || 0
+      });
+    });
+    
+    // Convert to array and sort behaviors by delta (descending)
+    const modelCards: ModelCard[] = Array.from(modelCardsMap.entries())
+      .map(([model, behaviors]) => ({
+        model,
+        behaviors: behaviors.sort((a, b) => b.proportionDelta - a.proportionDelta)
+      }))
+      .filter(card => card.behaviors.length > 0)
+      .sort((a, b) => a.model.localeCompare(b.model));
+
     return {
       commonFailures,
       uniqueBehaviors,
       misalignedPatterns,
+      modelCards,
       allModels
     };
   }, [data, filters, qualityMetrics]);
@@ -318,8 +380,8 @@ export function MetricsInsightsOverview({
     <Box sx={{ mb: 4 }}>
       <Stack spacing={3}>
         {/* 1. COMMON FAILURES */}
-        <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
+        <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '800px' }}>
+          <Typography variant="h6" sx={{ mb: 2, flexShrink: 0 }}>
             Common Failure Patterns
           </Typography>
 
@@ -328,7 +390,7 @@ export function MetricsInsightsOverview({
               No common failure patterns found
             </Typography>
           ) : (
-            <TableContainer>
+            <TableContainer sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
               <Table size="small" sx={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                 <TableHead>
                   <TableRow>
@@ -474,8 +536,8 @@ export function MetricsInsightsOverview({
         </Paper>
 
         {/* 2. UNIQUE STYLISTIC BEHAVIORS */}
-        <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
+        <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '800px' }}>
+          <Typography variant="h6" sx={{ mb: 2, flexShrink: 0 }}>
             Unique Stylistic Behaviors
           </Typography>
 
@@ -484,7 +546,7 @@ export function MetricsInsightsOverview({
               No unique stylistic patterns found
             </Typography>
           ) : (
-            <TableContainer>
+            <TableContainer sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
               <Table size="small" sx={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                 <TableHead>
                   <TableRow>
@@ -594,15 +656,15 @@ export function MetricsInsightsOverview({
 
         {/* 3. MISALIGNED PATTERNS - Only show if quality metrics are available */}
         {qualityMetrics.length > 0 && (
-          <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+          <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '800px' }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2, flexShrink: 0 }}>
               <WarningAmberIcon sx={{ fontSize: 20, color: 'warning.main' }} />
               <Typography variant="h6">
                 Misaligned Patterns
               </Typography>
             </Stack>
 
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, flexShrink: 0 }}>
               Negative behaviors that improve metrics, and style behaviors with quality impact. Only shows patterns that are statistically significant.
             </Typography>
 
@@ -611,7 +673,9 @@ export function MetricsInsightsOverview({
               No misaligned patterns detected
               {filters.significanceOnly && ' (try disabling "Significant Only" filter)'}
             </Typography>
-          ) : (() => {
+          ) : (
+            <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+              {(() => {
             // Group patterns by category
             const groupedPatterns = insights.misalignedPatterns.reduce((acc, pattern) => {
               if (!acc[pattern.category]) {
@@ -726,6 +790,178 @@ export function MetricsInsightsOverview({
               </Stack>
             );
           })()}
+            </Box>
+          )}
+          </Paper>
+        )}
+
+        {/* 4. MODEL CARDS */}
+        {insights.modelCards && insights.modelCards.length > 0 && (
+          <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '1000px' }}>
+            <Typography variant="h6" sx={{ mb: 2, flexShrink: 0 }}>
+              Model Cards
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3, flexShrink: 0 }}>
+              Negative or stylistic behaviors with positive, significant frequency delta (&gt;15%) for each model
+            </Typography>
+
+            <Box
+              sx={{
+                flex: 1,
+                overflow: 'auto',
+                minHeight: 0,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 2,
+                pr: 1,
+                '&::-webkit-scrollbar': {
+                  width: '8px'
+                },
+                '&::-webkit-scrollbar-track': {
+                  bgcolor: 'grey.100',
+                  borderRadius: '4px'
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  bgcolor: 'grey.400',
+                  borderRadius: '4px',
+                  '&:hover': {
+                    bgcolor: 'grey.500'
+                  }
+                }
+              }}
+            >
+              {insights.modelCards.map((card) => {
+                const modelColor = getModelColor(card.model, insights.allModels);
+                // Convert hex to rgba with low opacity for light background
+                const hexToRgba = (hex: string, alpha: number) => {
+                  const r = parseInt(hex.slice(1, 3), 16);
+                  const g = parseInt(hex.slice(3, 5), 16);
+                  const b = parseInt(hex.slice(5, 7), 16);
+                  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                };
+                return (
+                  <Paper
+                    key={card.model}
+                    elevation={2}
+                    sx={{
+                      p: 2,
+                      bgcolor: hexToRgba(modelColor, 0.05),
+                      border: '1px solid',
+                      borderColor: modelColor,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle1"
+                      sx={{
+                        mb: 1.5,
+                        fontWeight: 600,
+                        color: modelColor,
+                        fontSize: '1rem',
+                        flexShrink: 0
+                      }}
+                    >
+                      {shortModelName(card.model)}
+                    </Typography>
+                    <Box
+                      sx={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        minHeight: 0,
+                        maxHeight: '400px',
+                        pr: 1,
+                        '&::-webkit-scrollbar': {
+                          width: '8px'
+                        },
+                        '&::-webkit-scrollbar-track': {
+                          bgcolor: 'grey.100',
+                          borderRadius: '4px'
+                        },
+                        '&::-webkit-scrollbar-thumb': {
+                          bgcolor: 'grey.400',
+                          borderRadius: '4px',
+                          '&:hover': {
+                            bgcolor: 'grey.500'
+                          }
+                        }
+                      }}
+                    >
+                      <Stack spacing={1}>
+                        {card.behaviors.map((behavior, idx) => {
+                          const categoryConfig: Record<string, { label: string; color: string }> = {
+                            negative_critical: { label: 'Critical', color: '#DC2626' },
+                            negative_non_critical: { label: 'Non-critical', color: '#CA8A04' },
+                            style: { label: 'Style', color: '#9C27B0' }
+                          };
+                          const config = categoryConfig[behavior.category] || { label: behavior.category, color: '#9E9E9E' };
+                          
+                          return (
+                            <Box
+                              key={idx}
+                              onClick={() => onNavigateToCluster?.(behavior.cluster)}
+                              sx={{
+                                p: 1.5,
+                                borderRadius: 1,
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                bgcolor: 'background.paper',
+                                cursor: 'pointer',
+                                '&:hover': {
+                                  borderColor: modelColor
+                                },
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontSize: '0.9rem',
+                                  fontWeight: 500,
+                                  wordBreak: 'break-word',
+                                  whiteSpace: 'normal',
+                                  mb: 0.5
+                                }}
+                              >
+                                {behavior.cluster}
+                              </Typography>
+                              <Stack direction="row" alignItems="center" spacing={2} sx={{ mt: 0.5 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  Frequency: {(behavior.proportion * 100).toFixed(1)}%
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 500 }}>
+                                  Δ: +{(behavior.proportionDelta * 100).toFixed(1)}%
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {behavior.size} conversations
+                                </Typography>
+                                <Chip
+                                  label={config.label}
+                                  size="small"
+                                  sx={{
+                                    height: 20,
+                                    fontSize: '0.7rem',
+                                    color: config.color,
+                                    borderColor: config.color,
+                                    bgcolor: 'background.paper',
+                                    fontWeight: 500,
+                                    flexShrink: 0
+                                  }}
+                                  variant="outlined"
+                                />
+                              </Stack>
+                            </Box>
+                          );
+                        })}
+                      </Stack>
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </Box>
           </Paper>
         )}
       </Stack>

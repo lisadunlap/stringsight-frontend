@@ -44,6 +44,10 @@ interface MetricsMainContentProps {
   onViewExample?: (cluster: ModelClusterRow) => void;
   /** Data method - single_model or side_by_side */
   method?: 'single_model' | 'side_by_side' | 'unknown';
+  /** Ref to the misaligned patterns section for scrolling */
+  misalignedSectionRef?: React.RefObject<HTMLDivElement>;
+  /** Handler for navigating to a specific metric */
+  onNavigateToMetric?: (metricName: string) => void;
 }
 
 export function MetricsMainContent({
@@ -57,8 +61,21 @@ export function MetricsMainContent({
   showModelCards = false,
   onNavigateToCluster,
   onViewExample,
-  method = 'unknown'
+  method = 'unknown',
+  misalignedSectionRef,
+  onNavigateToMetric
 }: MetricsMainContentProps) {
+
+  // Normalize group names to standard categories (same as in MetricsTab)
+  const normalizeGroup = (value: unknown): string => {
+    const v = String(value || '').trim().toLowerCase();
+    if (!v) return '';
+    if (v === 'negative (critical)' || v === 'negative critical') return 'negative_critical';
+    if (v === 'negative (non-critical)' || v === 'negative non-critical' || v === 'negative (non critical)') return 'negative_non_critical';
+    if (v === 'positive') return 'positive';
+    if (v === 'style') return 'style';
+    return v;
+  };
 
   // Apply filters to the data
   const { filteredData, topClusters, baseFilteredData } = useMemo(() => {
@@ -71,11 +88,20 @@ export function MetricsMainContent({
       );
     }
 
-    // Filter by selected groups
+    // Filter by selected groups (raw metadata.group values)
     if (filters.selectedGroups.length > 0) {
       filtered = filtered.filter(row => {
         const group = row.metadata?.group;
         return group && filters.selectedGroups.includes(group);
+      });
+    }
+
+    // Filter by selected behavior types (normalized)
+    if (filters.selectedBehaviorTypes && filters.selectedBehaviorTypes.length > 0) {
+      filtered = filtered.filter(row => {
+        const group = row.metadata?.group;
+        const normalized = normalizeGroup(group);
+        return normalized && filters.selectedBehaviorTypes.includes(normalized);
       });
     }
 
@@ -190,6 +216,7 @@ export function MetricsMainContent({
     };
   }, [modelClusterData.data, filters]);
 
+
   // No data after filtering
   if (filteredData.length === 0) {
     return (
@@ -215,7 +242,9 @@ export function MetricsMainContent({
         filters={filters}
         qualityMetrics={qualityMetrics}
         onNavigateToCluster={onNavigateToCluster}
+        onNavigateToMetric={onNavigateToMetric}
         method={method}
+        misalignedSectionRef={misalignedSectionRef}
       />
       <Divider />
 

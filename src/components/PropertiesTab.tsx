@@ -640,10 +640,14 @@ export default function PropertiesTab({
           backgroundColor: '#ffffff',
           borderRadius: 1,
           border: '1px solid #E5E7EB',
+          width: '100%',
+          maxWidth: '100%',
+          overflow: 'hidden',
         }}>
           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Property Distribution by Model
           </Typography>
+          <Box sx={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
           <Plot
             data={(() => {
               const models = Array.from(propertyCountsByModel.keys());
@@ -718,9 +722,10 @@ export default function PropertiesTab({
               displaylogo: false,
               responsive: true,
             }}
-            style={{ width: '100%', height: '100%' }}
+            style={{ width: '100%', height: '280px', maxWidth: '100%' }}
             useResizeHandler={true}
           />
+          </Box>
         </Box>
       )}
 
@@ -791,7 +796,7 @@ export default function PropertiesTab({
                             fontSize: 12, 
                             letterSpacing: 0.4, 
                             textTransform: 'uppercase',
-                            minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 200 : column === 'category' ? 250 : 'auto'
+                            minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 200 : column === 'category' ? 150 : 'auto'
                           }}
                         >
                           {formatColumnName(column)}
@@ -817,7 +822,7 @@ export default function PropertiesTab({
                               <TableCell 
                                 key={column}
                                 sx={{ 
-                                  maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 350 : 200,
+                                  maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 200 : 200,
                                   verticalAlign: 'top',
                                   color: textColor,
                                   fontWeight: textColor !== 'inherit' ? 600 : 'inherit'
@@ -863,7 +868,7 @@ export default function PropertiesTab({
                         fontSize: 12, 
                         letterSpacing: 0.4, 
                         textTransform: 'uppercase',
-                        minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 280 : 'auto'
+                        minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 200 : column === 'category' ? 250 : 'auto'
                       }}
                     >
                       {formatColumnName(column)}
@@ -883,7 +888,7 @@ export default function PropertiesTab({
                           <TableCell 
                             key={column}
                             sx={{ 
-                              maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 350 : 200,
+                                  maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 200 : 200,
                               verticalAlign: 'top',
                               color: textColor,
                               fontWeight: textColor !== 'inherit' ? 600 : 'inherit'

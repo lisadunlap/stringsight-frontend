@@ -2,7 +2,7 @@
  * MetricsOverviewBanner - Quick statistics banner displayed at the top of the metrics page.
  *
  * Shows:
- * 1. Cluster counts by group (positive, negative critical, negative non-critical, stylistic)
+ * 1. Cluster counts by group (negative critical, negative non-critical, stylistic - excludes positive)
  * 2. Number of clusters that significantly affect quality (deduplicated across metrics)
  * 3. Number of misaligned metrics (unique metrics that are misaligned, not per-behavior)
  */
@@ -14,6 +14,7 @@ import type { ModelClusterRow } from '../../types/metrics';
 interface MetricsOverviewBannerProps {
   data: ModelClusterRow[];
   qualityMetrics: string[];
+  onNavigateToMisalignedSection?: () => void;
 }
 
 // Normalize group values to standard categories
@@ -49,7 +50,7 @@ function getGroupLabel(group: string): string {
   }
 }
 
-export function MetricsOverviewBanner({ data, qualityMetrics }: MetricsOverviewBannerProps) {
+export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisalignedSection }: MetricsOverviewBannerProps) {
   const stats = useMemo(() => {
     // Count unique clusters by group
     const clustersByGroup = new Map<string, Set<string>>();
@@ -101,8 +102,9 @@ export function MetricsOverviewBanner({ data, qualityMetrics }: MetricsOverviewB
       });
     });
 
-    // Convert group counts to sorted array
+    // Convert group counts to sorted array (excluding positive)
     const groupCounts = Array.from(clustersByGroup.entries())
+      .filter(([group]) => group !== 'positive') // Exclude positive clusters
       .map(([group, clusters]) => ({
         group,
         count: clusters.size,
@@ -110,8 +112,8 @@ export function MetricsOverviewBanner({ data, qualityMetrics }: MetricsOverviewB
         label: getGroupLabel(group)
       }))
       .sort((a, b) => {
-        // Sort order: negative_critical, negative_non_critical, style, positive
-        const order = ['negative_critical', 'negative_non_critical', 'style', 'positive'];
+        // Sort order: negative_critical, negative_non_critical, style
+        const order = ['negative_critical', 'negative_non_critical', 'style'];
         return order.indexOf(a.group) - order.indexOf(b.group);
       });
 
@@ -237,6 +239,7 @@ export function MetricsOverviewBanner({ data, qualityMetrics }: MetricsOverviewB
                 </Box>
               }
               size="medium"
+              onClick={onNavigateToMisalignedSection}
               sx={{
                 bgcolor: stats.misalignedMetrics > 0 ? '#EF444415' : '#10B98115',
                 height: 'auto',
@@ -246,7 +249,13 @@ export function MetricsOverviewBanner({ data, qualityMetrics }: MetricsOverviewB
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
                 '& .MuiChip-label': {
                   px: 0
-                }
+                },
+                cursor: onNavigateToMisalignedSection ? 'pointer' : 'default',
+                '&:hover': onNavigateToMisalignedSection ? {
+                  opacity: 0.8,
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1)'
+                } : {}
               }}
             />
             <Typography variant="caption" sx={{ color: '#111827' }}>

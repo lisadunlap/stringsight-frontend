@@ -553,6 +553,7 @@ function App() {
     selectedModels: [],
     selectedMetrics: [],
     selectedGroups: [],
+    selectedBehaviorTypes: [],
     qualityMetric: '',
     sortBy: 'proportion_delta_desc',
     topN: 5,
@@ -570,10 +571,12 @@ function App() {
   React.useEffect(() => {
     if (resultsMetrics) {
       // Reset filters to defaults when new data is loaded
+      // Note: selectedBehaviorTypes will be set by onDataProcessed to exclude 'positive' by default
       setMetricsFilters({
         selectedModels: [],
         selectedMetrics: [],
         selectedGroups: [],
+        selectedBehaviorTypes: [], // Will be auto-populated by onDataProcessed to exclude 'positive'
         qualityMetric: '',
         sortBy: 'proportion_delta_desc',
         topN: 5,
@@ -2481,6 +2484,11 @@ function App() {
           // score_columns omitted - scores are already in nested dict format (scores: {reward: 0})
           method,
           model_column_map: modelColumnMap,
+          // Enable confidence intervals for metrics recomputation
+          metrics_kwargs: {
+            compute_confidence_intervals: true,
+            bootstrap_samples: 100,
+          },
         });
 
         // Re-enrich clusters with quality data from cached metrics
@@ -3210,6 +3218,11 @@ function App() {
 
                     if (prev.selectedMetrics.length === 0 && data.availableQualityMetrics.length > 0) {
                       updates.selectedMetrics = data.availableQualityMetrics;
+                    }
+
+                    // Set default behavior types: all except 'positive'
+                    if (prev.selectedBehaviorTypes.length === 0 && data.availableBehaviorTypes && data.availableBehaviorTypes.length > 0) {
+                      updates.selectedBehaviorTypes = data.availableBehaviorTypes.filter(bt => bt !== 'positive');
                     }
 
                     return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;

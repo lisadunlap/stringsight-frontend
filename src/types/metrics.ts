@@ -111,6 +111,7 @@ export interface MetricsFilters {
   selectedModels: string[];
   selectedMetrics: string[];  // Selected quality metrics to display
   selectedGroups: string[];  // Based on metadata.group values
+  selectedBehaviorTypes: string[];  // Normalized behavior types (negative_critical, negative_non_critical, positive, style)
   topN: number;
   sortBy: MetricsSortOption;
   significanceOnly: boolean;

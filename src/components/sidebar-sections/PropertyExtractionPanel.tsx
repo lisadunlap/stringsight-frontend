@@ -543,6 +543,11 @@ export default function PropertyExtractionPanel({
         model_column_map: modelColumnMap,
         output_dir: outputDir,
         sample_size: demoSampleSize || sampleSize || undefined,
+        // Enable confidence intervals for metrics
+        metrics_kwargs: {
+          compute_confidence_intervals: true,
+          bootstrap_samples: 100, // Default bootstrap samples
+        },
       };
 
       const res = await runClustering(body as any);

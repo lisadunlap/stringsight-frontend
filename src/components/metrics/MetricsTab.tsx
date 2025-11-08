@@ -16,7 +16,7 @@
  * Filter controls are in the sidebar (MetricsPanel component).
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { 
   Box, 
   Typography, 
@@ -47,6 +47,7 @@ interface MetricsTabProps {
   onDataProcessed?: (data: {
     availableModels: string[];
     availableGroups: string[];
+    availableBehaviorTypes?: string[];
     availableQualityMetrics: string[];
     summary: MetricsSummary | null;
   }) => void;
@@ -122,11 +123,30 @@ export function MetricsTab({
     console.log('[MetricsTab] Extracted models:', models);
     console.log('[MetricsTab] Extracted clusters:', clusters.length);
     
-    // Extract groups from metadata
+    // Extract groups from metadata and normalize behavior types
     const groups = new Set<string>();
+    const behaviorTypes = new Set<string>();
+    
+    // Normalize group names to standard categories
+    const normalizeGroup = (value: unknown): string => {
+      const v = String(value || '').trim().toLowerCase();
+      if (!v) return '';
+      if (v === 'negative (critical)' || v === 'negative critical') return 'negative_critical';
+      if (v === 'negative (non-critical)' || v === 'negative non-critical' || v === 'negative (non critical)') return 'negative_non_critical';
+      if (v === 'positive') return 'positive';
+      if (v === 'style') return 'style';
+      return v;
+    };
+    
     modelClusterScores.forEach((row: any) => {
       if (row.metadata && typeof row.metadata === 'object' && row.metadata.group) {
-        groups.add(row.metadata.group);
+        const rawGroup = row.metadata.group;
+        groups.add(rawGroup);
+        // Also add normalized behavior type
+        const normalized = normalizeGroup(rawGroup);
+        if (normalized) {
+          behaviorTypes.add(normalized);
+        }
       }
     });
     
@@ -208,6 +228,7 @@ export function MetricsTab({
       benchmarkData,
       qualityMetrics: Array.from(qualityMetrics),
       availableGroups: Array.from(groups),
+      availableBehaviorTypes: Array.from(behaviorTypes).sort(),
       isLoading: false,
       error: null,
       refetch: () => Promise.resolve()
@@ -220,6 +241,7 @@ export function MetricsTab({
     benchmarkData,
     qualityMetrics,
     availableGroups,
+    availableBehaviorTypes,
     isLoading,
     error,
     refetch
@@ -231,11 +253,12 @@ export function MetricsTab({
       onDataProcessed({
         availableModels: modelClusterData.models,
         availableGroups: availableGroups,
+        availableBehaviorTypes: availableBehaviorTypes || [],
         availableQualityMetrics: qualityMetrics,
         summary: summary
       });
     }
-  }, [onDataProcessed, modelClusterData, availableGroups, qualityMetrics, summary]);
+  }, [onDataProcessed, modelClusterData, availableGroups, availableBehaviorTypes, qualityMetrics, summary]);
 
   // Loading state
   if (isLoading) {
@@ -316,6 +339,27 @@ export function MetricsTab({
 
   
 
+  // Ref for scrolling to misaligned patterns section
+  const misalignedSectionRef = useRef<HTMLDivElement>(null);
+
+  // Handler to scroll to misaligned patterns section
+  const handleNavigateToMisalignedSection = () => {
+    if (misalignedSectionRef.current) {
+      misalignedSectionRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  };
+
+  // Handler for navigating to a specific metric
+  // For now, just scroll to the misaligned section
+  // Could be extended to filter or highlight the metric
+  const handleNavigateToMetric = (metricName: string) => {
+    handleNavigateToMisalignedSection();
+    // TODO: Could add filtering or highlighting logic here
+  };
+
   return (
     <Fade in={true} timeout={300}>
       <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'auto', p: 3 }}>
@@ -323,6 +367,7 @@ export function MetricsTab({
         <MetricsOverviewBanner
           data={modelClusterData.data}
           qualityMetrics={qualityMetrics || []}
+          onNavigateToMisalignedSection={handleNavigateToMisalignedSection}
         />
 
         {/* Filter Bar */}
@@ -331,6 +376,7 @@ export function MetricsTab({
           onFiltersChange={onFiltersChange || (() => {})}
           availableModels={modelClusterData.models}
           availableQualityMetrics={qualityMetrics || []}
+          availableBehaviorTypes={availableBehaviorTypes || []}
           hasConfidenceIntervals={summary?.has_confidence_intervals || false}
         />
 
@@ -347,6 +393,8 @@ export function MetricsTab({
           onNavigateToCluster={onNavigateToCluster}
           onViewExample={onViewExample}
           method={method}
+          misalignedSectionRef={misalignedSectionRef}
+          onNavigateToMetric={handleNavigateToMetric}
         />
       </Box>
     </Fade>
