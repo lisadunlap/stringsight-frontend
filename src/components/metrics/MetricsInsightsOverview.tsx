@@ -27,6 +27,7 @@ import {
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { FrequencyChartAlt } from './charts/FrequencyChartAlt';
+import { ModelComparisonTab } from './ModelComparisonTab';
 import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
 
 // Threshold for displaying common failures (show any pattern where at least one model has > this frequency)
@@ -327,10 +328,6 @@ export function MetricsInsightsOverview({
 
   return (
     <Box sx={{ mb: 4 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        Insights Overview
-      </Typography>
-      
       <Tabs
         value={tabValue}
         onChange={(_, newValue) => setTabValue(newValue)}
@@ -341,11 +338,12 @@ export function MetricsInsightsOverview({
           '& .MuiTab-root': {
             textTransform: 'none',
             fontWeight: 500,
-            fontSize: '0.875rem'
+            fontSize: '1rem'
           }
         }}
       >
         <Tab label="Common Failures" />
+        <Tab label="Model Comparison" />
         <Tab label="Unique Stylistic Behaviors" />
         {qualityMetrics.length > 0 && (
           <Tab label="Misaligned Patterns" />
@@ -367,16 +365,15 @@ export function MetricsInsightsOverview({
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
-                  pb: 1.5,
-                  mb: 1,
-                  borderBottom: '2px solid',
-                  borderColor: 'divider'
+                  gap: 2,
+                  pb: 1,
+                  mb: 0.5
                 }}
               >
-                <Box sx={{ minWidth: 220, fontWeight: 600, fontSize: '0.875rem' }}>
+                <Box sx={{ minWidth: 220, fontWeight: 600, fontSize: '0.875rem', pl: 4 }}>
                   Frequency
                 </Box>
-                <Box sx={{ flex: 1, fontWeight: 600, fontSize: '0.875rem' }}>
+                <Box sx={{ flex: 1, fontWeight: 600, fontSize: '0.875rem', pl: 10 }}>
                   Failure Pattern (Cluster Label)
                 </Box>
                 <Box sx={{ minWidth: 120, fontWeight: 600, fontSize: '0.875rem', textAlign: 'right', pr: 3 }}>
@@ -511,8 +508,19 @@ export function MetricsInsightsOverview({
         </Box>
       )}
 
-      {/* 2. UNIQUE STYLISTIC BEHAVIORS */}
+      {/* 2. MODEL COMPARISON */}
       {tabValue === 1 && (
+        <Box>
+          <ModelComparisonTab
+            data={data}
+            filters={filters}
+            onNavigateToCluster={onNavigateToCluster}
+          />
+        </Box>
+      )}
+
+      {/* 3. UNIQUE STYLISTIC BEHAVIORS */}
+      {tabValue === 2 && (
         <Box>
           <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '800px' }}>
 
@@ -631,8 +639,8 @@ export function MetricsInsightsOverview({
         </Box>
       )}
 
-      {/* 3. MISALIGNED PATTERNS - Only show if quality metrics are available */}
-      {tabValue === 2 && qualityMetrics.length > 0 && (
+      {/* 4. MISALIGNED PATTERNS - Only show if quality metrics are available */}
+      {tabValue === 3 && qualityMetrics.length > 0 && (
         <Box>
           <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '800px' }}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2, flexShrink: 0 }}>
@@ -774,8 +782,8 @@ export function MetricsInsightsOverview({
         </Box>
       )}
 
-      {/* 4. ALL CLUSTERS */}
-      {tabValue === (qualityMetrics.length > 0 ? 3 : 2) && (
+      {/* 5. ALL CLUSTERS */}
+      {tabValue === (qualityMetrics.length > 0 ? 4 : 3) && (
         <Box>
           <FrequencyChartAlt
             data={data}

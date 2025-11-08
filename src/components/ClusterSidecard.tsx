@@ -755,7 +755,7 @@ export default function ClusterSidecard({
             {propertyList.length > 0 ? (
               <Box sx={{ maxHeight: '600px', overflow: 'auto' }}>
                 <Stack spacing={1}>
-                  {propertyList.slice(0, 50).map((prop, i) => (
+                  {propertyList.map((prop, i) => (
                     <Box
                       key={prop.id || i}
                       sx={{

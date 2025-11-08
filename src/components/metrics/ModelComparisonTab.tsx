@@ -1,6 +1,7 @@
 /**
- * ModelComparisonTab - Displays model comparison cards showing negative or stylistic behaviors
- * with positive, significant frequency delta (>15%) for each model.
+ * ModelComparisonTab - Displays model comparison cards showing behaviors
+ * (as constrained by the global behavior filters) with positive, significant
+ * frequency delta (>15%) for each model.
  */
 
 import React, { useMemo } from 'react';
@@ -72,16 +73,17 @@ export function ModelComparisonTab({
     // Get all unique models from the filtered data
     const allModels = [...new Set(filteredData.map(row => row.model))].sort();
 
-    // MODEL CARDS - Negative or stylistic behaviors with positive, significant frequency delta per model
+    // MODEL CARDS - Behaviors (respecting global behavior filters) with positive, significant frequency delta per model
     const modelCardsMap = new Map<string, ModelCardBehavior[]>();
     
     filteredData.forEach(row => {
       const group = normalizeGroup(row.metadata?.group);
-      const isNegative = group === 'negative_critical' || group === 'negative_non_critical';
-      const isStylistic = group === 'style';
-      
-      // Only include negative or stylistic behaviors
-      if (!isNegative && !isStylistic) return;
+      const selectedBehaviorTypes = Array.isArray(filters.selectedBehaviorTypes) ? filters.selectedBehaviorTypes : [];
+
+      // Respect behavior-type filter if present (include all if no selection)
+      if (selectedBehaviorTypes.length > 0 && !selectedBehaviorTypes.includes(group)) {
+        return;
+      }
       
       // Must have positive frequency delta
       const proportionDelta = row.proportion_delta || 0;
@@ -134,7 +136,7 @@ export function ModelComparisonTab({
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="body2" color="text.secondary">
-          No model comparison data found. Negative or stylistic behaviors with positive, significant frequency delta (&gt;15%) will appear here.
+          No model comparison data found. Behaviors matching the selected types with positive, significant frequency delta (&gt;15%) will appear here.
         </Typography>
       </Box>
     );
@@ -154,7 +156,7 @@ export function ModelComparisonTab({
         Model Comparison
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Negative or stylistic behaviors with positive, significant frequency delta (&gt;15%) for each model
+        Behaviors (per global filter) with positive, significant frequency delta (&gt;15%) for each model
       </Typography>
 
       <Box
@@ -219,7 +221,8 @@ export function ModelComparisonTab({
                     const categoryConfig: Record<string, { label: string; color: string }> = {
                       negative_critical: { label: 'Critical', color: '#DC2626' },
                       negative_non_critical: { label: 'Non-critical', color: '#CA8A04' },
-                      style: { label: 'Style', color: '#9C27B0' }
+                      style: { label: 'Style', color: '#9C27B0' },
+                      positive: { label: 'Positive', color: '#16A34A' }
                     };
                     const config = categoryConfig[behavior.category] || { label: behavior.category, color: '#9E9E9E' };
                     

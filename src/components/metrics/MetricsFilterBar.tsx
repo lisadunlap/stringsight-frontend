@@ -11,7 +11,9 @@
 
 import {
   Box,
-  Paper,
+  Typography,
+  Tooltip,
+  IconButton,
   FormControl,
   InputLabel,
   Select,
@@ -20,7 +22,7 @@ import {
   Switch,
   Stack,
 } from '@mui/material';
-import TuneIcon from '@mui/icons-material/Tune';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import type { 
   MetricsFilters, 
   MetricsSortOption
@@ -67,28 +69,44 @@ export function MetricsFilterBar({
     { value: 'quality_delta_desc', label: 'Quality Delta' },
   ];
 
-  return (
-    <Paper 
-      elevation={1}
-      sx={{ 
-        p: 2, 
-        mb: 3,
-        bgcolor: 'background.paper',
-        borderRadius: 2,
-      }}
-    >
-      <Stack 
-        direction="row" 
-        spacing={2} 
-        alignItems="center" 
-        flexWrap="wrap"
-        sx={{ gap: 2 }}
-      >
-        {/* Header Icon */}
-        <TuneIcon color="primary" sx={{ mr: 1 }} />
+  const handleReset = () => {
+    updateFilters({
+      selectedModels: [],
+      selectedMetrics: [],
+      selectedBehaviorTypes: [],
+      showCI: false,
+      significanceOnly: false,
+      sortBy: 'proportion_delta_desc',
+    });
+  };
 
+  return (
+    <Box sx={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 1.5,
+      mb: 2,
+      pb: 1.5,
+      borderBottom: '1px solid',
+      borderColor: 'divider'
+    }}>
+      {/* Title + Reset */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Tooltip title="Reset filters" arrow>
+          <IconButton
+            size="small"
+            onClick={handleReset}
+            sx={{ color: 'text.secondary' }}
+          >
+            <RefreshIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      {/* Controls Row */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         {/* Model Selection */}
-        <Box sx={{ minWidth: 180, flex: '0 0 auto' }}>
+        <Box sx={{ minWidth: 200, flex: '0 0 auto' }}>
           <FormControl fullWidth size="small">
             <InputLabel>Models</InputLabel>
             <Select
@@ -114,7 +132,7 @@ export function MetricsFilterBar({
         </Box>
 
         {/* Metric Selection */}
-        <Box sx={{ minWidth: 180, flex: '0 0 auto' }}>
+        <Box sx={{ minWidth: 200, flex: '0 0 auto' }}>
           <FormControl fullWidth size="small">
             <InputLabel>Metrics</InputLabel>
             <Select
@@ -167,54 +185,57 @@ export function MetricsFilterBar({
           </Box>
         )}
 
-        {/* Show CI Toggle */}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={filters.showCI}
-              onChange={(e) => updateFilters({ showCI: e.target.checked })}
-              size="small"
-              color="primary"
-              disabled={!hasConfidenceIntervals}
-            />
-          }
-          label="Show CI's"
-          sx={{ flex: '0 0 auto' }}
-        />
+        {/* Right-aligned controls */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 'auto', flexWrap: 'wrap' }}>
+          {/* Show CI Toggle */}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={filters.showCI}
+                onChange={(e) => updateFilters({ showCI: e.target.checked })}
+                size="small"
+                color="primary"
+                disabled={!hasConfidenceIntervals}
+              />
+            }
+            label="Show CI's"
+            sx={{ flex: '0 0 auto' }}
+          />
 
-        {/* Significant Only Toggle */}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={filters.significanceOnly}
-              onChange={(e) => updateFilters({ significanceOnly: e.target.checked })}
-              size="small"
-              color="primary"
-            />
-          }
-          label="Only show significant"
-          sx={{ flex: '0 0 auto' }}
-        />
+          {/* Significant Only Toggle */}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={filters.significanceOnly}
+                onChange={(e) => updateFilters({ significanceOnly: e.target.checked })}
+                size="small"
+                color="primary"
+              />
+            }
+            label="Only show significant"
+            sx={{ flex: '0 0 auto' }}
+          />
 
-        {/* Sort By */}
-        <Box sx={{ minWidth: 150, flex: '0 0 auto' }}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Sort by</InputLabel>
-            <Select
-              value={filters.sortBy}
-              label="Sort by"
-              onChange={(e) => updateFilters({ sortBy: e.target.value as MetricsSortOption })}
-            >
-              {sortOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {/* Sort By */}
+          <Box sx={{ minWidth: 160, flex: '0 0 auto' }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Sort by</InputLabel>
+              <Select
+                value={filters.sortBy}
+                label="Sort by"
+                onChange={(e) => updateFilters({ sortBy: e.target.value as MetricsSortOption })}
+              >
+                {sortOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
         </Box>
-      </Stack>
-    </Paper>
+      </Box>
+    </Box>
   );
 }
 
