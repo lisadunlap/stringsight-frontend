@@ -11,18 +11,13 @@
 
 import {
   Box,
-  Typography,
-  Tooltip,
-  IconButton,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
   FormControlLabel,
   Switch,
-  Stack,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import type { 
   MetricsFilters, 
   MetricsSortOption
@@ -90,19 +85,6 @@ export function MetricsFilterBar({
       borderBottom: '1px solid',
       borderColor: 'divider'
     }}>
-      {/* Title + Reset */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Tooltip title="Reset filters" arrow>
-          <IconButton
-            size="small"
-            onClick={handleReset}
-            sx={{ color: 'text.secondary' }}
-          >
-            <RefreshIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-
       {/* Controls Row */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         {/* Model Selection */}
