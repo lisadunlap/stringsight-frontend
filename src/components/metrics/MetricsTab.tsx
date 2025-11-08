@@ -362,7 +362,7 @@ export function MetricsTab({
 
   return (
     <Fade in={true} timeout={300}>
-      <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'auto', p: 3 }}>
+      <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'auto', pt: 0, px: 3, pb: 3 }}>
         {/* Overview Banner */}
         <MetricsOverviewBanner
           data={modelClusterData.data}

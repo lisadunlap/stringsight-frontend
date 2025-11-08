@@ -465,13 +465,13 @@ export default function PropertiesTab({
   }, [filtered, availableColumns]);
 
   return (
-    <Box>
+    <Box sx={{ pt: 0.5 }}>
       {/* (Prompt/task description controls intentionally not included here) */}
 
       {/* Behavior Summary */}
       <Box sx={{ 
         mb: 1.5, 
-        mt: 2,
+        mt: 0,
         p: 2.5, 
         backgroundColor: '#ffffff',
         borderRadius: 2,

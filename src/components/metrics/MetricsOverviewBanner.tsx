@@ -239,7 +239,6 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
                 </Box>
               }
               size="medium"
-              onClick={onNavigateToMisalignedSection}
               sx={{
                 bgcolor: stats.misalignedMetrics > 0 ? '#EF444415' : '#10B98115',
                 height: 'auto',
@@ -250,12 +249,7 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
                 '& .MuiChip-label': {
                   px: 0
                 },
-                cursor: onNavigateToMisalignedSection ? 'pointer' : 'default',
-                '&:hover': onNavigateToMisalignedSection ? {
-                  opacity: 0.8,
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1)'
-                } : {}
+                cursor: 'default'
               }}
             />
             <Typography variant="caption" sx={{ color: '#111827' }}>
