@@ -21,7 +21,6 @@ import { BenchmarkSection } from './BenchmarkSection';
 import { ClusterPlotsSection } from './ClusterPlotsSection';
 import { TopClustersSummary } from './TopClustersSummary';
 import { MetricsInsightsOverview } from './MetricsInsightsOverview';
-import { FrequencyChartAlt } from './charts/FrequencyChartAlt';
 import type {
   MetricsFilters,
   ModelClusterPayload,
@@ -242,19 +241,9 @@ export function MetricsMainContent({
         filters={filters}
         qualityMetrics={qualityMetrics}
         onNavigateToCluster={onNavigateToCluster}
-        onNavigateToMetric={onNavigateToMetric}
         method={method}
-        misalignedSectionRef={misalignedSectionRef}
-      />
-      <Divider />
-
-      {/* Frequency by Cluster List View */}
-      <FrequencyChartAlt
-        data={baseFilteredData}
-        filters={filters}
         topClusters={topClusters}
         showCI={filters.showCI && (summary?.has_confidence_intervals || false)}
-        onNavigateToCluster={onNavigateToCluster}
       />
       <Divider />
 
