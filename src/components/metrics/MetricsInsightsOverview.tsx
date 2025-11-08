@@ -522,7 +522,7 @@ export function MetricsInsightsOverview({
       {/* 3. UNIQUE STYLISTIC BEHAVIORS */}
       {tabValue === 2 && (
         <Box>
-          <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '800px' }}>
+          <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', width: '100%', maxHeight: 'none', alignSelf: 'stretch' }}>
 
           {insights.uniqueBehaviors.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
@@ -703,7 +703,15 @@ export function MetricsInsightsOverview({
                       >
                         {config.label}
                       </Typography>
-                      <Stack spacing={0.75}>
+                      <Stack
+                        spacing={0.75}
+                        sx={{
+                          pl: 1.5,
+                          ml: 0.5,
+                          borderLeft: '2px solid',
+                          borderColor: config.color
+                        }}
+                      >
                         {patterns.map((pattern, idx) => {
                           const isLast = idx === patterns.length - 1;
                           return (
@@ -716,20 +724,11 @@ export function MetricsInsightsOverview({
                                 '&:hover': { bgcolor: 'action.hover' },
                                 borderRadius: 0.5,
                                 px: 0.5,
-                                py: 0.25
+                                py: 0.5,
+                                borderBottom: isLast ? 'none' : '1px solid',
+                                borderColor: 'divider'
                               }}
                             >
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  color: config.color,
-                                  fontFamily: 'monospace',
-                                  fontSize: '0.875rem',
-                                  lineHeight: 1
-                                }}
-                              >
-                                {isLast ? '└─' : '├─'}
-                              </Typography>
                               <Typography
                                 variant="body1"
                                 sx={{

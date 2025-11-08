@@ -193,15 +193,31 @@ function getContentBlocks(content: any): ContentBlock[] {
  * Normalize text for fuzzy matching:
  * - Collapse multiple whitespace to single space
  * - Normalize quote and dash variations
+ * - Strip markdown formatting
+ * - Strip LaTeX delimiters
+ * - Remove most punctuation except word boundaries
  * - Lowercase for comparison
  */
 function normalizeForMatching(text: string): string {
   return text
     .toLowerCase()
-    .replace(/\s+/g, ' ')  // Collapse whitespace
-    .replace(/[''']/g, "'")  // Normalize quotes
+    // Strip LaTeX delimiters
+    .replace(/\\\[|\\\]|\\\(|\\\)|\$\$/g, '')
+    .replace(/\$/g, '')
+    // Strip markdown formatting
+    .replace(/[*_~`#]/g, '')
+    // Remove code block markers
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`[^`]*`/g, '')
+    // Normalize quotes
+    .replace(/[''']/g, "'")
     .replace(/["""]/g, '"')
-    .replace(/[—–-]/g, '-')  // Normalize dashes
+    // Normalize dashes
+    .replace(/[—–]/g, '-')
+    // Collapse whitespace (including newlines)
+    .replace(/\s+/g, ' ')
+    // Remove extra punctuation but keep some structure
+    .replace(/[^\w\s'"()\[\]{},.;:!?-]/g, '')
     .trim();
 }
 
@@ -217,39 +233,57 @@ function calculateWordOverlap(words1: string[], words2: string[]): number {
 }
 
 /**
- * Map character position in normalized text back to original text
+ * Find the span in original text that normalizes to match a substring of normalized text
+ * Uses a sliding window to find the exact span
  */
-function mapNormalizedToOriginal(
+function findOriginalSpan(
   original: string,
+  normalized: string,
   normalizedStart: number,
   normalizedLength: number
 ): { start: number; end: number } | null {
-  const normalized = normalizeForMatching(original);
-  let normIdx = 0;
-  let origIdx = 0;
-  let foundStart = -1;
-  let foundEnd = -1;
+  const targetNormalized = normalized.substring(normalizedStart, normalizedStart + normalizedLength);
 
-  while (origIdx < original.length && normIdx < normalized.length) {
-    const origChar = normalizeForMatching(original[origIdx]);
-    const normChar = normalized[normIdx];
+  if (targetNormalized.length === 0) return null;
 
-    if (origChar === normChar) {
-      if (normIdx === normalizedStart) {
-        foundStart = origIdx;
+  // Estimate starting position in original (conservative guess)
+  const estimatedStart = Math.max(0, Math.floor(normalizedStart * 0.8));
+  const searchEnd = Math.min(original.length, estimatedStart + targetNormalized.length * 3);
+
+  // Use sliding window to find a span that normalizes to our target
+  for (let start = estimatedStart; start < searchEnd; start++) {
+    // Try expanding the window to find exact match
+    for (let end = start + 1; end <= original.length; end++) {
+      const candidate = original.substring(start, end);
+      const candidateNorm = normalizeForMatching(candidate);
+
+      if (candidateNorm === targetNormalized) {
+        return { start, end };
       }
-      if (normIdx === normalizedStart + normalizedLength - 1) {
-        foundEnd = origIdx + 1;
+
+      // Stop expanding if we've exceeded the target length significantly
+      if (candidateNorm.length > targetNormalized.length * 1.5) {
         break;
       }
-      normIdx++;
     }
-    origIdx++;
   }
 
-  if (foundStart >= 0 && foundEnd > foundStart) {
-    return { start: foundStart, end: foundEnd };
+  // If we didn't find it in the estimated region, search the entire text (slower fallback)
+  for (let start = 0; start < original.length; start++) {
+    for (let end = start + 1; end <= Math.min(original.length, start + targetNormalized.length * 3); end++) {
+      const candidate = original.substring(start, end);
+      const candidateNorm = normalizeForMatching(candidate);
+
+      if (candidateNorm === targetNormalized) {
+        return { start, end };
+      }
+
+      if (candidateNorm.length > targetNormalized.length * 1.5) {
+        break;
+      }
+    }
   }
+
   return null;
 }
 
@@ -259,7 +293,7 @@ function mapNormalizedToOriginal(
 function findBestMatch(
   haystack: string,
   needle: string,
-  minSimilarity: number = 0.85
+  minSimilarity: number = 0.8
 ): { start: number; end: number } | null {
   const normalizedNeedle = normalizeForMatching(needle);
   const normalizedHaystack = normalizeForMatching(haystack);
@@ -267,11 +301,12 @@ function findBestMatch(
   // Try exact normalized match first
   const exactIdx = normalizedHaystack.indexOf(normalizedNeedle);
   if (exactIdx !== -1) {
-    return mapNormalizedToOriginal(haystack, exactIdx, normalizedNeedle.length);
+    return findOriginalSpan(haystack, normalizedHaystack, exactIdx, normalizedNeedle.length);
   }
 
-  // Only use fuzzy matching for longer strings (at least 20 characters)
-  if (normalizedNeedle.length < 20) {
+  // Use fuzzy matching for strings with at least 3 characters
+  // This allows short evidence strings like "('place', (1, 0, 5))" to be matched
+  if (normalizedNeedle.length < 3) {
     return null;
   }
 
@@ -307,7 +342,7 @@ function findBestMatch(
   const normStart = beforeWords.length + (beforeWords.length > 0 ? 1 : 0);
   const normLength = matchWords.length;
 
-  return mapNormalizedToOriginal(haystack, normStart, normLength);
+  return findOriginalSpan(haystack, normalizedHaystack, normStart, normLength);
 }
 
 /**
@@ -353,26 +388,53 @@ function highlightContent(
     const trimmed = String(term || '').trim();
     if (!trimmed) continue;
 
-    // Strategy 1: Try exact match (case-insensitive but whitespace-sensitive)
-    const exactPattern = escapeRegex(trimmed);
-    const exactRegex = new RegExp(exactPattern, 'gi');
-    let m: RegExpExecArray | null;
     let foundExact = false;
 
-    while ((m = exactRegex.exec(text)) !== null) {
+    // Strategy 1: Try simple case-insensitive exact match
+    const lowerText = text.toLowerCase();
+    const lowerTerm = trimmed.toLowerCase();
+    let searchStart = 0;
+    while (true) {
+      const idx = lowerText.indexOf(lowerTerm, searchStart);
+      if (idx === -1) break;
+
       matches.push({
-        start: m.index,
-        end: m.index + m[0].length
+        start: idx,
+        end: idx + trimmed.length
       });
       foundExact = true;
-      if (exactRegex.lastIndex === m.index) exactRegex.lastIndex++;
+      searchStart = idx + 1;
     }
 
-    // Strategy 2: Fuzzy match if no exact matches found
+    // Strategy 2: Try regex-based exact match (handles edge cases)
     if (!foundExact) {
-      const fuzzyMatch = findBestMatch(text, trimmed, 0.75);
+      const exactPattern = escapeRegex(trimmed);
+      const exactRegex = new RegExp(exactPattern, 'gi');
+      let m: RegExpExecArray | null;
+
+      while ((m = exactRegex.exec(text)) !== null) {
+        matches.push({
+          start: m.index,
+          end: m.index + m[0].length
+        });
+        foundExact = true;
+        if (exactRegex.lastIndex === m.index) exactRegex.lastIndex++;
+      }
+    }
+
+    // Strategy 3: Fuzzy match if no exact matches found
+    if (!foundExact) {
+      const fuzzyMatch = findBestMatch(text, trimmed, 0.8);
       if (fuzzyMatch) {
-        matches.push(fuzzyMatch);
+        // Verify the matched span length is similar to evidence length (within 30% tolerance)
+        // This prevents partial substring matches
+        const matchedLength = fuzzyMatch.end - fuzzyMatch.start;
+        const evidenceLength = trimmed.length;
+        const lengthRatio = matchedLength / evidenceLength;
+
+        if (lengthRatio >= 0.7 && lengthRatio <= 1.3) {
+          matches.push(fuzzyMatch);
+        }
       }
     }
   }
