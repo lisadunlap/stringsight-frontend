@@ -38,6 +38,7 @@ import ClusterSidecard from "./components/ClusterSidecard";
 import type { MetricsFilters, MetricsSummary } from "./types/metrics";
 import { ColumnSelector, type ColumnMapping } from "./components/ColumnSelector";
 import { MetricsTab } from "./components/metrics/MetricsTab";
+import { ModelComparisonTab } from "./components/metrics/ModelComparisonTab";
 import type { DataOperation } from "./types/operations";
 import { createFilterOperation, createCustomCodeOperation, createSortOperation } from "./types/operations";
 
@@ -520,7 +521,7 @@ function App() {
   const [propertiesRows, setPropertiesRows] = useState<any[]>([]);
   const [activeSection, setActiveSection] = useState<SidebarSection>('data');
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'table'|'properties'|'clusters'|'metrics'>('table');
+  const [activeTab, setActiveTab] = useState<'table'|'properties'|'clusters'|'model-comparison'|'metrics'>('table');
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
   const [clusterSearchQuery, setClusterSearchQuery] = useState<string>('');
   
@@ -3119,6 +3120,9 @@ function App() {
               <Tab value="clusters" label={`Clusters (${clusters.length})`} title="View common behaviors in traces" />
             )}
             {resultsMetrics && (
+              <Tab value="model-comparison" label="Model Comparison" title="Compare models by behaviors" />
+            )}
+            {resultsMetrics && (
               <Tab value="metrics" label="Insights" title="Get model & dataset level insights" />
             )}
           </Tabs>
@@ -3335,6 +3339,37 @@ function App() {
                 showClusterPlots={false}
                 showModelCards={false}
               />
+            ) : (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No Metrics Data Available
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Load results from a folder that contains computed metrics, or run the clustering pipeline to generate metrics.
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+        {activeTab === 'model-comparison' && (
+          <Box sx={{ mt: 1 }}>
+            {resultsMetrics ? (
+              (() => {
+                // Process data similar to MetricsTab
+                const allModelClusterScores = resultsMetrics.model_cluster_scores || [];
+                const modelClusterScores = allModelClusterScores.filter((row: any) => {
+                  const clusterName = row.cluster ? String(row.cluster).toLowerCase() : '';
+                  return !clusterName.startsWith('outliers');
+                });
+                
+                return (
+                  <ModelComparisonTab
+                    data={modelClusterScores}
+                    filters={metricsFilters}
+                    onNavigateToCluster={handleNavigateToCluster}
+                  />
+                );
+              })()
             ) : (
               <Box sx={{ p: 3, textAlign: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
