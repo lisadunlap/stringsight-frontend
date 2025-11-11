@@ -223,7 +223,7 @@ export default function PropertyExtractionPanel({
   const generateOutputDir = React.useCallback(() => {
     const baseName = resultsNameProp?.trim() || uploadedFileName || 'results';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: YYYY-MM-DDTHH-MM-SS
-    return `${baseName}_${timestamp}`;
+    return `results/frontend/${baseName}_${timestamp}`;
   }, [resultsNameProp, uploadedFileName]);
 
   // Load prompts and embedding models on mount
@@ -601,21 +601,7 @@ export default function PropertyExtractionPanel({
 
   return (
     <Stack spacing={1}>
-      {/* Demo mode notification */}
-      {demoSampleSize && (
-        <Box sx={{ mb: 1, p: 1.5, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#92400E', borderRadius: 1, fontSize: '0.875rem' }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Demo mode active</Typography>
-          <Typography variant="caption" component="div">
-            • Backend operations limited to {demoSampleSize} rows
-          </Typography>
-          <Typography variant="caption" component="div">
-            • Models fixed: {DEMO_MODE_SETTINGS.modelName}
-          </Typography>
-          <Typography variant="caption" component="div">
-            • Clustering: {DEMO_MODE_SETTINGS.groupBy} grouping
-          </Typography>
-        </Box>
-      )}
+      {/* demo banner removed */}
 
       <Typography variant="body2" sx={{ color: 'primary.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
         Extract interesting properties from your traces. Click 'Extract on Row 0' to see an example.

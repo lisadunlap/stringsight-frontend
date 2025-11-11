@@ -243,6 +243,7 @@ export function MetricsMainContent({
         onNavigateToCluster={onNavigateToCluster}
         method={method}
         topClusters={topClusters}
+        summary={summary || undefined}
         showCI={filters.showCI && (summary?.has_confidence_intervals || false)}
       />
       <Divider />

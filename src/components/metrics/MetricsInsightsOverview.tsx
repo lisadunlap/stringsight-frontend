@@ -28,7 +28,8 @@ import {
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { FrequencyChartAlt } from './charts/FrequencyChartAlt';
 import { ModelComparisonTab } from './ModelComparisonTab';
-import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
+import type { ModelClusterRow, MetricsFilters, MetricsSummary } from '../../types/metrics';
+import { computeOverallProportion, computeGlobalQualityDelta } from './metricsUtils';
 
 // Threshold for displaying common failures (show any pattern where at least one model has > this frequency)
 const COMMON_FAILURE_MIN_FREQUENCY = 0.05; // 5%
@@ -52,6 +53,8 @@ interface MetricsInsightsOverviewProps {
   topClusters?: string[];
   /** Whether to show confidence intervals */
   showCI?: boolean;
+  /** Optional dataset summary (used to derive percentages when not provided per-cluster) */
+  summary?: MetricsSummary;
 }
 
 // Normalize group names to standard categories
@@ -70,6 +73,12 @@ interface CommonFailure {
   totalSize: number;
   modelFrequencies: { model: string; proportion: number; size: number; proportionDelta?: number }[];
   category: string;
+  /** Overall proportion of total conversations for this cluster (global, not per model) */
+  proportionOverall?: number;
+  /** Global delta in the selected quality metric aggregated across models */
+  globalQualityDelta?: number;
+  /** Average of per-model proportions (fallback if overall not present) */
+  avgProportion?: number;
 }
 
 interface UniqueBehavior {
@@ -92,7 +101,8 @@ export function MetricsInsightsOverview({
   onNavigateToCluster,
   method = 'unknown',
   topClusters,
-  showCI = false
+  showCI = false,
+  summary
 }: MetricsInsightsOverviewProps) {
   // Debug logging
   console.log('[MetricsInsightsOverview] Rendering with:', {
@@ -159,11 +169,21 @@ export function MetricsInsightsOverview({
           proportionDelta: modelDataMap.get(model)?.proportionDelta
         }));
 
+        // Global stats for the cluster
+        const proportionOverall = computeOverallProportion(rows);
+        const globalQualityDelta = computeGlobalQualityDelta(rows, filters.qualityMetric);
+        const avgProportion = modelFrequencies.length > 0
+          ? (modelFrequencies.reduce((s, mf) => s + (mf.proportion || 0), 0) / modelFrequencies.length)
+          : undefined;
+
         return {
           cluster,
           totalSize: rows.reduce((sum, r) => sum + (r.size || 0), 0),
           modelFrequencies,
-          category
+          category,
+          proportionOverall,
+          globalQualityDelta,
+          avgProportion
         };
       })
       .filter(failure => {
@@ -401,7 +421,7 @@ export function MetricsInsightsOverview({
                 >
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                     {/* Left side: Model bars with names */}
-                    <Stack spacing={0.25} sx={{ minWidth: 220 }}>
+                    <Stack spacing={0.125} sx={{ minWidth: 220 }}>
                       {failure.modelFrequencies.map(mf => {
                         const hasData = mf.proportion > 0;
                         const modelShortName = shortModelName(mf.model);
@@ -470,9 +490,29 @@ export function MetricsInsightsOverview({
                       >
                         {failure.cluster}
                       </Typography>
-                      <Box sx={{ color: '#6B7280', fontSize: 13 }}>
-                        {failure.totalSize.toLocaleString()} conversations
-                      </Box>
+                      <Stack spacing={0.25} sx={{ color: '#6B7280', fontSize: 13 }}>
+                        <Typography variant="body2" sx={{ color: '#6B7280', fontSize: 13 }}>
+                          {(() => {
+                            const percent = typeof failure.proportionOverall === 'number'
+                              ? failure.proportionOverall
+                              : (typeof failure.avgProportion === 'number' ? failure.avgProportion : undefined);
+                            const suffix = typeof percent === 'number' && isFinite(percent) ? ` (${(percent * 100).toFixed(1)}%)` : '';
+                            return `${failure.totalSize.toLocaleString()} conversations${suffix}`;
+                          })()}
+                        </Typography>
+                        {typeof failure.globalQualityDelta === 'number' && isFinite(failure.globalQualityDelta) && (
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontSize: 12,
+                              color: failure.globalQualityDelta > 0 ? 'success.main' : (failure.globalQualityDelta < 0 ? 'error.main' : 'text.secondary'),
+                              fontWeight: 500
+                            }}
+                          >
+                            Δ quality: {failure.globalQualityDelta > 0 ? '+' : ''}{failure.globalQualityDelta.toFixed(2)}
+                          </Typography>
+                        )}
+                      </Stack>
                     </Box>
 
                     {/* Arrow icon - at the very right */}
@@ -787,6 +827,7 @@ export function MetricsInsightsOverview({
           <FrequencyChartAlt
             data={data}
             filters={filters}
+            summary={summary}
             topClusters={topClusters}
             showCI={showCI}
             onNavigateToCluster={onNavigateToCluster}

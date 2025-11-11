@@ -15,6 +15,8 @@ import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, c
 import { flattenScores, normalizeMetricsColumnNames, enrichModelClusterScoresWithMetadata } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
 import { detectMethodFromColumns, ensureOpenAIFormat } from "./lib/traces";
+import html2pdf from 'html2pdf.js';
+import { generatePdfFilename } from './lib/utils';
 import DataTable from "./components/DataTable";
 import ConversationTrace from "./components/ConversationTrace";
 import SideBySideTrace from "./components/SideBySideTrace";
@@ -509,6 +511,7 @@ function App() {
   const [method, setMethod] = useState<"single_model" | "side_by_side" | "unknown">("unknown");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
+  const traceContentRef = useRef<HTMLDivElement>(null);
 
   const [selectedTrace, setSelectedTrace] = useState<any>(null);
   const [selectedRow, setSelectedRow] = useState<Record<string, any> | null>(null);
@@ -604,12 +607,7 @@ function App() {
   const isDemoMode = import.meta.env.VITE_DEMO === 'true';
   const demoSampleSize = 100;
 
-  // Show demo mode notification when data is loaded
-  React.useEffect(() => {
-    if (isDemoMode && originalRows.length > 0 && originalRows.length > demoSampleSize) {
-      setFilterNotice(`Demo mode: Displaying all ${originalRows.length.toLocaleString()} rows, but backend operations (extraction, clustering) will only process first ${demoSampleSize} rows`);
-    }
-  }, [isDemoMode, originalRows.length, demoSampleSize]);
+  // (demo banner removed)
 
   // Highlight extraction icon when data is loaded but no properties exist
   React.useEffect(() => {
@@ -653,6 +651,24 @@ function App() {
       setBackendAvailable(ok);
     })();
   }, []);
+
+  // PDF download handler for drawer traces
+  const handleDrawerPrint = () => {
+    if (!traceContentRef.current) return;
+
+    const promptText = selectedRow?.prompt ? String(selectedRow.prompt) : '';
+    const filename = promptText ? generatePdfFilename(promptText) : 'conversation_trace.pdf';
+
+    const opt = {
+      margin: 10,
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(traceContentRef.current).save();
+  };
 
   // Click-outside handler for drawer - close drawer when clicking outside, but not when clicking in the sidebar
   React.useEffect(() => {
@@ -2397,12 +2413,10 @@ function App() {
             ev = rawEvidence;
           } else if (rawEvidence && typeof rawEvidence === 'string') {
             // Parse comma-separated quoted strings: "\"text1\", \"text2\", \"text3\""
-            // Split by comma and remove quotes
-            ev = rawEvidence
-              .split(',')
-              .map(s => s.trim())
-              .map(s => s.replace(/^["']|["']$/g, '')) // Remove leading/trailing quotes
-              .filter(s => s.length > 0);
+            // Split on quote/comma patterns: ", " between double-quoted items
+            const trimmed = rawEvidence.trim();
+            const parts = trimmed.split(/"\s*,\s*"|\n|,\s(?=[\w\d])/g).map(s => s.replace(/^"|"$/g, '').trim());
+            ev = parts.filter(Boolean);
           } else if (rawEvidence) {
             // Single value, wrap in array
             ev = [String(rawEvidence)];
@@ -3310,11 +3324,10 @@ function App() {
                     ev = rawEvidence;
                   } else if (rawEvidence && typeof rawEvidence === 'string') {
                     // Parse comma-separated quoted strings
-                    ev = rawEvidence
-                      .split(',')
-                      .map(s => s.trim())
-                      .map(s => s.replace(/^["']|["']$/g, ''))
-                      .filter(s => s.length > 0);
+                    // Split on quote/comma patterns: ", " between double-quoted items
+                    const trimmed = rawEvidence.trim();
+                    const parts = trimmed.split(/"\s*,\s*"|\n|,\s(?=[\w\d])/g).map(s => s.replace(/^"|"$/g, '').trim());
+                    ev = parts.filter(Boolean);
                   } else if (rawEvidence) {
                     ev = [String(rawEvidence)];
                   }
@@ -3371,8 +3384,8 @@ function App() {
         ModalProps={{ keepMounted: true }}
       >
         <>
-            {/* Collapse button */}
-            <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 1 }}>
+            {/* Collapse button and Download PDF */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <IconButton
                 onClick={() => {
                   setDrawerOpen(false);
@@ -3395,8 +3408,18 @@ function App() {
               >
                 <ChevronRightIcon />
               </IconButton>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<DownloadIcon />}
+                onClick={handleDrawerPrint}
+                sx={{ textTransform: 'none' }}
+              >
+                Download PDF
+              </Button>
             </Box>
 
+            <Box ref={traceContentRef}>
             {(selectedTrace?.type === "single" || selectedTrace?.type === "sbs") && selectedProperty && (
               // Property information header when viewing from properties table
               <PropertyTraceHeader
@@ -3415,6 +3438,8 @@ function App() {
                   rawResponse={selectedRow?.model_response}
                   modelName={selectedRow?.model ? String(selectedRow.model) : undefined}
                   score={(selectedRow as any)?.score}
+                  promptText={selectedRow?.prompt ? String(selectedRow.prompt) : undefined}
+                  hideDownloadButton={true}
                 />
               );
             })()}
@@ -3432,6 +3457,7 @@ function App() {
                 scoreB={(selectedRow as any)?.score_b}
               />
             )}
+            </Box>
           </>
       </Drawer>
 

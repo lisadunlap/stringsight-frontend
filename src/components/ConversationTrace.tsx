@@ -1,12 +1,15 @@
 import React, { useState, useRef } from "react";
 import type { Message } from "../lib/traces";
-import { Box, Typography, Chip, Stack, Accordion, AccordionSummary, AccordionDetails, FormControlLabel, Switch } from "@mui/material";
+import { Box, Typography, Chip, Stack, Accordion, AccordionSummary, AccordionDetails, FormControlLabel, Switch, Button } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import DownloadIcon from '@mui/icons-material/Download';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import html2pdf from 'html2pdf.js';
+import { generatePdfFilename } from '../lib/utils';
 
 function escapeRegex(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
@@ -388,6 +391,10 @@ function highlightContent(
     const trimmed = String(term || '').trim();
     if (!trimmed) continue;
 
+    // Skip n-grams with fewer than 3 words
+    const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+    if (words.length < 3) continue;
+
     let foundExact = false;
 
     // Strategy 1: Try simple case-insensitive exact match
@@ -522,19 +529,43 @@ export function ConversationTrace({
   highlights,
   rawResponse,
   modelName,
-  score
+  score,
+  printMode = false,
+  promptText,
+  hideDownloadButton = false
 }: {
   messages: Message[];
   highlights?: string[];
   rawResponse?: any;
   modelName?: string;
   score?: Record<string, any>;
+  printMode?: boolean;
+  promptText?: string;
+  hideDownloadButton?: boolean;
 }) {
   const [prettyPrintEnabled, setPrettyPrintEnabled] = useState(true);
+  const [highlightingEnabled, setHighlightingEnabled] = useState(false);
   const [collapsedMessages, setCollapsedMessages] = useState<Set<number>>(new Set());
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const highlightRefs = useRef<(HTMLElement | null)[]>([]);
   const prevHighlightsRef = useRef<string[] | undefined>();
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = () => {
+    if (!printRef.current) return;
+
+    const filename = promptText ? generatePdfFilename(promptText) : 'conversation_trace.pdf';
+
+    const opt = {
+      margin: 10,
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(printRef.current).save();
+  };
 
   console.log('[ConversationTrace] Rendering with highlights:', highlights);
 
@@ -544,9 +575,12 @@ export function ConversationTrace({
     prevHighlightsRef.current = highlights;
   }
 
+  // Compute effective highlights (only if highlighting is enabled)
+  const effectiveHighlights = highlightingEnabled ? highlights : undefined;
+
   // Auto-scroll to first highlight when evidence is provided
   React.useEffect(() => {
-    if (highlights && highlights.length > 0) {
+    if (effectiveHighlights && effectiveHighlights.length > 0) {
       // Wait for render to complete and drawer animation, then scroll to first highlight
       const timer = setTimeout(() => {
         console.log('[ConversationTrace] Checking for highlights, refs count:', highlightRefs.current.length);
@@ -566,13 +600,14 @@ export function ConversationTrace({
 
       return () => clearTimeout(timer);
     }
-  }, [highlights]);
+  }, [effectiveHighlights]);
 
   const scrollToMessage = (index: number) => {
     messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const toggleCollapse = (index: number) => {
+    if (printMode) return; // Don't allow collapse in print mode
     setCollapsedMessages(prev => {
       const newSet = new Set(prev);
       if (newSet.has(index)) {
@@ -594,47 +629,84 @@ export function ConversationTrace({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      {/* Model name and score header */}
-      {modelName && (
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-          <Typography variant="subtitle2">
-            {modelName}
-          </Typography>
-          {score && Object.keys(score).length > 0 && (
-            <Box sx={{ textAlign: 'right' }}>
-              {Object.entries(score).map(([key, value]) => (
-                <Typography key={key} variant="body2" sx={{ fontSize: '0.875rem', lineHeight: 1.4 }}>
-                  {key}: {typeof value === 'number' ? value.toFixed(2) : String(value)}
-                </Typography>
-              ))}
-            </Box>
+      {/* Download PDF Button at top */}
+      {!printMode && !hideDownloadButton && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<DownloadIcon />}
+            onClick={handlePrint}
+            sx={{ textTransform: 'none' }}
+          >
+            Download PDF
+          </Button>
+        </Box>
+      )}
+
+      <Box ref={printRef}>
+        {/* Model name and score header */}
+        {modelName && (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+            <Typography variant="subtitle2">
+              {modelName}
+            </Typography>
+            {score && Object.keys(score).length > 0 && (
+              <Box sx={{ textAlign: 'right' }}>
+                {Object.entries(score).map(([key, value]) => (
+                  <Typography key={key} variant="body2" sx={{ fontSize: '0.875rem', lineHeight: 1.4 }}>
+                    {key}: {typeof value === 'number' ? value.toFixed(2) : String(value)}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+          </Box>
+        )}
+        {/* Toggles at the top */}
+        {!printMode && (hasAnyJsonContent || (highlights && highlights.length > 0)) && (
+        <Box sx={{ mb: 1, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+          {hasAnyJsonContent && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={prettyPrintEnabled}
+                  onChange={(e) => setPrettyPrintEnabled(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="Pretty-print"
+              sx={{
+                margin: 0,
+                '& .MuiFormControlLabel-label': {
+                  fontSize: '0.75rem',
+                  color: 'text.secondary'
+                }
+              }}
+            />
+          )}
+          {highlights && highlights.length > 0 && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={highlightingEnabled}
+                  onChange={(e) => setHighlightingEnabled(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="Highlight evidence"
+              sx={{
+                margin: 0,
+                '& .MuiFormControlLabel-label': {
+                  fontSize: '0.75rem',
+                  color: 'text.secondary'
+                }
+              }}
+            />
           )}
         </Box>
-      )}
-      {/* Pretty-print toggle at the top */}
-      {hasAnyJsonContent && (
-        <Box sx={{ mb: 1, display: 'flex', justifyContent: 'flex-end' }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={prettyPrintEnabled}
-                onChange={(e) => setPrettyPrintEnabled(e.target.checked)}
-                size="small"
-              />
-            }
-            label="Pretty-print"
-            sx={{
-              margin: 0,
-              '& .MuiFormControlLabel-label': {
-                fontSize: '0.75rem',
-                color: 'text.secondary'
-              }
-            }}
-          />
-        </Box>
-      )}
-      {/* Navigation bar */}
-      {messages.length > 1 && (
+        )}
+        {/* Navigation bar */}
+        {!printMode && messages.length > 1 && (
         <Box sx={{ mb: 2 }}>
           <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, mb: 0.5, display: 'block' }}>
             Conversation Timeline
@@ -703,7 +775,7 @@ export function ConversationTrace({
 
         const dotColor = getRoleDotColor(m.role);
         const isToolRole = m.role === "tool";
-        const isCollapsed = collapsedMessages.has(i);
+        const isCollapsed = printMode ? false : collapsedMessages.has(i); // Auto-expand in print mode
 
         // Check if this message contains JSON-like content
         const hasJsonContent = (() => {
@@ -834,7 +906,7 @@ export function ConversationTrace({
                   if (isFormattedJson) {
                     return (
                       <Typography key={`txt-json-${idx}`} component="pre" variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: 1.5, m: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
-                        {highlights && highlights.length > 0 ? highlightContent(t, highlights, highlightRefs).content : t}
+                        {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(t, effectiveHighlights, highlightRefs).content : t}
                       </Typography>
                     );
                   }
@@ -863,17 +935,17 @@ export function ConversationTrace({
                       }}>
                         <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
                           components={{
-                            p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, highlights, highlightRefs)}</p>,
-                            span: ({ children }) => <span>{applyHighlightToChildren(children, highlights, highlightRefs)}</span>,
-                            li: ({ children }) => <li>{applyHighlightToChildren(children, highlights, highlightRefs)}</li>,
-                            strong: ({ children }) => <strong>{applyHighlightToChildren(children, highlights, highlightRefs)}</strong>,
-                            em: ({ children }) => <em>{applyHighlightToChildren(children, highlights, highlightRefs)}</em>,
-                            h1: ({ children }) => <h1>{applyHighlightToChildren(children, highlights, highlightRefs)}</h1>,
-                            h2: ({ children }) => <h2>{applyHighlightToChildren(children, highlights, highlightRefs)}</h2>,
-                            h3: ({ children }) => <h3>{applyHighlightToChildren(children, highlights, highlightRefs)}</h3>,
-                            h4: ({ children }) => <h4>{applyHighlightToChildren(children, highlights, highlightRefs)}</h4>,
-                            h5: ({ children }) => <h5>{applyHighlightToChildren(children, highlights, highlightRefs)}</h5>,
-                            h6: ({ children }) => <h6>{applyHighlightToChildren(children, highlights, highlightRefs)}</h6>,
+                            p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</p>,
+                            span: ({ children }) => <span>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</span>,
+                            li: ({ children }) => <li>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</li>,
+                            strong: ({ children }) => <strong>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</strong>,
+                            em: ({ children }) => <em>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</em>,
+                            h1: ({ children }) => <h1>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h1>,
+                            h2: ({ children }) => <h2>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h2>,
+                            h3: ({ children }) => <h3>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h3>,
+                            h4: ({ children }) => <h4>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h4>,
+                            h5: ({ children }) => <h5>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h5>,
+                            h6: ({ children }) => <h6>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h6>,
                           }}
                         >
                           {normalizeLatexDelimiters(t)}
@@ -884,7 +956,7 @@ export function ConversationTrace({
 
                   return (
                     <Typography key={`txt-${idx}`} variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                      {highlights && highlights.length > 0 ? highlightContent(t, highlights, highlightRefs).content : t}
+                      {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(t, effectiveHighlights, highlightRefs).content : t}
                     </Typography>
                   );
                 })}
@@ -917,7 +989,7 @@ export function ConversationTrace({
                     overflowWrap: 'anywhere',
                   }}
                 >
-                  {highlights && highlights.length > 0 ? highlightContent(content, highlights, highlightRefs).content : content}
+                  {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(content, effectiveHighlights, highlightRefs).content : content}
                 </Typography>
               );
             }
@@ -952,17 +1024,17 @@ export function ConversationTrace({
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeKatex]}
                     components={{
-                      p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, highlights, highlightRefs)}</p>,
-                      span: ({ children }) => <span>{applyHighlightToChildren(children, highlights, highlightRefs)}</span>,
-                      li: ({ children }) => <li>{applyHighlightToChildren(children, highlights, highlightRefs)}</li>,
-                      strong: ({ children }) => <strong>{applyHighlightToChildren(children, highlights, highlightRefs)}</strong>,
-                      em: ({ children }) => <em>{applyHighlightToChildren(children, highlights, highlightRefs)}</em>,
-                      h1: ({ children }) => <h1>{applyHighlightToChildren(children, highlights, highlightRefs)}</h1>,
-                      h2: ({ children }) => <h2>{applyHighlightToChildren(children, highlights, highlightRefs)}</h2>,
-                      h3: ({ children }) => <h3>{applyHighlightToChildren(children, highlights, highlightRefs)}</h3>,
-                      h4: ({ children }) => <h4>{applyHighlightToChildren(children, highlights, highlightRefs)}</h4>,
-                      h5: ({ children }) => <h5>{applyHighlightToChildren(children, highlights, highlightRefs)}</h5>,
-                      h6: ({ children }) => <h6>{applyHighlightToChildren(children, highlights, highlightRefs)}</h6>,
+                      p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</p>,
+                      span: ({ children }) => <span>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</span>,
+                      li: ({ children }) => <li>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</li>,
+                      strong: ({ children }) => <strong>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</strong>,
+                      em: ({ children }) => <em>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</em>,
+                      h1: ({ children }) => <h1>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h1>,
+                      h2: ({ children }) => <h2>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h2>,
+                      h3: ({ children }) => <h3>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h3>,
+                      h4: ({ children }) => <h4>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h4>,
+                      h5: ({ children }) => <h5>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h5>,
+                      h6: ({ children }) => <h6>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h6>,
                     }}
                   >
                     {normalizeLatexDelimiters(content)}
@@ -978,7 +1050,7 @@ export function ConversationTrace({
                 wordBreak: 'break-word',
                 overflowWrap: 'anywhere',
               }}>
-                {highlights && highlights.length > 0 ? highlightContent(content, highlights, highlightRefs).content : content}
+                {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(content, effectiveHighlights, highlightRefs).content : content}
               </Typography>
             );
           })()}
@@ -989,9 +1061,9 @@ export function ConversationTrace({
         );
       })}
 
-      {/* View Raw Response Accordion */}
-      {rawResponse && (
-        <Accordion sx={{ mt: 1 }}>
+        {/* View Raw Response Accordion */}
+        {!printMode && rawResponse && (
+          <Accordion sx={{ mt: 1 }}>
           <AccordionSummary
             expandIcon={<ExpandMoreIcon />}
             sx={{
@@ -1029,7 +1101,8 @@ export function ConversationTrace({
             </Box>
           </AccordionDetails>
         </Accordion>
-      )}
+        )}
+      </Box>
     </Box>
   );
 }

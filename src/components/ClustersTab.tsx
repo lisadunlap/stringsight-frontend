@@ -626,25 +626,51 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                 >
                   {String(c.label || '')}
                 </Typography>
-                <Box sx={{ color: '#6B7280', fontSize: 13 }}>
-                  {(() => {
-                    // When models are filtered, show count for only selected models
-                    if (selectedModels.length > 0) {
-                      const filteredSize = modelBars.reduce((sum, bar) => sum + bar.size, 0);
-                      if (filteredSize > 0) {
-                        return `${filteredSize.toLocaleString()} conversations`;
+                <Stack spacing={0.25}>
+                  <Typography variant="body2" sx={{ color: '#6B7280', fontSize: 13 }}>
+                    {(() => {
+                      // When models are filtered, show count for only selected models
+                      if (selectedModels.length > 0) {
+                        const filteredSize = modelBars.reduce((sum, bar) => sum + bar.size, 0);
+                        if (filteredSize > 0) {
+                          return `${filteredSize.toLocaleString()} conversations`;
+                        }
                       }
-                    }
-                    
-                    // Otherwise show overall count
-                    if (clusterUniqueConversations !== undefined && clusterUniqueConversations > 0) {
-                      const propText = overallProp !== undefined ? ` (${formatPercent(overallProp)})` : '';
-                      return `${clusterUniqueConversations.toLocaleString()} conversations${propText}`;
-                    }
-                    const clusterSize = c.size ?? 0;
-                    return `${clusterSize.toLocaleString()} properties`;
+                      
+                      // Otherwise show overall count
+                      if (clusterUniqueConversations !== undefined && clusterUniqueConversations > 0) {
+                        // Prefer overallProp from metrics; fallback to derived proportion using totals
+                        const derivedProp = (typeof overallProp === 'number' && isFinite(overallProp))
+                          ? overallProp
+                          : (typeof totalUniqueConversations === 'number' && totalUniqueConversations > 0
+                              ? (clusterUniqueConversations / totalUniqueConversations)
+                              : undefined);
+                        const propText = typeof derivedProp === 'number' ? ` (${formatPercent(derivedProp)})` : '';
+                        return `${clusterUniqueConversations.toLocaleString()} conversations${propText}`;
+                      }
+                      const clusterSize = c.size ?? 0;
+                      return `${clusterSize.toLocaleString()} properties`;
+                    })()}
+                  </Typography>
+                  {(() => {
+                    const overallQualityDeltaObj: Record<string, number> = (meta as any).quality_delta || {};
+                    const deltaVals = Object.values(overallQualityDeltaObj).filter(v => typeof v === 'number' && isFinite(v)) as number[];
+                    if (deltaVals.length === 0) return null;
+                    const avgDelta = deltaVals.reduce((a, b) => a + b, 0) / deltaVals.length;
+                    return (
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontSize: 12,
+                          color: avgDelta > 0 ? 'success.main' : (avgDelta < 0 ? 'error.main' : 'text.secondary'),
+                          fontWeight: 500
+                        }}
+                      >
+                        Δ quality: {avgDelta > 0 ? '+' : ''}{avgDelta.toFixed(2)}
+                      </Typography>
+                    );
                   })()}
-                </Box>
+                </Stack>
               </Box>
 
               {/* Arrow icon - at the very right */}

@@ -12,7 +12,8 @@ import { useMemo, useState } from 'react';
 import { Box, Typography, Alert, Stack, Paper, Chip, Tooltip, Select, MenuItem, FormControl, IconButton, TextField, InputAdornment, Checkbox, ListItemText } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
-import type { ModelClusterRow, MetricsFilters } from '../../../types/metrics';
+import type { ModelClusterRow, MetricsFilters, MetricsSummary } from '../../../types/metrics';
+import { computeOverallProportion, computeGlobalQualityDelta } from '../metricsUtils';
 
 // Model color palette (matches MetricsInsightsOverview)
 const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
@@ -61,6 +62,8 @@ interface FrequencyChartAltProps {
   data: ModelClusterRow[];
   /** Current filters */
   filters: MetricsFilters;
+  /** Optional dataset summary for deriving conversation counts and percents */
+  summary?: MetricsSummary;
   /** Pre-computed top clusters (in order) */
   topClusters?: string[];
   /** Whether to show confidence intervals */
@@ -74,6 +77,7 @@ interface FrequencyChartAltProps {
 export function FrequencyChartAlt({
   data,
   filters,
+  summary,
   topClusters,
   showCI = false,
   onNavigateToCluster
@@ -135,6 +139,21 @@ export function FrequencyChartAlt({
     const clusterData = clustersToShow.map(cluster => {
       const clusterRows = clusterGroups[cluster] || [];
       const category = clusterRows.length > 0 ? normalizeGroup(clusterRows[0].metadata?.group) : '';
+      const totalSize = clusterRows.reduce((sum, r) => sum + (r.size || 0), 0);
+      const proportionOverall = computeOverallProportion(clusterRows);
+      const globalQualityDelta = computeGlobalQualityDelta(clusterRows, filters.qualityMetric);
+      // Fallback percent: average of per-model proportions (like model cards)
+      const modelSet = filters.selectedModels.length > 0
+        ? new Set(filters.selectedModels)
+        : new Set(data.map(r => r.model));
+      const proportionsForAvg: number[] = [];
+      modelSet.forEach(m => {
+        const row = clusterRows.find(r => r.model === m);
+        proportionsForAvg.push(row?.proportion || 0);
+      });
+      const avgProportion = proportionsForAvg.length > 0
+        ? proportionsForAvg.reduce((a, b) => a + b, 0) / proportionsForAvg.length
+        : undefined;
 
       const modelBars = allModels.map(model => {
         const row = clusterGroups[cluster]?.find(r => r.model === model);
@@ -155,6 +174,10 @@ export function FrequencyChartAlt({
       return {
         cluster,
         category,
+        totalSize,
+        proportionOverall,
+        globalQualityDelta,
+        avgProportion,
         modelBars: modelBars.filter(bar => bar.proportion > 0 || allModels.includes(bar.model))
       };
     });
@@ -381,7 +404,7 @@ export function FrequencyChartAlt({
         </Alert>
       ) : (
       <Stack spacing={1}>
-        {listData.clusterData.map(({ cluster, category, modelBars }) => (
+        {listData.clusterData.map(({ cluster, category, modelBars, totalSize, proportionOverall, globalQualityDelta, avgProportion }) => (
           <Paper
             key={cluster}
             variant="outlined"
@@ -469,6 +492,34 @@ export function FrequencyChartAlt({
                 >
                   {cluster}
                 </Typography>
+                <Stack spacing={0.25} sx={{ color: 'text.secondary' }}>
+                  {(typeof totalSize === 'number' && totalSize > 0) && (
+                    <Typography variant="body2" sx={{ fontSize: 13 }}>
+                      {(() => {
+                        const total = typeof summary?.total_battles === 'number' && summary.total_battles > 0 ? summary.total_battles : undefined;
+                        const percent = typeof proportionOverall === 'number'
+                          ? proportionOverall
+                          : (typeof avgProportion === 'number' ? avgProportion : undefined);
+                        const derivedCount = (total && typeof percent === 'number') ? Math.round(percent * total) : undefined;
+                        const countText = typeof derivedCount === 'number' ? derivedCount.toLocaleString() : totalSize.toLocaleString();
+                        const pctText = typeof percent === 'number' ? ` (${(percent * 100).toFixed(1)}%)` : '';
+                        return `${countText} conversations${pctText}`;
+                      })()}
+                    </Typography>
+                  )}
+                  {typeof globalQualityDelta === 'number' && isFinite(globalQualityDelta) && (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontSize: 12,
+                        color: globalQualityDelta > 0 ? 'success.main' : (globalQualityDelta < 0 ? 'error.main' : 'text.secondary'),
+                        fontWeight: 500
+                      }}
+                    >
+                      Δ quality: {globalQualityDelta > 0 ? '+' : ''}{globalQualityDelta.toFixed(2)}
+                    </Typography>
+                  )}
+                </Stack>
               </Box>
 
               {/* Arrow icon - at the very right */}

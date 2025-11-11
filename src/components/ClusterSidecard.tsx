@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Drawer,
   Box,
@@ -12,12 +12,15 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import DownloadIcon from '@mui/icons-material/Download';
 import Plotly from 'plotly.js-dist-min';
 import createPlotlyComponent from 'react-plotly.js/factory';
 const Plot = createPlotlyComponent(Plotly);
 import ConversationTrace from './ConversationTrace';
 import PropertyTraceHeader from './PropertyTraceHeader';
 import { ensureOpenAIFormat } from '../lib/traces';
+import html2pdf from 'html2pdf.js';
+import { generatePdfFilename } from '../lib/utils';
 
 interface ClusterSidecardProps {
   open: boolean;
@@ -61,6 +64,26 @@ export default function ClusterSidecard({
 }: ClusterSidecardProps) {
   const [viewMode, setViewMode] = useState<'cluster-details' | 'property-trace'>('cluster-details');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+
+  // PDF print setup - must be at top level (Rules of Hooks)
+  const propertyTracePrintRef = useRef<HTMLDivElement>(null);
+  const currentPromptTextRef = useRef<string>('');
+
+  const handlePropertyTracePrint = () => {
+    if (!propertyTracePrintRef.current) return;
+
+    const filename = currentPromptTextRef.current ? generatePdfFilename(currentPromptTextRef.current) : 'property_trace.pdf';
+
+    const opt = {
+      margin: 10,
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(propertyTracePrintRef.current).save();
+  };
 
   // Reset to cluster details view when cluster changes or drawer closes
   React.useEffect(() => {
@@ -293,11 +316,10 @@ export default function ClusterSidecard({
     if (Array.isArray(rawEvidence)) {
       ev = rawEvidence;
     } else if (rawEvidence && typeof rawEvidence === 'string') {
-      ev = rawEvidence
-        .split(',')
-        .map(s => s.trim())
-        .map(s => s.replace(/^["']|["']$/g, ''))
-        .filter(s => s.length > 0);
+      const trimmed = rawEvidence.trim();
+      // Split on quote/comma patterns: ", " between double-quoted items
+      const parts = trimmed.split(/"\s*,\s*"|\n|,\s(?=[\w\d])/g).map(s => s.replace(/^"|"$/g, '').trim());
+      ev = parts.filter(Boolean);
     } else if (rawEvidence) {
       ev = [String(rawEvidence)];
     }
@@ -306,26 +328,31 @@ export default function ClusterSidecard({
     let messages: any[] = [];
     let modelName: string | undefined;
     let score: Record<string, any> | undefined;
+    let promptText: string | undefined;
 
     if (row) {
+      promptText = String(row?.["prompt"] ?? "");
       if (method === 'single_model') {
-        messages = ensureOpenAIFormat(String(row?.["prompt"] ?? ""), row?.["model_response"]);
+        messages = ensureOpenAIFormat(promptText, row?.["model_response"]);
         modelName = String(row?.["model"] ?? "");
         score = row?.["score"];
       } else if (method === 'side_by_side') {
         // For side-by-side, determine which model this property applies to
         const targetModel = String((prop as any).model || '');
         if (targetModel === String(row?.["model_a"] || '')) {
-          messages = ensureOpenAIFormat(String(row?.["prompt"] ?? ""), row?.["model_a_response"]);
+          messages = ensureOpenAIFormat(promptText, row?.["model_a_response"]);
           modelName = String(row?.["model_a"] ?? "Model A");
           score = row?.["score_a"];
         } else if (targetModel === String(row?.["model_b"] || '')) {
-          messages = ensureOpenAIFormat(String(row?.["prompt"] ?? ""), row?.["model_b_response"]);
+          messages = ensureOpenAIFormat(promptText, row?.["model_b_response"]);
           modelName = String(row?.["model_b"] ?? "Model B");
           score = row?.["score_b"];
         }
       }
     }
+
+    // Update current prompt text for PDF filename
+    currentPromptTextRef.current = promptText || '';
 
     return (
       <Drawer
@@ -349,7 +376,17 @@ export default function ClusterSidecard({
             }} size="small">
               <ArrowBackIcon />
             </IconButton>
-            <Typography variant="body2" sx={{ flex: 1 }}>Back to Cluster</Typography>
+            <Typography variant="body2">Back to Cluster</Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<DownloadIcon />}
+              onClick={handlePropertyTracePrint}
+              sx={{ textTransform: 'none' }}
+            >
+              Download PDF
+            </Button>
+            <Box sx={{ flex: 1 }} />
             <IconButton onClick={onClose} size="small">
               <CloseIcon />
             </IconButton>
@@ -357,26 +394,30 @@ export default function ClusterSidecard({
 
           {/* Content */}
           <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-            <PropertyTraceHeader
-              selectedRow={row}
-              selectedProperty={prop}
-              method={method}
-              evidenceTargetModel={(prop as any).model}
-            />
-            {messages.length > 0 ? (
-              <ConversationTrace
-                messages={messages}
-                highlights={ev}
-                modelName={modelName}
-                score={score}
+            <Box ref={propertyTracePrintRef}>
+              <PropertyTraceHeader
+                selectedRow={row}
+                selectedProperty={prop}
+                method={method}
+                evidenceTargetModel={(prop as any).model}
               />
-            ) : (
-              <Box sx={{ p: 3, border: '1px dashed #E5E7EB', borderRadius: 1, background: '#FAFAFA' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Conversation not available for this property.
-                </Typography>
-              </Box>
-            )}
+              {messages.length > 0 ? (
+                <ConversationTrace
+                  messages={messages}
+                  highlights={ev}
+                  modelName={modelName}
+                  score={score}
+                  promptText={promptText}
+                  hideDownloadButton={true}
+                />
+              ) : (
+                <Box sx={{ p: 3, border: '1px dashed #E5E7EB', borderRadius: 1, background: '#FAFAFA' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Conversation not available for this property.
+                  </Typography>
+                </Box>
+              )}
+            </Box>
           </Box>
         </Box>
       </Drawer>
