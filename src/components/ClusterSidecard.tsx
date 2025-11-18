@@ -298,13 +298,20 @@ export default function ClusterSidecard({
     }
     if (!row) {
       const qid = (prop as any).question_id;
-      const modelName = String((prop as any).model || '');
+      const modelName = String((prop as any).model || '').trim();
       row = operationalRows.find(r => {
+        // Normalize question_id comparison (handle string vs number)
         const rq = r?.question_id;
+        const qidMatch = String(rq) === String(qid) || Number(rq) === Number(qid);
+        if (!qidMatch) return false;
+        
         if (method === 'single_model') {
-          return rq === qid && String(r?.model || '') === modelName;
+          const rModel = String(r?.model || '').trim();
+          return rModel === modelName;
         } else if (method === 'side_by_side') {
-          return rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName);
+          // For side-by-side, just match question_id - the row contains both models
+          // We'll determine which model's response to show later based on the property's model
+          return true;
         }
         return false;
       }) || null;
@@ -338,15 +345,37 @@ export default function ClusterSidecard({
         score = row?.["score"];
       } else if (method === 'side_by_side') {
         // For side-by-side, determine which model this property applies to
-        const targetModel = String((prop as any).model || '');
-        if (targetModel === String(row?.["model_a"] || '')) {
+        const targetModel = String((prop as any).model || '').trim();
+        const modelA = String(row?.["model_a"] || '').trim();
+        const modelB = String(row?.["model_b"] || '').trim();
+        
+        if (targetModel === modelA) {
           messages = ensureOpenAIFormat(promptText, row?.["model_a_response"]);
-          modelName = String(row?.["model_a"] ?? "Model A");
+          modelName = modelA || "Model A";
           score = row?.["score_a"];
-        } else if (targetModel === String(row?.["model_b"] || '')) {
+        } else if (targetModel === modelB) {
           messages = ensureOpenAIFormat(promptText, row?.["model_b_response"]);
-          modelName = String(row?.["model_b"] ?? "Model B");
+          modelName = modelB || "Model B";
           score = row?.["score_b"];
+        } else {
+          // Fallback: if model doesn't match exactly, try to find it by partial match or use model_a as default
+          // This handles cases where model names might have slight variations
+          if (modelA && (targetModel.toLowerCase().includes(modelA.toLowerCase()) || 
+              modelA.toLowerCase().includes(targetModel.toLowerCase()))) {
+            messages = ensureOpenAIFormat(promptText, row?.["model_a_response"]);
+            modelName = modelA || "Model A";
+            score = row?.["score_a"];
+          } else if (modelB && (targetModel.toLowerCase().includes(modelB.toLowerCase()) || 
+                     modelB.toLowerCase().includes(targetModel.toLowerCase()))) {
+            messages = ensureOpenAIFormat(promptText, row?.["model_b_response"]);
+            modelName = modelB || "Model B";
+            score = row?.["score_b"];
+          } else {
+            // Default to model_a if we can't match
+            messages = ensureOpenAIFormat(promptText, row?.["model_a_response"]);
+            modelName = modelA || "Model A";
+            score = row?.["score_a"];
+          }
         }
       }
     }

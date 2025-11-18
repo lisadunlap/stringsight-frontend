@@ -13,6 +13,7 @@ import {
   Chip
 } from '@mui/material';
 import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
+import { ClusterLabel } from '../ClusterLabel';
 
 // Threshold for model cards (only show behaviors with frequency delta > this)
 const MODEL_CARD_MIN_DELTA = 0.15; // 15%
@@ -243,18 +244,19 @@ export function ModelComparisonTab({
                           transition: 'all 0.2s ease'
                         }}
                       >
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontSize: '0.9rem',
-                            fontWeight: 500,
-                            wordBreak: 'break-word',
-                            whiteSpace: 'normal',
-                            mb: 0.5
+                        <ClusterLabel
+                          text={behavior.cluster}
+                          typographyProps={{
+                            variant: 'body2',
+                            sx: {
+                              fontSize: '0.9rem',
+                              fontWeight: 500,
+                              wordBreak: 'break-word',
+                              whiteSpace: 'normal',
+                              mb: 0.5
+                            }
                           }}
-                        >
-                          {behavior.cluster}
-                        </Typography>
+                        />
                         <Stack direction="row" alignItems="center" spacing={2} sx={{ mt: 0.5 }}>
                           <Typography variant="caption" color="text.secondary">
                             Frequency: {(behavior.proportion * 100).toFixed(1)}%

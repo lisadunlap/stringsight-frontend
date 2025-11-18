@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Typography, Button, Stack, Chip, Tooltip, IconButton, Fade, Paper } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { FormControl, InputLabel, Select, MenuItem, TextField, Checkbox, ListItemText, OutlinedInput } from '@mui/material';
+import { ClusterLabel } from './ClusterLabel';
 
 // Model color palette (matches FrequencyChartAlt and MetricsInsightsOverview)
 const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
@@ -545,7 +546,10 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
           <Paper
             key={c.id ?? idx}
             variant="outlined"
-            onClick={() => onClusterClick(c)}
+            onClick={() => {
+              console.log('[ClustersTab] Cluster card clicked:', c);
+              onClusterClick(c);
+            }}
             sx={{
               p: 1.5,
               cursor: 'pointer',
@@ -567,7 +571,10 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
 
                   return (
                     <Tooltip key={bar.model} title={tooltipText} arrow placement="top">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box 
+                        sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {/* Visual bar */}
                         <Box
                           sx={{
@@ -615,17 +622,18 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
 
               {/* Middle: Cluster description */}
               <Box sx={{ flex: 1, minWidth: 0, pr: group ? 10 : 0 }}>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    color: '#111827',
-                    lineHeight: 1.6,
-                    fontSize: '1rem',
-                    mb: 0.5
+                <ClusterLabel
+                  text={String(c.label || '')}
+                  typographyProps={{
+                    variant: 'body1',
+                    sx: {
+                      color: '#111827',
+                      lineHeight: 1.6,
+                      fontSize: '1rem',
+                      mb: 0.5
+                    }
                   }}
-                >
-                  {String(c.label || '')}
-                </Typography>
+                />
                 <Stack spacing={0.25}>
                   <Typography variant="body2" sx={{ color: '#6B7280', fontSize: 13 }}>
                     {(() => {
@@ -681,11 +689,14 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
 
             {/* Category chip at absolute bottom right - aligned with arrow */}
             {group && (
-              <Box sx={{
-                position: 'absolute',
-                bottom: 8,
-                right: 12
-              }}>
+              <Box 
+                sx={{
+                  position: 'absolute',
+                  bottom: 8,
+                  right: 12
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <Chip
                   label={group}
                   size="small"

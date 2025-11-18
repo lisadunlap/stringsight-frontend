@@ -192,7 +192,9 @@ const DataTable = React.memo(function DataTable({
           Showing rows {String(startIdx + 1)}–{String(endIdx)} of {rows.length.toLocaleString()} rows.
         </Box>
       )}
-      <TableContainer sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
+      <TableContainer
+        sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}
+      >
         <Table size="small">
         <TableHead sx={{ backgroundColor: '#F3F4F6' }}>
           {table.getHeaderGroups().map((hg) => (
@@ -225,13 +227,19 @@ const DataTable = React.memo(function DataTable({
           {table.getRowModel().rows.map((r, idx) => {
             const rowEl = (
               <TableRow hover key={r.id}>
-                {r.getVisibleCells().map((c) => (
-                  <TableCell key={c.id} sx={{ borderBottom: '1px solid #E5E7EB', ...(c.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {}) }}>
+                {r.getVisibleCells().map((c) => {
+                  const isResponseCell = responseKeys.includes(c.column.id) && idx === 0;
+                  return (
+                  <TableCell
+                    key={c.id}
+                    sx={{ borderBottom: '1px solid #E5E7EB', ...(c.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {}) }}
+                    data-tutorial-id={isResponseCell ? 'demo-model-response-column' : undefined}
+                  >
                     <Box sx={c.column.id === 'prompt' ? { maxWidth: 420, wordBreak: 'break-all', overflowWrap: 'anywhere', whiteSpace: 'normal' } : undefined}>
                       {flexRender(c.column.columnDef.cell, c.getContext())}
                     </Box>
                   </TableCell>
-                ))}
+                );})}
               </TableRow>
             );
             if (animateOnMountRef.current && idx < 20) {

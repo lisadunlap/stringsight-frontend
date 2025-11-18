@@ -41,6 +41,7 @@ import type { MetricsFilters, MetricsSummary } from "./types/metrics";
 import { ColumnSelector, type ColumnMapping } from "./components/ColumnSelector";
 import { MetricsTab } from "./components/metrics/MetricsTab";
 import type { DataOperation } from "./types/operations";
+import { TutorialProvider, useTutorial } from "./context/TutorialContext";
 import { createFilterOperation, createCustomCodeOperation, createSortOperation } from "./types/operations";
 
 
@@ -837,6 +838,19 @@ function App() {
     }
   }
 
+  const tutorial = useTutorial();
+
+  // When the demo-data tutorial reaches the "extract trace" step, automatically
+  // switch to the Extraction section so users see where to run property extraction.
+  React.useEffect(() => {
+    if (!tutorial || !tutorial.activeTutorialId || !tutorial.steps) return;
+    const step = tutorial.steps[tutorial.currentStepIndex];
+    if (tutorial.activeTutorialId === 'demo-data' && step && step.id === 'demo-step-2-extract-trace') {
+      setActiveSection('extraction');
+      setSidebarExpanded(true);
+    }
+  }, [tutorial, setActiveSection, setSidebarExpanded]);
+
   // Load demo dataset from a bundled JSONL file and reuse the same flow as upload
   const onLoadDemoData = React.useCallback(async () => {
     // Treat as a new source
@@ -892,13 +906,26 @@ function App() {
       // Automatically apply the mapping and process data (skip column selector for demo data)
       processDataWithMapping(rows, autoMapping);
       setShowColumnSelector(false);
+
+      // Ensure the viewport is at the top of the main tab when demo data loads,
+      // so users see the table header and controls without needing to scroll.
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+
+      // Start (or restart) the demo-data tutorial once demo data has loaded.
+      // This ensures the guided walkthrough appears every time the user clicks "Start Demo",
+      // even if they previously completed or skipped it.
+      if (tutorial) {
+        tutorial.startTutorial('demo-data');
+      }
     } catch (e: any) {
       setResultsError(String(e?.message || e));
     } finally {
       setIsLoadingResults(false);
       setResultsLoadingMessage('');
     }
-  }, [resetUiStateForNewSource, applyAutoMappingFromColumns]);
+  }, [resetUiStateForNewSource, applyAutoMappingFromColumns, tutorial]);
 
   // Load results from local folder
   const onLoadResultsLocal = React.useCallback(async (files: FileList) => {
@@ -1584,7 +1611,15 @@ function App() {
     } else {
       console.log('[App] onView - Preserving evidence (preserveEvidence=true)');
     }
-  }, [method, operationalRows]);
+
+    // If the demo-data tutorial is on the "data table" step, auto-advance when a model response is opened
+    if (tutorial && tutorial.activeTutorialId === 'demo-data' && tutorial.steps && tutorial.steps[tutorial.currentStepIndex]) {
+      const step = tutorial.steps[tutorial.currentStepIndex];
+      if (step.id === 'demo-step-1-data-table') {
+        tutorial.nextStep();
+      }
+    }
+  }, [method, operationalRows, tutorial]);
 
   const responseKeys = useMemo(() =>
     method === "single_model"
@@ -2660,7 +2695,7 @@ function App() {
                 }
               }}
             >
-              Demo Data
+              Start Demo
             </Button>
           </Stack>
         </Toolbar>
@@ -3197,8 +3232,10 @@ function App() {
               modelClusterScores={resultsMetrics?.model_cluster_scores}
               externalSearchQuery={clusterSearchQuery}
               onClusterClick={(cluster) => {
+                console.log('[App] onClusterClick called with cluster:', cluster);
                 setSelectedCluster(cluster);
                 setClusterSidecardOpen(true);
+                console.log('[App] Sidecard state set to open');
               }}
             />
           </Box>
@@ -3485,7 +3522,9 @@ function App() {
 export default function AppWithErrorBoundary() {
   return (
     <ErrorBoundary>
-      <App />
+      <TutorialProvider>
+        <App />
+      </TutorialProvider>
     </ErrorBoundary>
   );
 }

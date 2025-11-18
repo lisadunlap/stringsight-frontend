@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import ArrowRightAltIcon from '@mui/icons-material/ArrowRightAlt';
 import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
+import { ClusterLabel } from '../ClusterLabel';
 
 interface TopClustersSummaryProps {
   data: ModelClusterRow[];
@@ -159,7 +160,14 @@ export function TopClustersSummary({ data, filters, onNavigateToCluster }: TopCl
                               </Stack>
                             </Box>
                             <Box component="span" sx={{ flex: 1, overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'normal', fontSize: '1rem' }}>
-                              {row.cluster}
+                              <ClusterLabel
+                                text={row.cluster}
+                                typographyProps={{
+                                  variant: 'body2',
+                                  component: 'span',
+                                  sx: { fontSize: '1rem' }
+                                }}
+                              />
                               {tagName && (
                                 <Typography component="span" variant="caption" sx={{ ml: 1, color: tagColor }}>
                                   ({tagName})

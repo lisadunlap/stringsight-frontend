@@ -7,7 +7,7 @@
  * 3. Misaligned Patterns (negative behaviors with positive quality delta, or stylistic behaviors with significant quality impact)
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Stack,
@@ -30,6 +30,7 @@ import { FrequencyChartAlt } from './charts/FrequencyChartAlt';
 import { ModelComparisonTab } from './ModelComparisonTab';
 import type { ModelClusterRow, MetricsFilters, MetricsSummary } from '../../types/metrics';
 import { computeOverallProportion, computeGlobalQualityDelta } from './metricsUtils';
+import { ClusterLabel } from '../ClusterLabel';
 
 // Threshold for displaying common failures (show any pattern where at least one model has > this frequency)
 const COMMON_FAILURE_MIN_FREQUENCY = 0.05; // 5%
@@ -67,6 +68,13 @@ function normalizeGroup(value: unknown): string {
   if (v === 'style') return 'style';
   return v;
 }
+
+type InsightsTabKey =
+  | 'commonFailures'
+  | 'modelComparison'
+  | 'uniqueBehaviors'
+  | 'misalignedPatterns'
+  | 'allClusters';
 
 interface CommonFailure {
   cluster: string;
@@ -327,14 +335,6 @@ export function MetricsInsightsOverview({
       allModels
     };
   }, [data, filters, qualityMetrics]);
-
-  // Only return null if there's no data at all
-  // We can still show Common Failures and Unique Behaviors without quality metrics
-  if (!data.length) {
-    console.log('[MetricsInsightsOverview] Component returning null - no data');
-    return null;
-  }
-
   const shortModelName = (model: string) => model.split('/').pop() || model;
 
   console.log('[MetricsInsightsOverview] Component rendering with insights:', {
@@ -344,13 +344,106 @@ export function MetricsInsightsOverview({
     allModels: insights.allModels
   });
 
-  const [tabValue, setTabValue] = useState(0);
+  // Determine whether the Model Comparison tab has any data to show
+  const hasModelComparisonData = useMemo(() => {
+    if (!data.length) {
+      return false;
+    }
+
+    const filteredData = filters.selectedModels.length > 0
+      ? data.filter(row => filters.selectedModels.includes(row.model))
+      : data;
+
+    const selectedBehaviorTypes = Array.isArray(filters.selectedBehaviorTypes)
+      ? filters.selectedBehaviorTypes
+      : [];
+
+    return filteredData.some(row => {
+      const group = normalizeGroup(row.metadata?.group);
+
+      // Respect behavior-type filter if present (include all if no selection)
+      if (selectedBehaviorTypes.length > 0 && !selectedBehaviorTypes.includes(group)) {
+        return false;
+      }
+
+      const proportionDelta = row.proportion_delta || 0;
+
+      // Must have positive, significant frequency delta above the 15% threshold
+      if (proportionDelta <= 0.15) return false;
+      if (row.proportion_delta_significant !== true) return false;
+
+      return true;
+    });
+  }, [data, filters]);
+
+  const availableTabs: { key: InsightsTabKey; label: string }[] = useMemo(() => {
+    const tabs: { key: InsightsTabKey; label: string }[] = [];
+
+    if (insights.commonFailures.length > 0) {
+      tabs.push({ key: 'commonFailures', label: 'Common Failures' });
+    }
+
+    if (hasModelComparisonData) {
+      tabs.push({ key: 'modelComparison', label: 'Model Comparison' });
+    }
+
+    if (insights.uniqueBehaviors.length > 0) {
+      tabs.push({ key: 'uniqueBehaviors', label: 'Unique Stylistic Behaviors' });
+    }
+
+    if (qualityMetrics.length > 0 && insights.misalignedPatterns.length > 0) {
+      tabs.push({ key: 'misalignedPatterns', label: 'Misaligned Patterns' });
+    }
+
+    if (data.length > 0) {
+      tabs.push({ key: 'allClusters', label: 'All Clusters' });
+    }
+
+    return tabs;
+  }, [
+    data.length,
+    hasModelComparisonData,
+    insights.commonFailures.length,
+    insights.misalignedPatterns.length,
+    insights.uniqueBehaviors.length,
+    qualityMetrics.length
+  ]);
+
+  const [activeTab, setActiveTab] = useState<InsightsTabKey | null>(
+    availableTabs.length > 0 ? availableTabs[0].key : null
+  );
+
+  // Keep the active tab in sync with the available tabs and ensure we never
+  // select a tab that has no data
+  useEffect(() => {
+    if (availableTabs.length === 0) {
+      if (activeTab !== null) {
+        setActiveTab(null);
+      }
+      return;
+    }
+
+    if (!activeTab || !availableTabs.some(tab => tab.key === activeTab)) {
+      setActiveTab(availableTabs[0].key);
+    }
+  }, [activeTab, availableTabs]);
+
+  // Only return null if there's no data at all
+  // We can still show Common Failures and Unique Behaviors without quality metrics
+  if (!data.length) {
+    console.log('[MetricsInsightsOverview] Component returning null - no data');
+    return null;
+  }
+
+  if (!activeTab) {
+    return null;
+  }
 
   return (
     <Box sx={{ mb: 4 }}>
       <Tabs
-        value={tabValue}
-        onChange={(_, newValue) => setTabValue(newValue)}
+        value={activeTab}
+        onChange={(_, newValue) => setActiveTab(newValue as InsightsTabKey)}
         sx={{
           borderBottom: 1,
           borderColor: 'divider',
@@ -362,17 +455,13 @@ export function MetricsInsightsOverview({
           }
         }}
       >
-        <Tab label="Common Failures" />
-        <Tab label="Model Comparison" />
-        <Tab label="Unique Stylistic Behaviors" />
-        {qualityMetrics.length > 0 && (
-          <Tab label="Misaligned Patterns" />
-        )}
-        <Tab label="All Clusters" />
+        {availableTabs.map(tab => (
+          <Tab key={tab.key} label={tab.label} value={tab.key} />
+        ))}
       </Tabs>
 
       {/* 1. COMMON FAILURES */}
-      {tabValue === 0 && (
+      {activeTab === 'commonFailures' && insights.commonFailures.length > 0 && (
         <Box>
           {insights.commonFailures.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
@@ -477,19 +566,20 @@ export function MetricsInsightsOverview({
                       })}
                     </Stack>
 
-                    {/* Middle: Cluster name */}
+                    {/* Middle: Cluster name (Markdown-supported) */}
                     <Box sx={{ flex: 1, minWidth: 0, pr: 10 }}>
-                      <Typography
-                        variant="body1"
-                        sx={{
-                          color: '#111827',
-                          lineHeight: 1.6,
-                          fontSize: '1rem',
-                          mb: 0.5
+                      <ClusterLabel
+                        text={failure.cluster}
+                        typographyProps={{
+                          variant: 'body1',
+                          sx: {
+                            color: '#111827',
+                            lineHeight: 1.6,
+                            fontSize: '1rem',
+                            mb: 0.5
+                          }
                         }}
-                      >
-                        {failure.cluster}
-                      </Typography>
+                      />
                       <Stack spacing={0.25} sx={{ color: '#6B7280', fontSize: 13 }}>
                         <Typography variant="body2" sx={{ color: '#6B7280', fontSize: 13 }}>
                           {(() => {
@@ -549,7 +639,7 @@ export function MetricsInsightsOverview({
       )}
 
       {/* 2. MODEL COMPARISON */}
-      {tabValue === 1 && (
+      {activeTab === 'modelComparison' && hasModelComparisonData && (
         <Box>
           <ModelComparisonTab
             data={data}
@@ -560,7 +650,7 @@ export function MetricsInsightsOverview({
       )}
 
       {/* 3. UNIQUE STYLISTIC BEHAVIORS */}
-      {tabValue === 2 && (
+      {activeTab === 'uniqueBehaviors' && insights.uniqueBehaviors.length > 0 && (
         <Box>
           <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', width: '100%', maxHeight: 'none', alignSelf: 'stretch' }}>
 
@@ -619,9 +709,13 @@ export function MetricsInsightsOverview({
                         }}
                         onClick={() => onNavigateToCluster?.(behavior.cluster)}
                       >
-                        <Typography variant="body2" sx={{ fontSize: '0.95rem' }}>
-                          {behavior.cluster}
-                        </Typography>
+                        <ClusterLabel
+                          text={behavior.cluster}
+                          typographyProps={{
+                            variant: 'body2',
+                            sx: { fontSize: '0.95rem' }
+                          }}
+                        />
                       </TableCell>
                       {insights.allModels.map((model, mIdx) => {
                         const delta = behavior.modelDeltas.get(model);
@@ -680,7 +774,7 @@ export function MetricsInsightsOverview({
       )}
 
       {/* 4. MISALIGNED PATTERNS - Only show if quality metrics are available */}
-      {tabValue === 3 && qualityMetrics.length > 0 && (
+      {activeTab === 'misalignedPatterns' && qualityMetrics.length > 0 && insights.misalignedPatterns.length > 0 && (
         <Box>
           <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '800px' }}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2, flexShrink: 0 }}>
@@ -769,8 +863,7 @@ export function MetricsInsightsOverview({
                                 borderColor: 'divider'
                               }}
                             >
-                              <Typography
-                                variant="body1"
+                              <Box
                                 sx={{
                                   flex: 1,
                                   cursor: 'pointer',
@@ -779,8 +872,14 @@ export function MetricsInsightsOverview({
                                 }}
                                 onClick={() => onNavigateToCluster?.(pattern.cluster)}
                               >
-                                {pattern.cluster}
-                              </Typography>
+                                <ClusterLabel
+                                  text={pattern.cluster}
+                                  typographyProps={{
+                                    variant: 'body1',
+                                    sx: { fontSize: '1rem' }
+                                  }}
+                                />
+                              </Box>
                               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
                                 {pattern.metricsImpacted.map((mi, miIdx) => {
                                   const isPositive = mi.avgDelta > 0;
@@ -822,7 +921,7 @@ export function MetricsInsightsOverview({
       )}
 
       {/* 5. ALL CLUSTERS */}
-      {tabValue === (qualityMetrics.length > 0 ? 4 : 3) && (
+      {activeTab === 'allClusters' && (
         <Box>
           <FrequencyChartAlt
             data={data}

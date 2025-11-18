@@ -14,6 +14,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
 import type { ModelClusterRow, MetricsFilters, MetricsSummary } from '../../../types/metrics';
 import { computeOverallProportion, computeGlobalQualityDelta } from '../metricsUtils';
+import { ClusterLabel } from '../../ClusterLabel';
 
 // Model color palette (matches MetricsInsightsOverview)
 const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
@@ -480,18 +481,19 @@ export function FrequencyChartAlt({
                 })}
               </Stack>
 
-              {/* Middle: Cluster description */}
+              {/* Middle: Cluster description (Markdown-supported) */}
               <Box sx={{ flex: 1, minWidth: 0, pb: category ? 3 : 0 }}>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    color: 'text.primary',
-                    lineHeight: 1.6,
-                    fontSize: '1rem'
+                <ClusterLabel
+                  text={cluster}
+                  typographyProps={{
+                    variant: 'body1',
+                    sx: {
+                      color: 'text.primary',
+                      lineHeight: 1.6,
+                      fontSize: '1rem'
+                    }
                   }}
-                >
-                  {cluster}
-                </Typography>
+                />
                 <Stack spacing={0.25} sx={{ color: 'text.secondary' }}>
                   {(typeof totalSize === 'number' && totalSize > 0) && (
                     <Typography variant="body2" sx={{ fontSize: 13 }}>

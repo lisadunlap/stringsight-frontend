@@ -24,9 +24,118 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering } from '../../lib/api';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth } from '../../lib/api';
+import { useTutorial } from '../../context/TutorialContext';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
+
+/**
+ * Sanitize a row object for JSON serialization by removing non-serializable values
+ * and ensuring all values are JSON-safe. Handles circular references.
+ */
+function sanitizeRowForSerialization(row: Record<string, any>, seen = new WeakSet()): Record<string, any> {
+  const sanitized: Record<string, any> = {};
+  
+  // Handle circular references
+  if (typeof row === 'object' && row !== null) {
+    if (seen.has(row)) {
+      return { __circular: true };
+    }
+    seen.add(row);
+  }
+  
+  for (const [key, value] of Object.entries(row)) {
+    // Skip functions, symbols, and undefined
+    if (typeof value === 'function' || typeof value === 'symbol') {
+      continue;
+    }
+    
+    // Handle undefined - convert to null or skip
+    if (value === undefined) {
+      continue; // Skip undefined values
+    }
+    
+    // Handle null - keep as is
+    if (value === null) {
+      sanitized[key] = null;
+      continue;
+    }
+    
+    // Handle arrays
+    if (Array.isArray(value)) {
+      sanitized[key] = value.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          return sanitizeRowForSerialization(item, seen);
+        }
+        return item;
+      });
+      continue;
+    }
+    
+    // Handle objects (but not Date, RegExp, etc.)
+    if (typeof value === 'object') {
+      // Check for common non-serializable objects
+      if (value instanceof Date) {
+        sanitized[key] = value.toISOString();
+      } else if (value instanceof RegExp) {
+        sanitized[key] = value.toString();
+      } else if (value instanceof Error) {
+        sanitized[key] = { message: value.message, name: value.name, stack: value.stack };
+      } else {
+        // Recursively sanitize nested objects
+        try {
+          sanitized[key] = sanitizeRowForSerialization(value, seen);
+        } catch (e) {
+          // If recursion fails, stringify it
+          sanitized[key] = String(value);
+        }
+      }
+      continue;
+    }
+    
+    // Primitive values (string, number, boolean) are safe
+    sanitized[key] = value;
+  }
+  
+  return sanitized;
+}
+
+/**
+ * Validate that a row has the required fields for extraction
+ */
+function validateRowForExtraction(row: Record<string, any>, method: Method): { valid: boolean; error?: string } {
+  if (!row) {
+    return { valid: false, error: 'Row is null or undefined' };
+  }
+  
+  // Check for required prompt field
+  if (!row.prompt && row.prompt !== '') {
+    return { valid: false, error: 'Row is missing required field: prompt' };
+  }
+  
+  if (method === 'single_model') {
+    if (!row.model_response && row.model_response !== '') {
+      return { valid: false, error: 'Row is missing required field: model_response (for single_model method)' };
+    }
+    if (!row.model) {
+      return { valid: false, error: 'Row is missing required field: model (for single_model method)' };
+    }
+  } else if (method === 'side_by_side') {
+    const hasModelA = row.model_a !== undefined && row.model_a !== null;
+    const hasModelB = row.model_b !== undefined && row.model_b !== null;
+    const hasResponseA = row.model_a_response !== undefined && row.model_a_response !== null;
+    const hasResponseB = row.model_b_response !== undefined && row.model_b_response !== null;
+    
+    if (!hasModelA && !hasModelB) {
+      return { valid: false, error: 'Row is missing required fields: model_a or model_b (for side_by_side method)' };
+    }
+    if (!hasResponseA && !hasResponseB) {
+      return { valid: false, error: 'Row is missing required fields: model_a_response or model_b_response (for side_by_side method)' };
+    }
+  }
+  
+  return { valid: true };
+}
 
 /**
  * Transform operationalRows to backend-expected format.
@@ -161,6 +270,7 @@ export default function PropertyExtractionPanel({
   onNavigateToMetrics,
 }: PropertyExtractionPanelProps) {
   const resultsRef = useRef<HTMLDivElement>(null);
+  const tutorial = useTutorial();
   
   // Helper function to map prompt names to display labels
   const getPromptDisplayLabel = (name: string): string => {
@@ -317,9 +427,50 @@ export default function PropertyExtractionPanel({
     setBusy(true);
     try {
       setErrorMsg(null);
+      
+      // Debug logging
+      console.log('[PropertyExtraction] Extracting from row:', {
+        hasRow: !!row,
+        rowKeys: Object.keys(row),
+        method,
+        prompt: row.prompt ? 'present' : 'missing',
+        model_response: row.model_response ? 'present' : 'missing',
+        model: row.model ? 'present' : 'missing',
+        model_a: row.model_a ? 'present' : 'missing',
+        model_b: row.model_b ? 'present' : 'missing',
+      });
+      
+      // Validate row has required fields
+      const validation = validateRowForExtraction(row, method);
+      if (!validation.valid) {
+        console.error('[PropertyExtraction] Row validation failed:', validation.error);
+        setErrorMsg(`Row validation failed: ${validation.error}`);
+        return;
+      }
+      
+      // Sanitize row to remove non-serializable data
+      let sanitizedRow: Record<string, any>;
+      try {
+        sanitizedRow = sanitizeRowForSerialization(row);
+      } catch (e: any) {
+        console.error('[PropertyExtraction] Error sanitizing row:', e);
+        setErrorMsg(`Failed to prepare row data: ${e?.message || 'Unknown serialization error'}`);
+        return;
+      }
+      
+      // Test JSON serialization before making the request
+      try {
+        const testBody = { row: sanitizedRow, method };
+        JSON.stringify(testBody);
+      } catch (e: any) {
+        console.error('[PropertyExtraction] Error serializing request body:', e);
+        setErrorMsg(`Failed to serialize request data: ${e?.message || 'JSON serialization error. Check for circular references or non-serializable data.'}`);
+        return;
+      }
+      
       const outputDir = generateOutputDir();
       const body: any = {
-        row,
+        row: sanitizedRow,
         method,
         system_prompt: selectedPrompt,
         task_description: canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription : undefined,
@@ -330,9 +481,50 @@ export default function PropertyExtractionPanel({
         max_workers: maxWorkers,
         output_dir: outputDir,
       };
+      
+      console.log('[PropertyExtraction] Making API call with:', {
+        method,
+        system_prompt: selectedPrompt,
+        model_name: body.model_name,
+        hasRow: !!body.row,
+        rowKeys: Object.keys(body.row),
+      });
+      
+      // Check backend health before making the request
+      const backendHealthy = await checkBackendHealth();
+      if (!backendHealthy) {
+        const apiBase = (import.meta as any).env?.VITE_BACKEND || (globalThis as any)?.VITE_BACKEND || "/api";
+        const backendUrl = apiBase === "/api" ? "http://localhost:8000" : apiBase;
+        setErrorMsg(
+          `Backend is not reachable. ` +
+          `\n\nFrontend API path: ${apiBase}/extract/single` +
+          `\nBackend URL: ${backendUrl}` +
+          `\n\nTroubleshooting steps:` +
+          `\n1. Start the backend server:` +
+          `\n   uvicorn stringsight.api:app --reload --host localhost --port 8000` +
+          `\n2. Test backend health:` +
+          `\n   curl http://localhost:8000/health` +
+          `\n   (Should return: {"ok": true})` +
+          `\n3. Check environment variable:` +
+          `\n   VITE_BACKEND=${apiBase === "/api" ? "not set (using default /api proxy)" : apiBase}` +
+          `\n4. Check browser console for detailed error messages` +
+          `\n5. Ensure OpenAI API key is set: export OPENAI_API_KEY=your_key`
+        );
+        return;
+      }
+      
       const res = await extractSingle({ ...body, return_debug: true });
       onPropertiesMerged(res.properties || []);
       setLastExtractProps(res.properties || []);
+
+      // Mark the "Extract row 0" tutorial step as completed when a single-row extraction runs
+      if (tutorial && tutorial.activeTutorialId === 'demo-data' && tutorial.steps && tutorial.steps[tutorial.currentStepIndex]) {
+        tutorial.markActionCompleted('demo-data', 'demo-step-3-extract-row-0');
+        const step = tutorial.steps[tutorial.currentStepIndex];
+        if (step.id === 'demo-step-3-extract-row-0') {
+          tutorial.nextStep();
+        }
+      }
       
       // Open the trace viewer to show the selected row
       if (onOpenTrace && row) {
@@ -355,7 +547,40 @@ export default function PropertyExtractionPanel({
       }
     } catch (e: any) {
       console.error('[PropertyExtraction] Error in runExtractSingle:', e);
-      setErrorMsg(String(e?.message || e));
+      const errorMessage = String(e?.message || e);
+      
+      // Provide more helpful error messages
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('Network request failed')) {
+        const apiBase = (import.meta as any).env?.VITE_BACKEND || (globalThis as any)?.VITE_BACKEND || "/api";
+        const backendUrl = apiBase === "/api" ? "http://localhost:8000" : apiBase;
+        setErrorMsg(
+          `Network error: Failed to connect to the backend.` +
+          `\n\nFrontend API path: ${apiBase}/extract/single` +
+          `\nBackend URL: ${backendUrl}` +
+          `\n\nTroubleshooting steps:` +
+          `\n1. Start the backend server:` +
+          `\n   uvicorn stringsight.api:app --reload --host localhost --port 8000` +
+          `\n2. Test backend health:` +
+          `\n   curl http://localhost:8000/health` +
+          `\n   (Should return: {"ok": true})` +
+          `\n3. Check environment variable:` +
+          `\n   VITE_BACKEND=${apiBase === "/api" ? "not set (using default /api proxy)" : apiBase}` +
+          `\n4. Check browser console for detailed error messages` +
+          `\n5. Ensure OpenAI API key is set: export OPENAI_API_KEY=your_key` +
+          `\n\nNote: The Vite dev server proxies /api requests to the backend.` +
+          `\nIf the backend is on a different host/port, set VITE_BACKEND in .env.local`
+        );
+      } else if (errorMessage.includes('JSON') || errorMessage.includes('parse')) {
+        setErrorMsg(
+          `JSON parsing error: ${errorMessage}\n` +
+          'This may indicate:\n' +
+          '1. The LLM returned invalid JSON\n' +
+          '2. The system prompt needs adjustment\n' +
+          '3. The input data format is incompatible'
+        );
+      } else {
+        setErrorMsg(errorMessage);
+      }
     } finally {
       setBusy(false);
     }
@@ -610,7 +835,7 @@ export default function PropertyExtractionPanel({
         <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
           Extraction Prompt
         </Typography>
-        <Stack spacing={2}>
+        <Stack spacing={2} data-tutorial-id="extract-properties-trace">
           <Autocomplete
             size="small"
             options={promptOptions.map(p => p.name)}
@@ -897,6 +1122,7 @@ export default function PropertyExtractionPanel({
             onClick={runExtractSingle}
             disabled={busy || clusteringBusy || !methodValid || !getSelectedRow()}
             sx={{ width: '100%' }}
+            data-tutorial-id="extract-row-0"
           >
             {(() => {
               const row = getSelectedRow();
@@ -910,6 +1136,7 @@ export default function PropertyExtractionPanel({
             onClick={runExtractBatch}
             disabled={busy || clusteringBusy || !methodValid}
             sx={{ width: '100%' }}
+            data-tutorial-id="extract-all-rows"
           >
             {sampleSize && sampleSize > 0
               ? `Run on sample (${sampleSize} prompts)`
@@ -931,13 +1158,17 @@ export default function PropertyExtractionPanel({
       )}
 
       {lastExtractProps.length > 0 && (
-        <Box ref={resultsRef} sx={{
-          p: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          backgroundColor: 'background.paper',
-          borderRadius: 1
-        }}>
+        <Box
+          ref={resultsRef}
+          sx={{
+            p: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            backgroundColor: 'background.paper',
+            borderRadius: 1
+          }}
+          data-tutorial-id="extraction-results-panel"
+        >
           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
             Properties extracted
           </Typography>

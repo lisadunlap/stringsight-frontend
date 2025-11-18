@@ -13,6 +13,7 @@ import { Box, Typography, Alert, Stack, Paper, Chip } from '@mui/material';
 import { getModelColor } from './PlotlyChartBase';
 import { getDisplayName, getOriginalMetricName, sanitizeMetricName } from '../utils/metricUtils';
 import type { ModelClusterRow, MetricsFilters } from '../../../types/metrics';
+import { ClusterLabel } from '../../ClusterLabel';
 
 // Normalize group names to standard categories
 function normalizeGroup(value: unknown): string {
@@ -341,17 +342,18 @@ export function QualityDeltaChartAlt({
                 })}
               </Stack>
 
-              {/* Right side: Cluster description */}
+              {/* Right side: Cluster description (Markdown-supported) */}
               <Box sx={{ flex: 1, minWidth: 0, maxWidth: 600 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: 'text.primary',
-                    lineHeight: 1.6
+                <ClusterLabel
+                  text={cluster}
+                  typographyProps={{
+                    variant: 'body2',
+                    sx: {
+                      color: 'text.primary',
+                      lineHeight: 1.6
+                    }
                   }}
-                >
-                  {cluster}
-                </Typography>
+                />
                 {category && (
                   <Chip
                     label={getCategoryDisplayName(category)}
