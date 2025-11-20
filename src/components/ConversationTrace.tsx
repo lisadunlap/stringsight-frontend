@@ -6,10 +6,17 @@ import DownloadIcon from '@mui/icons-material/Download';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+// @ts-ignore remark-breaks may not have bundled type declarations
+import remarkBreaks from 'remark-breaks';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import html2pdf from 'html2pdf.js';
 import { generatePdfFilename } from '../lib/utils';
+
+// Normalize literal "\n" sequences into actual newlines for display
+function normalizeVisibleNewlines(text: string): string {
+  return text.replace(/\\n/g, '\n');
+}
 
 function escapeRegex(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
@@ -402,6 +409,36 @@ function normalizeHighlightSegment(segment: string): string {
 }
 
 /**
+ * Extract the most "chat-like" phrases from a highlight segment.
+ * If the segment contains quoted text (e.g. "Let me proceed with cancelling IFOYYZ first."),
+ * we treat the quoted portions as the primary phrases to highlight.
+ * Otherwise, we fall back to using the whole segment.
+ */
+function extractHighlightPhrases(segment: string): string[] {
+  const phrases: string[] = [];
+
+  // Double quotes
+  const doubleQuoteRegex = /"([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = doubleQuoteRegex.exec(segment)) !== null) {
+    const candidate = m[1].trim();
+    if (!candidate) continue;
+    const wordCount = candidate.split(/\s+/).filter(Boolean).length;
+    if (wordCount >= 3) {
+      phrases.push(candidate);
+    }
+  }
+
+  // If we found at least one reasonable quoted phrase, use those.
+  if (phrases.length > 0) {
+    return phrases;
+  }
+
+  // Otherwise, fall back to the original segment
+  return [segment];
+}
+
+/**
  * Improved highlighting with fuzzy matching fallback
  * Returns both the content array and whether matches were found
  */
@@ -426,7 +463,10 @@ function highlightContent(
     const segments = ellipsisSegments.length > 0 ? ellipsisSegments : [raw];
 
     for (const segment of segments) {
-      const normalizedSegment = normalizeHighlightSegment(segment);
+      const phraseCandidates = extractHighlightPhrases(segment);
+
+      for (const phrase of phraseCandidates) {
+        const normalizedSegment = normalizeHighlightSegment(phrase);
       if (!normalizedSegment) continue;
 
       // Skip n-grams with fewer than 3 words (per original behavior)
@@ -480,6 +520,7 @@ function highlightContent(
             matches.push(fuzzyMatch);
           }
         }
+      }
       }
     }
   }
@@ -582,12 +623,12 @@ export function ConversationTrace({
   hideDownloadButton?: boolean;
 }) {
   const [prettyPrintEnabled, setPrettyPrintEnabled] = useState(true);
-  const [highlightingEnabled, setHighlightingEnabled] = useState(false);
+  const [highlightingEnabled, setHighlightingEnabled] = useState(true);
   const [collapsedMessages, setCollapsedMessages] = useState<Set<number>>(new Set());
-  const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const messageRefs = useRef<any[]>([]);
   const highlightRefs = useRef<(HTMLElement | null)[]>([]);
-  const prevHighlightsRef = useRef<string[] | undefined>();
-  const printRef = useRef<HTMLDivElement>(null);
+  const prevHighlightsRef = useRef<string[] | undefined>(undefined);
+  const printRef = useRef<HTMLDivElement | null>(null);
 
   const handlePrint = () => {
     if (!printRef.current) return;
@@ -602,7 +643,10 @@ export function ConversationTrace({
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    html2pdf().set(opt).from(printRef.current).save();
+    const anyHtml2pdf: any = html2pdf;
+    // @ts-ignore html2pdf supports being called with no arguments when using the chained API
+    const worker = anyHtml2pdf();
+    worker.set(opt).from(printRef.current).save();
   };
 
   console.log('[ConversationTrace] Rendering with highlights:', highlights);
@@ -972,10 +1016,11 @@ export function ConversationTrace({
                     );
                   }
                   const t = (blk as { kind: 'text'; text: string }).text ?? '';
-                  if (!t.trim()) return null;
+                  const displayText = normalizeVisibleNewlines(t);
+                  if (!displayText.trim()) return null;
 
                   const isFormattedJson = (() => {
-                    const trimmed = t.trim();
+                    const trimmed = displayText.trim();
                     if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
                     return /\n\s+["{[]/.test(trimmed);
                   })();
@@ -983,15 +1028,15 @@ export function ConversationTrace({
                   if (isFormattedJson) {
                     return (
                       <Typography key={`txt-json-${idx}`} component="pre" variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: 1.5, m: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>
-                        {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(t, effectiveHighlights, highlightRefs).content : t}
+                        {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(displayText, effectiveHighlights, highlightRefs).content : displayText}
                       </Typography>
                     );
                   }
 
-                  const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(t);
+                  const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(displayText);
                   // Detect LaTeX: $$...$$ (display math), $...$ (inline math), \[...\], \(...\), or LaTeX commands like \sum, \frac, etc.
                   // Use [\s\S] to match across newlines, and non-greedy matching with *?
-                  const hasLaTeX = /\$\$[\s\S]*?\$\$|\$[^\s$][\s\S]*?[^\s$]\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+\{/.test(t);
+                  const hasLaTeX = /\$\$[\s\S]*?\$\$|\$[^\s$][\s\S]*?[^\s$]\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+\{/.test(displayText);
                   if (hasMarkdown || hasLaTeX) {
                     return (
                       <Box key={`txt-md-${idx}`} sx={{
@@ -1010,7 +1055,7 @@ export function ConversationTrace({
                         wordBreak: 'break-word',
                         overflowWrap: 'anywhere',
                       }}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]} rehypePlugins={[rehypeKatex]}
                           components={{
                             p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</p>,
                             span: ({ children }) => <span>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</span>,
@@ -1025,7 +1070,7 @@ export function ConversationTrace({
                             h6: ({ children }) => <h6>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h6>,
                           }}
                         >
-                          {normalizeLatexDelimiters(t)}
+                          {normalizeLatexDelimiters(displayText)}
                         </ReactMarkdown>
                       </Box>
                     );
@@ -1033,7 +1078,7 @@ export function ConversationTrace({
 
                   return (
                     <Typography key={`txt-${idx}`} variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                      {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(t, effectiveHighlights, highlightRefs).content : t}
+                      {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(displayText, effectiveHighlights, highlightRefs).content : displayText}
                     </Typography>
                   );
                 })}
@@ -1041,9 +1086,10 @@ export function ConversationTrace({
             )}
 
             {structuredBlocks.length === 0 && content && content.trim() && (() => {
+            const displayContent = normalizeVisibleNewlines(content);
             // Check if content is formatted JSON first (before markdown detection)
             const isFormattedJson = (() => {
-              const trimmed = content.trim();
+              const trimmed = displayContent.trim();
               if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
               // Check for JSON-like indentation (multiple newlines with spaces)
               return /\n\s+["{[]/.test(trimmed);
@@ -1066,15 +1112,15 @@ export function ConversationTrace({
                     overflowWrap: 'anywhere',
                   }}
                 >
-                  {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(content, effectiveHighlights, highlightRefs).content : content}
+                  {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(displayContent, effectiveHighlights, highlightRefs).content : displayContent}
                 </Typography>
               );
             }
 
-            const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(content);
+            const hasMarkdown = /[#*`_\[\](){}]|^\s*[-+*]\s|^\s*\d+\.\s/m.test(displayContent);
             // Detect LaTeX: $$...$$ (display math), $...$ (inline math), \[...\], \(...\), or LaTeX commands like \sum, \frac, etc.
             // Use [\s\S] to match across newlines, and non-greedy matching with *?
-            const hasLaTeX = /\$\$[\s\S]*?\$\$|\$[^\s$][\s\S]*?[^\s$]\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+\{/.test(content);
+            const hasLaTeX = /\$\$[\s\S]*?\$\$|\$[^\s$][\s\S]*?[^\s$]\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+\{/.test(displayContent);
 
             // Render Markdown/LaTeX if detected
             if (hasMarkdown || hasLaTeX) {
@@ -1098,7 +1144,7 @@ export function ConversationTrace({
                   }}
                 >
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
+                    remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
                     rehypePlugins={[rehypeKatex]}
                     components={{
                       p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</p>,
@@ -1114,7 +1160,7 @@ export function ConversationTrace({
                       h6: ({ children }) => <h6>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h6>,
                     }}
                   >
-                    {normalizeLatexDelimiters(content)}
+                    {normalizeLatexDelimiters(displayContent)}
                   </ReactMarkdown>
                 </Box>
               );
@@ -1127,7 +1173,7 @@ export function ConversationTrace({
                 wordBreak: 'break-word',
                 overflowWrap: 'anywhere',
               }}>
-                {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(content, effectiveHighlights, highlightRefs).content : content}
+                {effectiveHighlights && effectiveHighlights.length > 0 ? highlightContent(displayContent, effectiveHighlights, highlightRefs).content : displayContent}
               </Typography>
             );
           })()}
