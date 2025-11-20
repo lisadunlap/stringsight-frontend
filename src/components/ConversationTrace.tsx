@@ -1219,7 +1219,13 @@ export function ConversationTrace({
                   margin: 0,
                 }}
               >
-                {typeof rawResponse === 'string' ? rawResponse : JSON.stringify(rawResponse, null, 2)}
+                {(() => {
+                  if (typeof rawResponse === 'string') {
+                    return normalizeVisibleNewlines(rawResponse);
+                  }
+                  const pretty = JSON.stringify(rawResponse, null, 2);
+                  return normalizeVisibleNewlines(pretty);
+                })()}
               </Typography>
             </Box>
           </AccordionDetails>
