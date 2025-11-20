@@ -12,8 +12,12 @@ import {
   Divider,
   FormHelperText,
   Checkbox,
-  ListItemText
+  ListItemText,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 export interface ColumnMapping {
   promptCol: string;
@@ -200,8 +204,46 @@ export function ColumnSelector({
         </Alert>
       )}
 
+      {/* First Row Preview Accordion */}
+      {rows.length > 0 && (
+        <Accordion sx={{ mb: 4 }}>
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            aria-controls="first-row-preview-content"
+            id="first-row-preview-header"
+          >
+            <Typography variant="subtitle2">Preview First Row</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box
+              sx={{
+                p: 2,
+                backgroundColor: 'grey.50',
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'grey.300',
+                overflow: 'auto',
+                maxHeight: '400px'
+              }}
+            >
+              <pre
+                style={{
+                  margin: 0,
+                  fontFamily: 'monospace',
+                  fontSize: '0.875rem',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
+                }}
+              >
+                {JSON.stringify(rows[0], null, 2)}
+              </pre>
+            </Box>
+          </AccordionDetails>
+        </Accordion>
+      )}
+
       {/* Method Selection */}
-      <FormControl fullWidth sx={{ mb: 2 }}>
+      <FormControl fullWidth sx={{ mb: 0 }}>
         <InputLabel>Comparison Method</InputLabel>
         <Select
           value={mapping.method}
@@ -219,88 +261,126 @@ export function ColumnSelector({
         </FormHelperText>
       </FormControl>
 
-      <Divider sx={{ my: 2 }} />
+      <Divider sx={{ my: 1 }} />
 
-      {/* Prompt Column */}
-      <FormControl fullWidth sx={{ mb: 2 }}>
-        <InputLabel>Prompt Column *</InputLabel>
-        <Select
-          value={mapping.promptCol}
-          label="Prompt Column *"
-          onChange={handlePromptChange}
-        >
-          {columns.map(col => (
-            <MenuItem key={col} value={col}>{col}</MenuItem>
-          ))}
-        </Select>
-        <FormHelperText>Column containing the input prompts/questions</FormHelperText>
-      </FormControl>
+      {/* First Row: Prompt and Response Columns */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
+        {/* Prompt Column */}
+        <FormControl fullWidth>
+          <InputLabel>Prompt Column *</InputLabel>
+          <Select
+            value={mapping.promptCol}
+            label="Prompt Column *"
+            onChange={handlePromptChange}
+          >
+            {columns.map(col => (
+              <MenuItem key={col} value={col}>{col}</MenuItem>
+            ))}
+          </Select>
+          <FormHelperText>Column containing the input prompts/questions</FormHelperText>
+        </FormControl>
 
-      {/* Response Columns */}
-      <FormControl fullWidth sx={{ mb: 2 }}>
-        <InputLabel>
-          Response Column{mapping.method === 'side_by_side' ? 's' : ''} *
-        </InputLabel>
-        <Select
-          multiple={mapping.method === 'side_by_side'}
-          value={mapping.method === 'side_by_side' ? mapping.responseCols : mapping.responseCols[0] || ''}
-          label={`Response Column${mapping.method === 'side_by_side' ? 's' : ''} *`}
-          onChange={handleResponseChange}
-          renderValue={(selected) => (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-              {mapping.method === 'side_by_side' 
-                ? renderChips(Array.isArray(selected) ? selected : [selected])
-                : selected
-              }
-            </Box>
-          )}
-        >
-          {getAvailableColumns([mapping.promptCol]).map(col => (
-            <MenuItem key={col} value={col}>{col}</MenuItem>
-          ))}
-        </Select>
-        <FormHelperText>
-          {mapping.method === 'side_by_side' 
-            ? 'Option A: select exactly 2 response columns (legacy). Option B: select a model column below and choose Model A/B.'
-            : 'Column containing the model response'
-          }
-        </FormHelperText>
-      </FormControl>
+        {/* Response Columns */}
+        <FormControl fullWidth>
+          <InputLabel>
+            Response Column{mapping.method === 'side_by_side' ? 's' : ''} *
+          </InputLabel>
+          <Select
+            multiple={mapping.method === 'side_by_side'}
+            value={mapping.method === 'side_by_side' ? mapping.responseCols : mapping.responseCols[0] || ''}
+            label={`Response Column${mapping.method === 'side_by_side' ? 's' : ''} *`}
+            onChange={handleResponseChange}
+            renderValue={(selected) => (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+                {mapping.method === 'side_by_side' 
+                  ? renderChips(Array.isArray(selected) ? selected : [selected])
+                  : selected
+                }
+              </Box>
+            )}
+          >
+            {getAvailableColumns([mapping.promptCol]).map(col => (
+              <MenuItem key={col} value={col}>{col}</MenuItem>
+            ))}
+          </Select>
+          <FormHelperText>
+            {mapping.method === 'side_by_side' 
+              ? 'Option A: select exactly 2 response columns (legacy). Option B: select a model column below and choose Model A/B.'
+              : 'Column containing the model response'
+            }
+          </FormHelperText>
+        </FormControl>
+      </Box>
 
-      {/* Model Columns */}
-      <FormControl fullWidth sx={{ mb: 2 }}>
-        <InputLabel>
-          Model Column{mapping.method === 'side_by_side' ? 's' : ''} (Optional)
-        </InputLabel>
-        <Select
-          multiple={mapping.method === 'side_by_side'}
-          value={mapping.method === 'side_by_side' ? mapping.modelCols : mapping.modelCols[0] || ''}
-          label={`Model Column${mapping.method === 'side_by_side' ? 's' : ''} (Optional)`}
-          onChange={handleModelChange}
-          renderValue={(selected) => (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-              {mapping.method === 'side_by_side' 
-                ? renderChips(Array.isArray(selected) ? selected : [selected], 'secondary')
-                : selected
-              }
-            </Box>
-          )}
-        >
-          {getAvailableColumns([mapping.promptCol, ...mapping.responseCols]).map(col => (
-            <MenuItem key={col} value={col}>{col}</MenuItem>
-          ))}
-        </Select>
-        <FormHelperText>
-          {mapping.method === 'side_by_side' 
-            ? 'Optional: Select 2 columns containing model names (will use "Model A", "Model B" if not specified)'
-            : 'Optional: Column containing model names (will use "unknown" if not specified)'
-          }
-        </FormHelperText>
-      </FormControl>
+      {/* Second Row: Model and Score Columns */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
+        {/* Model Columns */}
+        <FormControl fullWidth>
+          <InputLabel>
+            Model Column{mapping.method === 'side_by_side' ? 's' : ''} (Optional)
+          </InputLabel>
+          <Select
+            multiple={mapping.method === 'side_by_side'}
+            value={mapping.method === 'side_by_side' ? mapping.modelCols : mapping.modelCols[0] || ''}
+            label={`Model Column${mapping.method === 'side_by_side' ? 's' : ''} (Optional)`}
+            onChange={handleModelChange}
+            renderValue={(selected) => (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+                {mapping.method === 'side_by_side' 
+                  ? renderChips(Array.isArray(selected) ? selected : [selected], 'secondary')
+                  : selected
+                }
+              </Box>
+            )}
+          >
+            {getAvailableColumns([mapping.promptCol, ...mapping.responseCols]).map(col => (
+              <MenuItem key={col} value={col}>{col}</MenuItem>
+            ))}
+          </Select>
+          <FormHelperText>
+            {mapping.method === 'side_by_side' 
+              ? 'Optional: Select 2 columns containing model names (will use "Model A", "Model B" if not specified)'
+              : 'Optional: Column containing model names (will use "unknown" if not specified)'
+            }
+          </FormHelperText>
+        </FormControl>
+
+        {/* Score Columns */}
+        <FormControl fullWidth>
+          <InputLabel>Score Columns (Optional)</InputLabel>
+          <Select
+            multiple
+            value={mapping.scoreCols}
+            label="Score Columns (Optional)"
+            onChange={handleScoreChange}
+            renderValue={(selected) => (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+                {renderChips(selected, 'secondary', (col) => {
+                  setMapping(prev => ({ ...prev, scoreCols: prev.scoreCols.filter(c => c !== col) }));
+                  setUseAutoDetection(false);
+                })}
+              </Box>
+            )}
+            MenuProps={{
+              PaperProps: { sx: { maxHeight: 360 } }
+            }}
+          >
+            {getAvailableColumns([mapping.promptCol, ...mapping.responseCols, ...mapping.modelCols]).map(col => (
+              <MenuItem key={col} value={col}>
+                <Checkbox checked={mapping.scoreCols.indexOf(col) > -1} />
+                <ListItemText primary={col} />
+              </MenuItem>
+            ))}
+          </Select>
+          <FormHelperText>
+            Select one or more metrics. Checked items are included. Click Done to apply.
+          </FormHelperText>
+        </FormControl>
+      </Box>
 
       {/* Model A/B pickers only when method is side_by_side (tidy path) */}
       {mapping.method === 'side_by_side' && mapping.modelCols[0] && (
-        <>
+        <Box sx={{ mt: 3, mb: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Compare Two Models (Optional)</Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
             <FormControl fullWidth>
@@ -341,40 +421,9 @@ export function ColumnSelector({
               Model A and Model B should be different.
             </Alert>
           )}
-        </>
+        </Box>
       )}
 
-      {/* Score Columns */}
-      <FormControl fullWidth sx={{ mb: 2 }}>
-        <InputLabel>Score Columns (Optional)</InputLabel>
-        <Select
-          multiple
-          value={mapping.scoreCols}
-          label="Score Columns (Optional)"
-          onChange={handleScoreChange}
-          renderValue={(selected) => (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-              {renderChips(selected, 'secondary', (col) => {
-                setMapping(prev => ({ ...prev, scoreCols: prev.scoreCols.filter(c => c !== col) }));
-                setUseAutoDetection(false);
-              })}
-            </Box>
-          )}
-          MenuProps={{
-            PaperProps: { sx: { maxHeight: 360 } }
-          }}
-        >
-          {getAvailableColumns([mapping.promptCol, ...mapping.responseCols, ...mapping.modelCols]).map(col => (
-            <MenuItem key={col} value={col}>
-              <Checkbox checked={mapping.scoreCols.indexOf(col) > -1} />
-              <ListItemText primary={col} />
-            </MenuItem>
-          ))}
-        </Select>
-        <FormHelperText>
-          Select one or more metrics. Checked items are included. Click Done to apply.
-        </FormHelperText>
-      </FormControl>
 
       {/* Validation Errors */}
       {errors.length > 0 && (

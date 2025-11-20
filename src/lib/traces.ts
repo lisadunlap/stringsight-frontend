@@ -4,6 +4,7 @@ export interface Message {
   content: string | { text?: string; image?: string; tool_calls?: any[] } | any;
   name?: string;
   id?: string;
+  tool_calls?: string | any[]; // Tool calls can be at top level (stringified JSON or array)
 }
 
 export interface SingleTrace { questionId: string; prompt: string; messages: Message[] }
@@ -56,7 +57,8 @@ export function ensureOpenAIFormat(prompt: string, response: any): Message[] {
         role: m.role as Role,
         content: m.content,
         name: m.name,
-        id: m.id
+        id: m.id,
+        tool_calls: m.tool_calls // Preserve tool_calls at top level
       }));
     }
 
@@ -72,7 +74,8 @@ export function ensureOpenAIFormat(prompt: string, response: any): Message[] {
               role: msg.role as Role,
               content: msg.content,
               name: msg.name,
-              id: msg.id
+              id: msg.id,
+              tool_calls: msg.tool_calls // Preserve tool_calls at top level
             });
           }
         }
@@ -87,7 +90,8 @@ export function ensureOpenAIFormat(prompt: string, response: any): Message[] {
                   role: msg.role as Role,
                   content: msg.content,
                   name: msg.name || key,  // Use step name as fallback
-                  id: msg.id
+                  id: msg.id,
+                  tool_calls: msg.tool_calls // Preserve tool_calls at top level
                 });
               }
             }
@@ -188,7 +192,8 @@ export function ensureOpenAIFormat(prompt: string, response: any): Message[] {
             role: m.role as Role,
             content: content,
             name: m.name,
-            id: m.id
+            id: m.id,
+            tool_calls: m.tool_calls // Preserve tool_calls at top level
           };
         });
       return normalized;

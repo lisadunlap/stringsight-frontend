@@ -226,6 +226,7 @@ export function ModelComparisonTab({
                       positive: { label: 'Positive', color: '#16A34A' }
                     };
                     const config = categoryConfig[behavior.category] || { label: behavior.category, color: '#9E9E9E' };
+                    const hasCategory = behavior.category && behavior.category.trim() !== '';
                     
                     return (
                       <Box
@@ -267,20 +268,22 @@ export function ModelComparisonTab({
                           <Typography variant="caption" color="text.secondary">
                             {behavior.size} conversations
                           </Typography>
-                          <Chip
-                            label={config.label}
-                            size="small"
-                            sx={{
-                              height: 20,
-                              fontSize: '0.7rem',
-                              color: config.color,
-                              borderColor: config.color,
-                              bgcolor: 'background.paper',
-                              fontWeight: 500,
-                              flexShrink: 0
-                            }}
-                            variant="outlined"
-                          />
+                          {hasCategory && (
+                            <Chip
+                              label={config.label}
+                              size="small"
+                              sx={{
+                                height: 20,
+                                fontSize: '0.7rem',
+                                color: config.color,
+                                borderColor: config.color,
+                                bgcolor: 'background.paper',
+                                fontWeight: 500,
+                                flexShrink: 0
+                              }}
+                              variant="outlined"
+                            />
+                          )}
                         </Stack>
                       </Box>
                     );

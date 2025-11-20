@@ -53,7 +53,7 @@ const TUTORIAL_DEFINITIONS: Record<TutorialId, TutorialStepDefinition[]> = {
       id: 'demo-step-3-extract-row-0',
       targetId: 'extract-row-0',
       title: 'Try extracting a single row',
-      body: 'Start by extracting properties for row 0. This lets you preview how the extractor works on one example before running it on all rows.',
+      body: 'Start by extracting properties for the selected row. This lets you preview how the extractor works on one example before running it on all rows.',
       requireActionToProceed: true,
     },
     {
@@ -67,7 +67,7 @@ const TUTORIAL_DEFINITIONS: Record<TutorialId, TutorialStepDefinition[]> = {
       id: 'demo-step-5-extract-all-rows',
       targetId: 'extract-all-rows',
       title: 'Run extraction for your whole dataset',
-      body: 'Once you like the properties extracted from row 0, click "Run on all traces" to apply the extractor to the entire dataset.',
+      body: 'Once you like the properties extracted from the selected row, click "Run on all traces" to apply the extractor to the entire dataset.',
       requireActionToProceed: false,
     },
   ],

@@ -5,6 +5,7 @@ import {
   FindInPage as PropertyExtractionIcon,
   MenuBook as DocsIcon
 } from '@mui/icons-material';
+import { EXTERNAL_LINKS } from '../config';
 
 export type SidebarSection = 'data' | 'extraction' | 'metrics';
 
@@ -101,7 +102,7 @@ export default function PermanentIconSidebar({ activeSection, sidebarExpanded, o
       <Tooltip title="Documentation - View StringSight documentation" placement="right">
         <Box sx={{ mb: 0 }}>
           <IconButton
-            onClick={() => window.open('https://lisadunlap.github.io/StringSight/', '_blank', 'noopener,noreferrer')}
+            onClick={() => window.open(EXTERNAL_LINKS.DOCUMENTATION, '_blank', 'noopener,noreferrer')}
             sx={{
               width: 48,
               height: 48,

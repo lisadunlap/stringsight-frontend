@@ -43,6 +43,7 @@ import { MetricsTab } from "./components/metrics/MetricsTab";
 import type { DataOperation } from "./types/operations";
 import { TutorialProvider, useTutorial } from "./context/TutorialContext";
 import { createFilterOperation, createCustomCodeOperation, createSortOperation } from "./types/operations";
+import { EXTERNAL_LINKS } from "./config";
 
 
 
@@ -2980,7 +2981,7 @@ function App() {
                   <Tooltip title="Starter Notebook">
                     <IconButton
                       component="a"
-                      href="https://drive.google.com/file/d/1KQiLi6slA29BPMDMAMh_J7xXAYMuyZC_/view?usp=sharing"
+                      href={EXTERNAL_LINKS.STARTER_NOTEBOOK}
                       target="_blank"
                       rel="noopener noreferrer"
                       size="small"
@@ -2992,7 +2993,7 @@ function App() {
                   <Tooltip title="GitHub Repository">
                     <IconButton
                       component="a"
-                      href="https://github.com/lisadunlap/StringSight"
+                      href={EXTERNAL_LINKS.GITHUB}
                       target="_blank"
                       rel="noopener noreferrer"
                       size="small"
@@ -3004,7 +3005,7 @@ function App() {
                   <Tooltip title="Documentation">
                     <IconButton
                       component="a"
-                      href="https://lisadunlap.github.io/StringSight/"
+                      href={EXTERNAL_LINKS.DOCUMENTATION}
                       target="_blank"
                       rel="noopener noreferrer"
                       size="small"

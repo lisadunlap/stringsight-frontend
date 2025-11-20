@@ -368,8 +368,8 @@ export function MetricsInsightsOverview({
 
       const proportionDelta = row.proportion_delta || 0;
 
-      // Must have positive, significant frequency delta above the 15% threshold
-      if (proportionDelta <= 0.15) return false;
+      // Must have positive, significant frequency delta above the 5% threshold
+      if (proportionDelta <= 0.05) return false;
       if (row.proportion_delta_significant !== true) return false;
 
       return true;
@@ -383,6 +383,10 @@ export function MetricsInsightsOverview({
       tabs.push({ key: 'commonFailures', label: 'Common Failures' });
     }
 
+    if (data.length > 0) {
+      tabs.push({ key: 'allClusters', label: 'All Clusters' });
+    }
+
     if (hasModelComparisonData) {
       tabs.push({ key: 'modelComparison', label: 'Model Comparison' });
     }
@@ -393,10 +397,6 @@ export function MetricsInsightsOverview({
 
     if (qualityMetrics.length > 0 && insights.misalignedPatterns.length > 0) {
       tabs.push({ key: 'misalignedPatterns', label: 'Misaligned Patterns' });
-    }
-
-    if (data.length > 0) {
-      tabs.push({ key: 'allClusters', label: 'All Clusters' });
     }
 
     return tabs;

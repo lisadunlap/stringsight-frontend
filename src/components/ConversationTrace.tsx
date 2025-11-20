@@ -374,6 +374,34 @@ function mergeOverlappingRanges(
 }
 
 /**
+ * Split a highlight evidence string on ellipses.
+ * Internal ellipses (e.g. "foo ... bar" or "foo…bar") are treated as
+ * boundaries between separate quotes to highlight.
+ */
+function splitHighlightOnEllipses(term: string): string[] {
+  if (!term) return [];
+
+  // Normalize Unicode ellipsis to three dots for consistent splitting
+  const normalized = term.replace(/…/g, '...');
+
+  return normalized
+    // Split on runs of three or more dots; trailing ellipses will yield empty segments
+    .split(/\.{3,}/g)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+}
+
+/**
+ * Normalize a single highlight segment for matching:
+ * - Trim whitespace
+ * - Strip trailing '.' or '…' characters so evidence like "addressed..."
+ *   still matches "addressed" in the trace.
+ */
+function normalizeHighlightSegment(segment: string): string {
+  return segment.replace(/[.…]+$/gu, '').trim();
+}
+
+/**
  * Improved highlighting with fuzzy matching fallback
  * Returns both the content array and whether matches were found
  */
@@ -386,61 +414,71 @@ function highlightContent(
 
   // Collect all match regions first to handle overlaps
   const matches: Array<{ start: number; end: number }> = [];
+  const lowerText = text.toLowerCase();
 
   for (const term of highlights) {
-    const trimmed = String(term || '').trim();
-    if (!trimmed) continue;
+    const raw = String(term ?? '').trim();
+    if (!raw) continue;
 
-    // Skip n-grams with fewer than 3 words
-    const words = trimmed.split(/\s+/).filter(w => w.length > 0);
-    if (words.length < 3) continue;
+    // If the evidence contains ellipses in the middle, treat each side
+    // as a separate quote to highlight.
+    const ellipsisSegments = splitHighlightOnEllipses(raw);
+    const segments = ellipsisSegments.length > 0 ? ellipsisSegments : [raw];
 
-    let foundExact = false;
+    for (const segment of segments) {
+      const normalizedSegment = normalizeHighlightSegment(segment);
+      if (!normalizedSegment) continue;
 
-    // Strategy 1: Try simple case-insensitive exact match
-    const lowerText = text.toLowerCase();
-    const lowerTerm = trimmed.toLowerCase();
-    let searchStart = 0;
-    while (true) {
-      const idx = lowerText.indexOf(lowerTerm, searchStart);
-      if (idx === -1) break;
+      // Skip n-grams with fewer than 3 words (per original behavior)
+      const words = normalizedSegment.split(/\s+/).filter((w) => w.length > 0);
+      if (words.length < 3) continue;
 
-      matches.push({
-        start: idx,
-        end: idx + trimmed.length
-      });
-      foundExact = true;
-      searchStart = idx + 1;
-    }
+      let foundExact = false;
 
-    // Strategy 2: Try regex-based exact match (handles edge cases)
-    if (!foundExact) {
-      const exactPattern = escapeRegex(trimmed);
-      const exactRegex = new RegExp(exactPattern, 'gi');
-      let m: RegExpExecArray | null;
+      // Strategy 1: Try simple case-insensitive exact match
+      const lowerTerm = normalizedSegment.toLowerCase();
+      let searchStart = 0;
+      while (true) {
+        const idx = lowerText.indexOf(lowerTerm, searchStart);
+        if (idx === -1) break;
 
-      while ((m = exactRegex.exec(text)) !== null) {
         matches.push({
-          start: m.index,
-          end: m.index + m[0].length
+          start: idx,
+          end: idx + normalizedSegment.length,
         });
         foundExact = true;
-        if (exactRegex.lastIndex === m.index) exactRegex.lastIndex++;
+        searchStart = idx + 1;
       }
-    }
 
-    // Strategy 3: Fuzzy match if no exact matches found
-    if (!foundExact) {
-      const fuzzyMatch = findBestMatch(text, trimmed, 0.8);
-      if (fuzzyMatch) {
-        // Verify the matched span length is similar to evidence length (within 30% tolerance)
-        // This prevents partial substring matches
-        const matchedLength = fuzzyMatch.end - fuzzyMatch.start;
-        const evidenceLength = trimmed.length;
-        const lengthRatio = matchedLength / evidenceLength;
+      // Strategy 2: Try regex-based exact match (handles edge cases)
+      if (!foundExact) {
+        const exactPattern = escapeRegex(normalizedSegment);
+        const exactRegex = new RegExp(exactPattern, 'gi');
+        let m: RegExpExecArray | null;
 
-        if (lengthRatio >= 0.7 && lengthRatio <= 1.3) {
-          matches.push(fuzzyMatch);
+        while ((m = exactRegex.exec(text)) !== null) {
+          matches.push({
+            start: m.index,
+            end: m.index + m[0].length,
+          });
+          foundExact = true;
+          if (exactRegex.lastIndex === m.index) exactRegex.lastIndex++;
+        }
+      }
+
+      // Strategy 3: Fuzzy match if no exact matches found
+      if (!foundExact) {
+        const fuzzyMatch = findBestMatch(text, normalizedSegment, 0.8);
+        if (fuzzyMatch) {
+          // Verify the matched span length is similar to evidence length (within 30% tolerance)
+          // This prevents partial substring matches
+          const matchedLength = fuzzyMatch.end - fuzzyMatch.start;
+          const evidenceLength = normalizedSegment.length;
+          const lengthRatio = matchedLength / evidenceLength;
+
+          if (lengthRatio >= 0.7 && lengthRatio <= 1.3) {
+            matches.push(fuzzyMatch);
+          }
         }
       }
     }
@@ -765,7 +803,46 @@ export function ConversationTrace({
 
       {messages.map((m, i) => {
         const isStructuredContent = typeof m.content === 'object' && m.content !== null;
-        const hasToolCalls = isStructuredContent && m.content.tool_calls;
+        
+        // Helper to parse and normalize tool_calls from various locations
+        const getToolCalls = (): any[] | null => {
+          // Check top-level tool_calls first
+          if (m.tool_calls) {
+            if (Array.isArray(m.tool_calls)) {
+              return m.tool_calls;
+            }
+            if (typeof m.tool_calls === 'string' && m.tool_calls.trim()) {
+              try {
+                const parsed = JSON.parse(m.tool_calls);
+                if (Array.isArray(parsed)) {
+                  return parsed;
+                }
+              } catch (e) {
+                // Not valid JSON, ignore
+              }
+            }
+          }
+          // Check inside content object
+          if (isStructuredContent && m.content.tool_calls) {
+            if (Array.isArray(m.content.tool_calls)) {
+              return m.content.tool_calls;
+            }
+            if (typeof m.content.tool_calls === 'string' && m.content.tool_calls.trim()) {
+              try {
+                const parsed = JSON.parse(m.content.tool_calls);
+                if (Array.isArray(parsed)) {
+                  return parsed;
+                }
+              } catch (e) {
+                // Not valid JSON, ignore
+              }
+            }
+          }
+          return null;
+        };
+        
+        const toolCalls = getToolCalls();
+        const hasToolCalls = toolCalls !== null && toolCalls.length > 0;
         const structuredBlocks = getContentBlocks(m.content);
         const content = prettyPrintEnabled ? getTextContent(m.content) : (
           typeof m.content === 'object' && m.content !== null
@@ -841,9 +918,9 @@ export function ConversationTrace({
             {!isCollapsed && (
               <>
 
-            {hasToolCalls && Array.isArray(m.content.tool_calls) && (
+            {hasToolCalls && toolCalls && (
               <Box sx={{ mb: 1 }}>
-                {m.content.tool_calls.map((tc: any, idx: number) => (
+                {toolCalls.map((tc: any, idx: number) => (
                   <Box key={idx} sx={{
                     mb: 0.5,
                     p: 1,
