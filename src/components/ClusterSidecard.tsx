@@ -17,6 +17,7 @@ import Plotly from 'plotly.js-dist-min';
 import createPlotlyComponent from 'react-plotly.js/factory';
 const Plot = createPlotlyComponent(Plotly);
 import ConversationTrace from './ConversationTrace';
+import SideBySideTrace from './SideBySideTrace';
 import PropertyTraceHeader from './PropertyTraceHeader';
 import { ensureOpenAIFormat } from '../lib/traces';
 import html2pdf from 'html2pdf.js';
@@ -333,9 +334,16 @@ export default function ClusterSidecard({
 
     // Build trace
     let messages: any[] = [];
+    let messagesA: any[] = [];
+    let messagesB: any[] = [];
     let modelName: string | undefined;
+    let modelA: string | undefined;
+    let modelB: string | undefined;
     let score: Record<string, any> | undefined;
+    let scoreA: Record<string, any> | undefined;
+    let scoreB: Record<string, any> | undefined;
     let promptText: string | undefined;
+    let isSideBySide = false;
 
     if (row) {
       promptText = String(row?.["prompt"] ?? "");
@@ -344,39 +352,14 @@ export default function ClusterSidecard({
         modelName = String(row?.["model"] ?? "");
         score = row?.["score"];
       } else if (method === 'side_by_side') {
-        // For side-by-side, determine which model this property applies to
-        const targetModel = String((prop as any).model || '').trim();
-        const modelA = String(row?.["model_a"] || '').trim();
-        const modelB = String(row?.["model_b"] || '').trim();
-        
-        if (targetModel === modelA) {
-          messages = ensureOpenAIFormat(promptText, row?.["model_a_response"]);
-          modelName = modelA || "Model A";
-          score = row?.["score_a"];
-        } else if (targetModel === modelB) {
-          messages = ensureOpenAIFormat(promptText, row?.["model_b_response"]);
-          modelName = modelB || "Model B";
-          score = row?.["score_b"];
-        } else {
-          // Fallback: if model doesn't match exactly, try to find it by partial match or use model_a as default
-          // This handles cases where model names might have slight variations
-          if (modelA && (targetModel.toLowerCase().includes(modelA.toLowerCase()) || 
-              modelA.toLowerCase().includes(targetModel.toLowerCase()))) {
-            messages = ensureOpenAIFormat(promptText, row?.["model_a_response"]);
-            modelName = modelA || "Model A";
-            score = row?.["score_a"];
-          } else if (modelB && (targetModel.toLowerCase().includes(modelB.toLowerCase()) || 
-                     modelB.toLowerCase().includes(targetModel.toLowerCase()))) {
-            messages = ensureOpenAIFormat(promptText, row?.["model_b_response"]);
-            modelName = modelB || "Model B";
-            score = row?.["score_b"];
-          } else {
-            // Default to model_a if we can't match
-            messages = ensureOpenAIFormat(promptText, row?.["model_a_response"]);
-            modelName = modelA || "Model A";
-            score = row?.["score_a"];
-          }
-        }
+        // For side-by-side, show both models side-by-side
+        isSideBySide = true;
+        modelA = String(row?.["model_a"] || '').trim() || "Model A";
+        modelB = String(row?.["model_b"] || '').trim() || "Model B";
+        messagesA = ensureOpenAIFormat(promptText, row?.["model_a_response"]);
+        messagesB = ensureOpenAIFormat(promptText, row?.["model_b_response"]);
+        scoreA = row?.["score_a"];
+        scoreB = row?.["score_b"];
       }
     }
 
@@ -430,7 +413,20 @@ export default function ClusterSidecard({
                 method={method}
                 evidenceTargetModel={(prop as any).model}
               />
-              {messages.length > 0 ? (
+              {isSideBySide && messagesA.length > 0 && messagesB.length > 0 ? (
+                <SideBySideTrace
+                  messagesA={messagesA}
+                  messagesB={messagesB}
+                  modelA={modelA || "Model A"}
+                  modelB={modelB || "Model B"}
+                  highlights={ev}
+                  targetModel={(prop as any).model}
+                  rawResponseA={row?.["model_a_response"]}
+                  rawResponseB={row?.["model_b_response"]}
+                  scoreA={scoreA}
+                  scoreB={scoreB}
+                />
+              ) : messages.length > 0 ? (
                 <ConversationTrace
                   messages={messages}
                   highlights={ev}
@@ -662,153 +658,165 @@ export default function ClusterSidecard({
 
           {/* Plots */}
           <Box sx={{ mb: 0.5 }}>
-            {/* Frequency (Per-model proportions) */}
-            {perModelProps && Object.keys(perModelProps).length > 0 && (
+            {/* Scatter plots: Quality Delta vs Frequency (one per metric) */}
+            {perModelProps && Object.keys(perModelProps).length > 0 && qualityDeltaByModel && Object.keys(qualityDeltaByModel).length > 0 && (
               <Box sx={{ mb: 1 }}>
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0 }}>
-                  <Typography variant="subtitle2" sx={{ color: '#334155' }}>Frequency</Typography>
-                  <Tooltip title="Fraction of each model's conversations that appear in this cluster">
-                    <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
-                  </Tooltip>
-                </Stack>
-                {(() => {
-                  const entries = Object.entries(perModelProps).sort((a, b) => {
-                    const aVal = Number(a[1]);
-                    const bVal = Number(b[1]);
-                    if (aVal === 0 && bVal === 0) return a[0].localeCompare(b[0]);
-                    if (aVal === 0) return 1;
-                    if (bVal === 0) return -1;
-                    return bVal - aVal;
-                  });
-                  const x = entries.map(([m]) => m);
-                  const y = entries.map(([, v]) => Number(v));
-                  
-                  // Add error bars if CI data is available AND showCI is enabled
-                  const hasCI = showCI && Object.keys(proportionCIByModel).length > 0;
-                  const errorY = hasCI ? {
-                    type: 'data' as const,
-                    array: entries.map(([m]) => {
-                      const ci = proportionCIByModel[m];
-                      return ci ? Number(ci.upper) - Number(perModelProps[m]) : 0;
-                    }),
-                    arrayminus: entries.map(([m]) => {
-                      const ci = proportionCIByModel[m];
-                      return ci ? Number(perModelProps[m]) - Number(ci.lower) : 0;
-                    }),
-                    visible: true,
-                    color: '#6B7280',
-                    thickness: 1.5,
-                    width: 4,
-                  } : undefined;
-                  
-                  return (
-                    <Plot
-                      data={[{
-                        type: 'bar' as const,
-                        x,
-                        y,
-                        marker: { color: '#3B82F6' },
-                        hovertemplate: `%{x}: %{y:.${decimals}f}<extra></extra>`,
-                        text: y.map(v => v.toFixed(decimals)),
-                        textposition: 'auto' as const,
-                        cliponaxis: false,
-                        error_y: errorY,
-                      }]}
-                      layout={{
-                        height: 260,
-                        margin: { l: 70, r: 10, t: 4, b: 110 },
-                        xaxis: { tickangle: -30, automargin: true },
-                        yaxis: { title: { text: 'Proportion', standoff: 15 }, rangemode: 'tozero', tickformat: `.${decimals}f` },
-                        showlegend: false,
-                        paper_bgcolor: '#FFFFFF',
-                        plot_bgcolor: '#FFFFFF',
-                      }}
-                      config={{ displayModeBar: false, responsive: true }}
-                      style={{ width: '100%' }}
-                    />
-                  );
-                })()}
-              </Box>
-            )}
-
-            {/* Quality (Per-model quality delta) */}
-            {qualityDeltaByModel && Object.keys(qualityDeltaByModel).length > 0 && (
-              <Box sx={{ mb: 0 }}>
-                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0 }}>
-                  <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality</Typography>
-                  <Tooltip title="Difference in quality between conversations which exhibit this property VS the average quality of all conversations">
+                  <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Delta vs Frequency</Typography>
+                  <Tooltip title="Each plot shows the relationship between quality delta and frequency for a specific metric. Each dot represents a model.">
                     <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
                   </Tooltip>
                 </Stack>
                 {(() => {
                   const models = Object.keys(qualityDeltaByModel);
                   const metricKeys = Array.from(new Set(models.flatMap(m => Object.keys(qualityDeltaByModel[m] || {}))));
-                  const palette = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6'];
-                  
+
                   // Check if we have CI data AND showCI is enabled
                   const hasCIData = showCI && Object.keys(qualityDeltaCIByModel).length > 0;
-
-                  const traces = metricKeys.map((metric, i) => {
-                    const yValues = models.map(m => Number((qualityDeltaByModel[m] || {})[metric] || 0));
-                    
-                    // Add error bars if CI data is available for this metric
-                    let errorY = undefined;
-                    if (hasCIData) {
-                      const errorArrayUpper = models.map(m => {
-                        const ci = qualityDeltaCIByModel[m]?.[metric];
-                        const val = (qualityDeltaByModel[m] || {})[metric] || 0;
-                        return ci ? Number(ci.upper) - Number(val) : 0;
-                      });
-                      const errorArrayLower = models.map(m => {
-                        const ci = qualityDeltaCIByModel[m]?.[metric];
-                        const val = (qualityDeltaByModel[m] || {})[metric] || 0;
-                        return ci ? Number(val) - Number(ci.lower) : 0;
-                      });
-                      
-                      // Only add error bars if we have at least one non-zero value
-                      if (errorArrayUpper.some(v => v !== 0) || errorArrayLower.some(v => v !== 0)) {
-                        errorY = {
-                          type: 'data' as const,
-                          array: errorArrayUpper,
-                          arrayminus: errorArrayLower,
-                          visible: true,
-                          color: '#6B7280',
-                          thickness: 1.5,
-                          width: 3,
-                        };
-                      }
-                    }
-                    
-                    return {
-                      type: 'bar' as const,
-                      name: metric,
-                      x: models,
-                      y: yValues,
-                      marker: { color: palette[i % palette.length] },
-                      hovertemplate: `${metric} · %{x}: %{y:.${decimals}f}<extra></extra>`,
-                      text: yValues.map(v => v.toFixed(decimals)),
-                      textposition: 'auto' as const,
-                      cliponaxis: false,
-                      error_y: errorY,
-                    };
-                  });
+                  const hasFreqCI = showCI && Object.keys(proportionCIByModel).length > 0;
 
                   return (
-                    <Plot
-                      data={traces}
-                      layout={{
-                        barmode: 'group',
-                        height: 260,
-                        margin: { l: 70, r: 10, t: 10, b: 110 },
-                        xaxis: { tickangle: -30, automargin: true },
-                        yaxis: { title: { text: 'Quality Δ', standoff: 15 }, tickformat: `.${decimals}f` },
-                        paper_bgcolor: '#FFFFFF',
-                        plot_bgcolor: '#FFFFFF',
-                        legend: { orientation: 'h', y: 1.15, x: 0.5, xanchor: 'center', yanchor: 'bottom' },
-                      }}
-                      config={{ displayModeBar: false, responsive: true }}
-                      style={{ width: '100%' }}
-                    />
+                    <Stack direction="row" spacing={2} sx={{ width: '100%' }}>
+                      {metricKeys.map((metric, i) => {
+                        // Build scatter data for this metric
+                        const scatterData = models.map(model => {
+                          const qualityDelta = Number((qualityDeltaByModel[model] || {})[metric] || 0);
+                          const frequency = Number(perModelProps[model] || 0);
+
+                          // Error bars for quality delta (x-axis)
+                          let errorX = undefined;
+                          if (hasCIData) {
+                            const ci = qualityDeltaCIByModel[model]?.[metric];
+                            if (ci) {
+                              errorX = {
+                                type: 'data' as const,
+                                array: [Number(ci.upper) - qualityDelta],
+                                arrayminus: [qualityDelta - Number(ci.lower)],
+                                visible: true,
+                                color: '#6B7280',
+                                thickness: 1.5,
+                                width: 3,
+                              };
+                            }
+                          }
+
+                          // Error bars for frequency (y-axis)
+                          let errorY = undefined;
+                          if (hasFreqCI) {
+                            const ci = proportionCIByModel[model];
+                            if (ci) {
+                              errorY = {
+                                type: 'data' as const,
+                                array: [Number(ci.upper) - frequency],
+                                arrayminus: [frequency - Number(ci.lower)],
+                                visible: true,
+                                color: '#6B7280',
+                                thickness: 1.5,
+                                width: 4,
+                              };
+                            }
+                          }
+
+                          return {
+                            type: 'scatter' as const,
+                            mode: 'markers' as const,
+                            name: model,
+                            x: [qualityDelta],
+                            y: [frequency],
+                            marker: {
+                              color: modelColors[model] || '#6B7280',
+                              size: 10,
+                            },
+                            hovertemplate: `${model}<br>Quality Δ: %{x:.${decimals}f}<br>Frequency: %{y:.${decimals}f}<extra></extra>`,
+                            error_x: errorX,
+                            error_y: errorY,
+                            showlegend: i === 0, // Only show legend on first plot
+                          };
+                        });
+
+                        return (
+                          <Box key={metric} sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="caption" sx={{ color: '#6B7280', display: 'block', mb: 0.5, textAlign: 'center' }}>
+                              {metric}
+                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0, px: 1, width: '100%' }}>
+                              <Typography variant="caption" sx={{ color: '#DC2626', fontSize: '9px', display: 'block' }}>
+                                behavior is bad
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#059669', fontSize: '9px', display: 'block' }}>
+                                behavior is good
+                              </Typography>
+                            </Box>
+                            <Plot
+                              data={scatterData}
+                              layout={{
+                                height: 300,
+                                margin: { l: 60, r: 10, t: 2, b: 50 },
+                                xaxis: {
+                                  title: { text: 'Quality Δ', standoff: 15 },
+                                  tickformat: `.${decimals}f`,
+                                  zeroline: false, // Disable default zeroline, we'll draw custom one
+                                },
+                                yaxis: {
+                                  title: { text: 'Frequency', standoff: 15 },
+                                  rangemode: 'tozero',
+                                  tickformat: `.${decimals}f`
+                                },
+                                shapes: [
+                                  // Vertical line at x=0
+                                  {
+                                    type: 'line',
+                                    x0: 0,
+                                    x1: 0,
+                                    y0: 0,
+                                    y1: 1,
+                                    yref: 'paper',
+                                    line: {
+                                      color: '#374151',
+                                      width: 2,
+                                    },
+                                  },
+                                  // Diagonal band: top-left to bottom-right (behavior is bad)
+                                  {
+                                    type: 'path',
+                                    path: 'M 0,0.85 L 0,1 L 0.15,1 L 1,0.15 L 1,0 L 0.85,0 Z',
+                                    xref: 'paper',
+                                    yref: 'paper',
+                                    fillcolor: '#EF4444',
+                                    opacity: 0.15,
+                                    line: { width: 0 },
+                                    layer: 'below',
+                                  },
+                                  // Diagonal band: bottom-left to top-right (behavior is good)
+                                  {
+                                    type: 'path',
+                                    path: 'M 0,0 L 0,0.15 L 0.85,1 L 1,1 L 1,0.85 L 0.15,0 Z',
+                                    xref: 'paper',
+                                    yref: 'paper',
+                                    fillcolor: '#10B981',
+                                    opacity: 0.15,
+                                    line: { width: 0 },
+                                    layer: 'below',
+                                  },
+                                ],
+                                paper_bgcolor: '#FFFFFF',
+                                plot_bgcolor: '#FFFFFF',
+                                showlegend: i === 0,
+                                legend: {
+                                  orientation: 'h',
+                                  y: -0.2,
+                                  x: 0.5,
+                                  xanchor: 'center',
+                                  yanchor: 'top'
+                                },
+                              }}
+                              config={{ displayModeBar: false, responsive: true }}
+                              style={{ width: '100%' }}
+                            />
+                          </Box>
+                        );
+                      })}
+                    </Stack>
                   );
                 })()}
               </Box>

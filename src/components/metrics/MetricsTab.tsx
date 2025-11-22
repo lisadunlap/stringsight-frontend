@@ -370,16 +370,6 @@ export function MetricsTab({
           onNavigateToMisalignedSection={handleNavigateToMisalignedSection}
         />
 
-        {/* Filter Bar */}
-        <MetricsFilterBar
-          filters={filters}
-          onFiltersChange={onFiltersChange || (() => {})}
-          availableModels={modelClusterData.models}
-          availableQualityMetrics={qualityMetrics || []}
-          availableBehaviorTypes={availableBehaviorTypes || []}
-          hasConfidenceIntervals={summary?.has_confidence_intervals || false}
-        />
-
         {/* Main Content Area - Full Width */}
         <MetricsMainContent
           filters={filters}
@@ -395,6 +385,9 @@ export function MetricsTab({
           method={method}
           misalignedSectionRef={misalignedSectionRef}
           onNavigateToMetric={handleNavigateToMetric}
+          onFiltersChange={onFiltersChange || (() => {})}
+          availableBehaviorTypes={availableBehaviorTypes || []}
+          hasConfidenceIntervals={summary?.has_confidence_intervals || false}
         />
       </Box>
     </Fade>

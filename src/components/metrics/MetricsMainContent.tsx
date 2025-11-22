@@ -47,6 +47,12 @@ interface MetricsMainContentProps {
   misalignedSectionRef?: React.RefObject<HTMLDivElement>;
   /** Handler for navigating to a specific metric */
   onNavigateToMetric?: (metricName: string) => void;
+  /** Optional filter change handler for inline filter dropdown */
+  onFiltersChange?: (filters: MetricsFilters) => void;
+  /** Available behavior types (normalized) for behavior-type filter */
+  availableBehaviorTypes?: string[];
+  /** Whether confidence intervals are present in the data */
+  hasConfidenceIntervals?: boolean;
 }
 
 export function MetricsMainContent({
@@ -62,7 +68,10 @@ export function MetricsMainContent({
   onViewExample,
   method = 'unknown',
   misalignedSectionRef,
-  onNavigateToMetric
+  onNavigateToMetric,
+  onFiltersChange,
+  availableBehaviorTypes,
+  hasConfidenceIntervals,
 }: MetricsMainContentProps) {
 
   // Normalize group names to standard categories (same as in MetricsTab)
@@ -245,6 +254,12 @@ export function MetricsMainContent({
         topClusters={topClusters}
         summary={summary || undefined}
         showCI={filters.showCI && (summary?.has_confidence_intervals || false)}
+        // Header-level filter dropdown configuration
+        onFiltersChange={onFiltersChange}
+        availableModels={modelClusterData.models}
+        availableQualityMetrics={qualityMetrics}
+        availableBehaviorTypes={availableBehaviorTypes}
+        hasConfidenceIntervals={hasConfidenceIntervals}
       />
       <Divider />
 

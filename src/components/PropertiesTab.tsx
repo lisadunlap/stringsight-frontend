@@ -4,6 +4,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterBar from './FilterBar';
 import FormattedCell from './FormattedCell';
+import PropertiesOverviewBanner from './PropertiesOverviewBanner';
 // @ts-ignore - Plotly types issue
 import Plotly from 'plotly.js-dist-min';
 // @ts-ignore - React-plotly types issue  
@@ -296,6 +297,13 @@ export default function PropertiesTab({
           startIcon={<VisibilityOutlinedIcon />}
           onClick={(e) => {
             e.stopPropagation();
+            console.log('[PropertiesTab] View button clicked! rowData:', {
+              fullRowData: rowData,
+              keys: Object.keys(rowData),
+              question_id: rowData?.question_id,
+              model: rowData?.model,
+              __index: rowData?.__index
+            });
             onOpenProperty(rowData);
           }}
           sx={{ fontWeight: 600 }}
@@ -383,48 +391,6 @@ export default function PropertiesTab({
   const endIdx = Math.min(filtered.length, startIdx + PAGE_SIZE);
   const pageRows = React.useMemo(() => filtered.slice(startIdx, endIdx), [filtered, startIdx, endIdx]);
 
-  // Calculate behavior type and unexpected behavior counts
-  const behaviorCounts = React.useMemo(() => {
-    const counts = {
-      positive: 0,
-      negativeCritical: 0,
-      negativeNonCritical: 0,
-      style: 0,
-      unexpected: 0
-    };
-
-    filtered.forEach(row => {
-      // Count unexpected behaviors
-      const isUnexpected = row?.unexpected_behavior === true || 
-                          row?.unexpected_behavior === 'true' ||
-                          String(row?.unexpected_behavior || '').toLowerCase() === 'true';
-      if (isUnexpected) {
-        counts.unexpected++;
-      }
-
-      // Find behavior type column and count
-      const behaviorTypeColumn = availableColumns.find(col => 
-        col.toLowerCase().includes('behavior') && col.toLowerCase().includes('type')
-      );
-      
-      if (behaviorTypeColumn) {
-        const behaviorType = String(row[behaviorTypeColumn] || '').toLowerCase().trim();
-        
-        if (behaviorType === 'positive') {
-          counts.positive++;
-        } else if (behaviorType === 'negative (critical)' || behaviorType === 'negative(critical)') {
-          counts.negativeCritical++;
-        } else if (behaviorType === 'negative (non-critical)' || behaviorType === 'negative(non-critical)') {
-          counts.negativeNonCritical++;
-        } else if (behaviorType === 'style') {
-          counts.style++;
-        }
-      }
-    });
-
-    return counts;
-  }, [filtered, availableColumns]);
-
   // Calculate property counts by model and behavior type for grouped bar chart
   const propertyCountsByModel = React.useMemo(() => {
     // Find behavior type column
@@ -467,188 +433,55 @@ export default function PropertiesTab({
   return (
     <Box sx={{ pt: 0.5 }}>
       {/* (Prompt/task description controls intentionally not included here) */}
-
-      {/* Behavior Summary */}
-      <Box sx={{ 
-        mb: 1.5, 
-        mt: 0,
-        p: 2.5, 
-        backgroundColor: '#ffffff',
-        borderRadius: 2,
-        border: '2px solid transparent',
-        backgroundImage: 'linear-gradient(white, white), linear-gradient(90deg, #2563eb, #10b981)',
-        backgroundOrigin: 'border-box',
-        backgroundClip: 'padding-box, border-box',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08)',
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 6,
-        alignItems: 'flex-start',
-        justifyContent: 'space-around'
-      }}>
-        {/* Property Counts */}
-        <Box>
-          <Tooltip title="Properties of traces are labeled as Positive, Negative, or Stylistic by the LLM annotator based on the trace and task description" arrow>
-            <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px', cursor: 'help' }}>
-              Property Counts
-            </Typography>
-          </Tooltip>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Chip
-              label={
-                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#10B981' }}>
-                    {behaviorCounts.positive}
-                  </Typography>
-                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#10B981' }}>
-                    Positive
-                  </Typography>
-                </Box>
-              }
-              size="medium"
-              sx={{
-                bgcolor: '#10B98115',
-                height: 'auto',
-                py: 0.75,
-                px: 1.25,
-                border: 'none',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-                '& .MuiChip-label': {
-                  px: 0
-                }
-              }}
-            />
-            
-            <Chip
-              label={
-                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#EF4444' }}>
-                    {behaviorCounts.negativeCritical}
-                  </Typography>
-                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#EF4444' }}>
-                    Negative (Critical)
-                  </Typography>
-                </Box>
-              }
-              size="medium"
-              sx={{
-                bgcolor: '#EF444415',
-                height: 'auto',
-                py: 0.75,
-                px: 1.25,
-                border: 'none',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-                '& .MuiChip-label': {
-                  px: 0
-                }
-              }}
-            />
-            
-            <Chip
-              label={
-                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#F97316' }}>
-                    {behaviorCounts.negativeNonCritical}
-                  </Typography>
-                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#F97316' }}>
-                    Negative (Non-Critical)
-                  </Typography>
-                </Box>
-              }
-              size="medium"
-              sx={{
-                bgcolor: '#F9731615',
-                height: 'auto',
-                py: 0.75,
-                px: 1.25,
-                border: 'none',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-                '& .MuiChip-label': {
-                  px: 0
-                }
-              }}
-            />
-            
-            <Chip
-              label={
-                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#8B5CF6' }}>
-                    {behaviorCounts.style}
-                  </Typography>
-                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#8B5CF6' }}>
-                    Style
-                  </Typography>
-                </Box>
-              }
-              size="medium"
-              sx={{
-                bgcolor: '#8B5CF615',
-                height: 'auto',
-                py: 0.75,
-                px: 1.25,
-                border: 'none',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-                '& .MuiChip-label': {
-                  px: 0
-                }
-              }}
-            />
-          </Box>
-        </Box>
-
-        {/* Unexpected */}
-        <Box>
-          <Tooltip title="Properties flagged as exhibiting strange or unexpected behaviors that don't fit typical patterns" arrow>
-            <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px', cursor: 'help' }}>
-              Unexpected
-            </Typography>
-          </Tooltip>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip
-              label={
-                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#92400E' }}>
-                    {behaviorCounts.unexpected}
-                  </Typography>
-                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#92400E' }}>
-                    Unexpected
-                  </Typography>
-                </Box>
-              }
-              size="medium"
-              sx={{
-                bgcolor: '#92400E15',
-                height: 'auto',
-                py: 0.75,
-                px: 1.25,
-                border: 'none',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-                '& .MuiChip-label': {
-                  px: 0
-                }
-              }}
-            />
-          </Box>
-        </Box>
-      </Box>
-
-      {/* Grouped Bar Chart: Property Distribution by Model */}
+      {/* Properties Overview Banner */}
+      <PropertiesOverviewBanner properties={rows} />
+      
+      {/* Grouped Bar Chart: Property Distribution by Model (collapsed by default) */}
       {propertyCountsByModel && propertyCountsByModel.size > 0 && (
-        <Box sx={{ 
-          mb: 2,
-          p: 1.5, 
-          backgroundColor: '#ffffff',
-          borderRadius: 1,
-          border: '1px solid #E5E7EB',
-          width: '100%',
-          maxWidth: '100%',
-          overflow: 'hidden',
-        }}>
-          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Property Distribution by Model
-          </Typography>
-          <Box sx={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-          <Plot
+        <Accordion
+          sx={{
+            mb: 2,
+            borderRadius: 1,
+            '&:before': { display: 'none' },
+            boxShadow: 'none',
+          }}
+        >
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{
+              backgroundColor: '#F9FAFB',
+              border: '1px solid #E5E7EB',
+              borderRadius: 1,
+              '& .MuiAccordionSummary-content': { my: 0.25 },
+            }}
+          >
+            <Typography
+              variant="subtitle2"
+              sx={{
+                fontWeight: 600,
+                color: '#4B5563',
+                fontSize: '0.8rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}
+            >
+              Property Distribution by Model
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails sx={{ p: 0, pt: 1.5 }}>
+            <Box
+              sx={{
+                p: 1.5,
+                backgroundColor: '#ffffff',
+                borderRadius: 0,
+                borderTop: 'none',
+                width: '100%',
+                maxWidth: '100%',
+                overflow: 'hidden',
+              }}
+            >
+              <Box sx={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+                <Plot
             data={(() => {
               const models = Array.from(propertyCountsByModel.keys());
               const values = Array.from(propertyCountsByModel.values());
@@ -725,8 +558,10 @@ export default function PropertiesTab({
             style={{ width: '100%', height: '280px', maxWidth: '100%' }}
             useResizeHandler={true}
           />
-          </Box>
-        </Box>
+              </Box>
+            </Box>
+          </AccordionDetails>
+        </Accordion>
       )}
 
       <FilterBar

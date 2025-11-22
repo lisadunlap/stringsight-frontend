@@ -31,6 +31,12 @@ interface MetricsFilterBarProps {
   availableQualityMetrics: string[];
   availableBehaviorTypes?: string[];
   hasConfidenceIntervals?: boolean;
+  /**
+   * Visual variant:
+   * - "bar": full-width horizontal bar with border (default)
+   * - "menu": compact layout suitable for a dropdown menu
+   */
+  variant?: 'bar' | 'menu';
 }
 
 // Helper to get display label for behavior type
@@ -51,6 +57,7 @@ export function MetricsFilterBar({
   availableQualityMetrics,
   availableBehaviorTypes = [],
   hasConfidenceIntervals = false,
+  variant = 'bar',
 }: MetricsFilterBarProps) {
   // Handle filter updates
   const updateFilters = (updates: Partial<MetricsFilters>) => {
@@ -69,22 +76,27 @@ export function MetricsFilterBar({
       selectedModels: [],
       selectedMetrics: [],
       selectedBehaviorTypes: [],
-      showCI: false,
+      showCI: true,
       significanceOnly: false,
       sortBy: 'proportion_delta_desc',
     });
   };
 
   return (
-    <Box sx={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 1.5,
-      mb: 2,
-      pb: 1.5,
-      borderBottom: '1px solid',
-      borderColor: 'divider'
-    }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1.5,
+        mb: variant === 'bar' ? 2 : 0,
+        pb: variant === 'bar' ? 1.5 : 0,
+        borderBottom: variant === 'bar' ? '1px solid' : 'none',
+        borderColor: variant === 'bar' ? 'divider' : 'transparent',
+        minWidth: variant === 'menu' ? 360 : undefined,
+        px: variant === 'menu' ? 1 : 0,
+        pt: variant === 'menu' ? 1 : 0,
+      }}
+    >
       {/* Controls Row */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         {/* Model Selection */}

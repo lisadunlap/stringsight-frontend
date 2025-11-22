@@ -23,19 +23,89 @@ Create a `.env.local` file:
 # VITE_BACKEND=http://localhost:8000
 ```
 
-## Backend Connection
+## Backend Connection 
 
 This frontend connects to the [StringSight Python backend](https://github.com/lisadunlap/StringSight).
 
-To run the backend locally:
+### Install the StringSight Python backend
+
+You can either install from **PyPI** (recommended for most users) or from **source** (for local development and contributing).
 
 ```bash
-# In the StringSight repo
-pip install "uvicorn[standard]" fastapi pandas python-multipart
+# (Optional) create and activate a dedicated environment
+conda create -n stringsight python=3.11
+conda activate stringsight
+
+# Install the core library from PyPI
+pip install stringsight
+
+# Install with all optional extras (recommended for notebooks and advanced workflows)
+pip install "stringsight[full]"
+```
+
+For local development or contributing, you can install from source in editable mode:
+
+```bash
+# Clone the repository
+git clone https://github.com/lisadunlap/StringSight.git
+cd stringsight
+
+# (Optional) create and activate a dedicated environment
+conda create -n stringsight python=3.11
+conda activate stringsight
+
+# Install StringSight in editable mode with full extras
+pip install -e ".[full]"
+
+# Install StringSight in editable mode with dev dependencies
+pip install -e ".[dev]"
+
+# Set API keys
+export OPENAI_API_KEY="your-openai-key"
+export ANTHROPIC_API_KEY="your-anthropic-key"  # optional
+export GOOGLE_API_KEY="your-google-key"        # optional
+```
+
+For more details, see the backend README at [`https://github.com/lisadunlap/StringSight`](https://github.com/lisadunlap/StringSight).
+
+### Run the backend API locally
+
+With the `stringsight` conda environment activated and from the backend repo:
+
+```bash
 uvicorn stringsight.api:app --reload --host localhost --port 8000
 ```
 
 Check backend health: `curl http://127.0.0.1:8000/health` → `{ "ok": true }`
+
+Keep this terminal window running while you use the frontend.
+
+### End-to-end: backend + frontend (for first-time users)
+
+If you've never launched a frontend before, here's the full flow using **two terminal windows**:
+
+1. **Terminal 1 – Start the backend**
+   - Follow the steps in **Install the StringSight Python backend** above.
+   - From the `StringSight` backend repo, run:
+     ```bash
+     uvicorn stringsight.api:app --reload --host localhost --port 8000
+     ```
+   - Leave this terminal window open; the backend API will be available at `http://localhost:8000`.
+2. **Terminal 2 – Start the frontend**
+   - From this `stringsight-frontend` repo:
+     ```bash
+     npm install        # first time only
+     npm run dev
+     ```
+   - The frontend will start at `http://localhost:5180`.
+3. **Connect the frontend to the backend**
+   - In this repo, create `.env.local` (if you haven't already) and set:
+     ```bash
+     VITE_BACKEND=http://localhost:8000
+     ```
+   - Refresh the frontend page in your browser. Backend-powered features (extraction, clustering) will now call your local backend.
+
+You can still use many parts of the UI (e.g., loading pre-computed results) without running a backend; the steps above are only required for live extraction/clustering.
 
 ## Deployment
 
@@ -60,6 +130,15 @@ The frontend will automatically build and deploy. Configure `VITE_BACKEND` in Ve
 - **Metrics Tab**: Compare model performance across behavioral dimensions
 - **Conversation Traces**: Inspect full conversation context with side-by-side comparisons
 - **Load Results**: Load pre-computed analysis results from a local folder
+
+### Conversation Trace Evidence Highlighting
+
+- **Evidence-based highlighting**: When you select text evidence for a conversation trace, the frontend highlights matching spans in the full trace.
+- **Fuzzy, punctuation-tolerant matching**:
+  - Matching is case-insensitive and uses both exact and fuzzy matching to find the best span in the trace.
+  - Ellipses are handled specially:
+    - Trailing ellipses in evidence (e.g. `"being addressed..."` or `"being addressed…"` ) are ignored for matching, so they still match `"being addressed"` in the trace.
+    - Ellipses inside a quote (e.g. `"Mitchell ... was experiencing issues"`) are treated as separators, and each side is highlighted as separate evidence segments when they meet the minimum length requirement.
 
 ## Project Structure
 
