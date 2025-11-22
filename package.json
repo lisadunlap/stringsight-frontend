@@ -33,6 +33,7 @@
     "react-plotly.js": "^2.6.0",
     "react-to-print": "^3.2.0",
     "rehype-katex": "^7.0.1",
+    "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0"
   },

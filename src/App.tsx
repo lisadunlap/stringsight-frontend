@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef, Component } from "react";
-import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton, Tooltip } from "@mui/material";
+import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton, Tooltip, Alert } from "@mui/material";
 import DownloadIcon from '@mui/icons-material/Download';
+import CloseIcon from '@mui/icons-material/Close';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -29,7 +30,8 @@ import DataTabBenchmarkTable from "./components/metrics/DataTabBenchmarkTable";
 import PropertiesTab from "./components/PropertiesTab";
 import FilterBar from "./components/FilterBar";
 import PermanentIconSidebar, { type SidebarSection } from "./components/PermanentIconSidebar";
-import ExpandedSidebar from "./components/ExpandedSidebar";
+import DataOverviewBanner from "./components/DataOverviewBanner";
+import PropertiesOverviewBanner from "./components/PropertiesOverviewBanner";
 import DataStatsPanel from "./components/sidebar-sections/DataStatsPanel";
 import PropertyExtractionPanel from "./components/sidebar-sections/PropertyExtractionPanel";
 // ClusteringPanel removed - clustering now integrated into PropertyExtractionPanel
@@ -246,13 +248,57 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
       });
     });
 
-    // Add to cluster meta
+    // Compute overall quality and quality_delta (averaged across all models)
+    const quality: Record<string, number> = {};
+    const quality_delta: Record<string, number> = {};
+
+    // Get all unique metric names for quality
+    const allMetricNames = new Set<string>();
+    Object.values(qualityByModel).forEach(modelMetrics => {
+      Object.keys(modelMetrics).forEach(metric => allMetricNames.add(metric));
+    });
+
+    // Compute average quality for each metric
+    allMetricNames.forEach(metric => {
+      const values: number[] = [];
+      Object.values(qualityByModel).forEach(modelMetrics => {
+        if (typeof modelMetrics[metric] === 'number') {
+          values.push(modelMetrics[metric]);
+        }
+      });
+      if (values.length > 0) {
+        quality[metric] = values.reduce((a, b) => a + b, 0) / values.length;
+      }
+    });
+
+    // Get all unique metric names for quality_delta
+    const allDeltaMetricNames = new Set<string>();
+    Object.values(qualityDeltaByModel).forEach(modelMetrics => {
+      Object.keys(modelMetrics).forEach(metric => allDeltaMetricNames.add(metric));
+    });
+
+    // Compute average quality_delta for each metric
+    allDeltaMetricNames.forEach(metric => {
+      const values: number[] = [];
+      Object.values(qualityDeltaByModel).forEach(modelMetrics => {
+        if (typeof modelMetrics[metric] === 'number') {
+          values.push(modelMetrics[metric]);
+        }
+      });
+      if (values.length > 0) {
+        quality_delta[metric] = values.reduce((a, b) => a + b, 0) / values.length;
+      }
+    });
+
+    // Add to cluster meta (now includes overall quality and quality_delta)
     return {
       ...cluster,
       meta: {
         ...(cluster.meta || {}),
         quality_by_model: qualityByModel,
         quality_delta_by_model: qualityDeltaByModel,
+        quality,
+        quality_delta,
       }
     };
   });
@@ -514,6 +560,21 @@ function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const traceContentRef = useRef<HTMLDivElement>(null);
+  const appBarRef = useRef<HTMLDivElement>(null);
+  const [appBarHeight, setAppBarHeight] = useState<number>(64); // Default toolbar height
+  
+  // Use refs for values that callbacks need to read but shouldn't trigger recreation
+  const operationalRowsRef = useRef<Record<string, any>[]>([]);
+  const methodRef = useRef<"single_model" | "side_by_side" | "unknown">("unknown");
+  
+  // Update refs when state changes
+  React.useEffect(() => {
+    operationalRowsRef.current = operationalRows;
+  }, [operationalRows]);
+  
+  React.useEffect(() => {
+    methodRef.current = method;
+  }, [method]);
 
   const [selectedTrace, setSelectedTrace] = useState<any>(null);
   const [selectedRow, setSelectedRow] = useState<Record<string, any> | null>(null);
@@ -525,7 +586,6 @@ function App() {
   const [propertiesRows, setPropertiesRows] = useState<any[]>([]);
   const [activeSection, setActiveSection] = useState<SidebarSection>('data');
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'table'|'properties'|'clusters'|'metrics'>('table');
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
   const [clusterSearchQuery, setClusterSearchQuery] = useState<string>('');
   
@@ -544,6 +604,7 @@ function App() {
   const [clusters, setClusters] = useState<any[]>([]);
   const [totalConversationsByModel, setTotalConversationsByModel] = useState<Record<string, number> | null>(null);
   const [totalUniqueConversations, setTotalUniqueConversations] = useState<number | null>(null);
+  const [clusteringAlertDismissed, setClusteringAlertDismissed] = useState<boolean>(false);
   // Results mode (when loading full_dataset.json)
   const [isResultsMode, setIsResultsMode] = useState<boolean>(false);
   const [resultsMetrics, setResultsMetrics] = useState<{ model_cluster_scores?: any; cluster_scores?: any; model_scores?: any } | null>(null);
@@ -563,7 +624,7 @@ function App() {
     sortBy: 'proportion_delta_desc',
     topN: 5,
     significanceOnly: false,
-    showCI: false,
+    showCI: true,
   });
 
   // Metrics data for sidebar
@@ -586,7 +647,7 @@ function App() {
         sortBy: 'proportion_delta_desc',
         topN: 5,
         significanceOnly: false,
-        showCI: false,
+        showCI: true,
       });
       // Clear previous metrics metadata
       setMetricsAvailableModels([]);
@@ -595,15 +656,6 @@ function App() {
       setMetricsSummary(null);
     }
   }, [resultsMetrics]);
-
-  // Auto-switch to metrics when clustering completes in UI-run mode
-  const hasAutoSwitchedToClustersRef = useRef<boolean>(false);
-  React.useEffect(() => {
-    if (!isResultsMode && !hasAutoSwitchedToClustersRef.current && clusters && clusters.length > 0) {
-      setActiveTab('metrics');
-      hasAutoSwitchedToClustersRef.current = true;
-    }
-  }, [clusters, isResultsMode]);
 
   // Demo mode: Check if demo mode is enabled (backend operations will be limited to 100 rows)
   const isDemoMode = import.meta.env.VITE_DEMO === 'true';
@@ -632,6 +684,8 @@ function App() {
   const [batchRunning, setBatchRunning] = useState<boolean>(false);
   const [batchProgress, setBatchProgress] = useState<number>(0);
   const [batchState, setBatchState] = useState<string | null>(null);
+  type PipelineStage = 'idle' | 'extraction' | 'clustering';
+  const [pipelineStage, setPipelineStage] = useState<PipelineStage>('idle');
   
   // Flexible column mapping state
   const [showColumnSelector, setShowColumnSelector] = useState(false);
@@ -661,7 +715,7 @@ function App() {
     const promptText = selectedRow?.prompt ? String(selectedRow.prompt) : '';
     const filename = promptText ? generatePdfFilename(promptText) : 'conversation_trace.pdf';
 
-    const opt = {
+    const opt: any = {
       margin: 10,
       filename: filename,
       image: { type: 'jpeg', quality: 0.98 },
@@ -714,6 +768,29 @@ function App() {
     };
   }, [drawerOpen, sidebarExpanded]);
 
+  // Measure AppBar height to account for dynamic content (progress bar, clustering message)
+  React.useEffect(() => {
+    const updateAppBarHeight = () => {
+      if (appBarRef.current) {
+        setAppBarHeight(appBarRef.current.offsetHeight);
+      }
+    };
+
+    // Initial measurement
+    updateAppBarHeight();
+
+    // Update on window resize and when relevant state changes
+    window.addEventListener('resize', updateAppBarHeight);
+
+    // Use a small delay to ensure DOM has updated
+    const timeoutId = setTimeout(updateAppBarHeight, 100);
+
+    return () => {
+      window.removeEventListener('resize', updateAppBarHeight);
+      clearTimeout(timeoutId);
+    };
+  }, [batchRunning, clusters.length, pipelineStage, batchState, batchProgress, clusteringAlertDismissed]);
+
   // Reset UI, panels, and tabs when a brand new source is loaded
   const resetUiStateForNewSource = React.useCallback((mode: 'file' | 'results') => {
     // Core data and mapping
@@ -734,9 +811,8 @@ function App() {
       setShowColumnSelector(false);
     }
 
-    // Panels, tabs, and sidebar
+    // Panels and sidebar
     setActiveSection('data');
-    setActiveTab('table');
     setHasViewedClusters(false);
     setSidebarExpanded(false);
 
@@ -753,6 +829,7 @@ function App() {
     setPropertiesByKey(new Map());
     setPropertiesRows([]);
     setClusters([]);
+    setClusteringAlertDismissed(false);
 
     // Operations, filters, grouping, sorting
     setOperationChain([]);
@@ -1213,18 +1290,19 @@ function App() {
         }
       }
 
-      // Switch to appropriate tab based on loaded data
+      // Switch to appropriate view based on loaded data
       if (clusters.length > 0 && Object.keys(metrics).length > 0) {
-        setActiveTab('metrics');
-        console.log('📊 Switched to Metrics tab');
+        setActiveSection('metrics');
+        console.log('📊 Switched to Metrics view');
       } else if (clusters.length > 0) {
-        setActiveTab('clusters');
-        console.log('📊 Switched to Clusters tab');
+        setActiveSection('clusters');
+        console.log('📊 Switched to Clusters view');
       } else if (properties.length > 0) {
-        setActiveTab('properties');
-        console.log('📊 Switched to Properties tab');
+        setActiveSection('extraction');
+        console.log('📊 Switched to Properties view');
       } else {
-        console.log('📊 Staying on Data tab');
+        setActiveSection('data');
+        console.log('📊 Staying on Data view');
       }
 
       console.log('✅ Results loaded successfully:', {
@@ -1499,7 +1577,10 @@ function App() {
       count: rowsAfterFilter.length,
       sampleRow: rowsAfterFilter[0],
       method: mapping.method,
-      hasScores: rowsAfterFilter[0]?.score || rowsAfterFilter[0]?.score_a || rowsAfterFilter[0]?.score_b
+      scoreObject: rowsAfterFilter[0]?.score || rowsAfterFilter[0]?.score_a,
+      scoreKeys: rowsAfterFilter[0]?.score ? Object.keys(rowsAfterFilter[0].score) :
+                 rowsAfterFilter[0]?.score_a ? Object.keys(rowsAfterFilter[0].score_a) : [],
+      hasScores: !!(rowsAfterFilter[0]?.score || rowsAfterFilter[0]?.score_a || rowsAfterFilter[0]?.score_b)
     });
     setOperationalRows(rowsAfterFilter);
     
@@ -1631,18 +1712,18 @@ function App() {
     [method]
   );
 
-  // Keep clusters tab mounted after first visit to avoid re-mount plot cost
+  // Keep clusters view mounted after first visit to avoid re-mount plot cost
   React.useEffect(() => {
-    if (activeTab === 'clusters' && !hasViewedClusters) setHasViewedClusters(true);
-  }, [activeTab, hasViewedClusters]);
+    if (activeSection === 'clusters' && !hasViewedClusters) setHasViewedClusters(true);
+  }, [activeSection, hasViewedClusters]);
 
-  // Close cluster sidecard when navigating away from clusters tab
+  // Close cluster sidecard when navigating away from clusters view
   React.useEffect(() => {
-    if (activeTab !== 'clusters') {
+    if (activeSection !== 'clusters') {
       setClusterSidecardOpen(false);
       setSelectedCluster(null);
     }
-  }, [activeTab]);
+  }, [activeSection]);
 
   // Get allowed columns from current (display) data with proper ordering
   const allowedColumns = useMemo(() => {
@@ -2106,7 +2187,7 @@ function App() {
 
   // Memoized table content to keep hook order stable
   const tableContent = useMemo(() => {
-    if (activeTab !== 'table') return null;
+    if (activeSection !== 'data') return null;
     if (operationalRows.length === 0) return null;
     if (groupBy && groupPreview.length > 0) {
       const groupedRowsMap = new Map<any, any[]>();
@@ -2144,8 +2225,8 @@ function App() {
           onPendingNegatedChange={setPendingNegated}
           onAddFilter={() => {
             if (!pendingColumn || pendingValues.length === 0) return;
-            const operator = filters.length > 0 ? 'AND' : undefined;
-            const next = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
+            const operator: Filter['operator'] = filters.length > 0 ? 'AND' : undefined;
+            const next: Filter[] = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
             setPendingColumn(null);
             setPendingValues([]);
             setPendingNegated(false);
@@ -2154,7 +2235,7 @@ function App() {
           filters={filters}
           onRemoveFilter={removeFilter}
           onChangeFilterOperator={(index, operator) => {
-            const next = filters.map((f, i) => i === index ? { ...f, operator } : f);
+            const next: Filter[] = filters.map((f, i) => i === index ? { ...f, operator } : f);
             void applyFilters(next);
           }}
           uniqueValuesFor={uniqueValuesFor}
@@ -2334,8 +2415,8 @@ function App() {
           onPendingNegatedChange={setPendingNegated}
           onAddFilter={() => {
             if (!pendingColumn || pendingValues.length === 0) return;
-            const operator = filters.length > 0 ? 'AND' : undefined;
-            const next = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
+            const operator: Filter['operator'] = filters.length > 0 ? 'AND' : undefined;
+            const next: Filter[] = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
             setPendingColumn(null);
             setPendingValues([]);
             setPendingNegated(false);
@@ -2344,7 +2425,7 @@ function App() {
           filters={filters}
           onRemoveFilter={removeFilter}
           onChangeFilterOperator={(index, operator) => {
-            const next = filters.map((f, i) => i === index ? { ...f, operator } : f);
+            const next: Filter[] = filters.map((f, i) => i === index ? { ...f, operator } : f);
             void applyFilters(next);
           }}
           uniqueValuesFor={uniqueValuesFor}
@@ -2381,11 +2462,11 @@ function App() {
       />
       </>
     );
-  }, [activeTab, operationalRows, groupBy, groupPreview, sortedRows, allowedColumns, responseKeys, onView, groupPagination, sortColumn, sortDirection, handleSort, dataSearchQuery, categoricalColumns, pendingColumn, pendingValues, pendingNegated, filters, removeFilter, uniqueValuesFor, refreshGroupPreview, customCode, handleCustomCodeChange, runCustom, resetAll, customError]);
+  }, [activeSection, operationalRows, groupBy, groupPreview, sortedRows, allowedColumns, responseKeys, onView, groupPagination, sortColumn, sortDirection, handleSort, dataSearchQuery, categoricalColumns, pendingColumn, pendingValues, pendingNegated, filters, removeFilter, uniqueValuesFor, refreshGroupPreview, customCode, handleCustomCodeChange, runCustom, resetAll, customError]);
 
   // Memoized properties content
   const propertiesContent = useMemo(() => {
-    if (activeTab !== 'properties') return null;
+    if (activeSection !== 'extraction') return null;
     if (propertiesRows.length === 0) {
       return (
         <Box sx={{ p: 2, border: '1px solid #E5E7EB', borderRadius: 0.5, background: '#FFFFFF' }}>
@@ -2400,21 +2481,44 @@ function App() {
         rows={propertiesRows}
         originalData={originalRows}
         onOpenProperty={(prop) => {
+          console.log('[App] onOpenProperty - Clicked property:', {
+            fullProperty: prop,
+            question_id: (prop as any).question_id,
+            question_id_type: typeof (prop as any).question_id,
+            model: (prop as any).model,
+            model_type: typeof (prop as any).model,
+            __index: (prop as any).__index,
+            row_index: (prop as any).row_index,
+            allKeys: Object.keys(prop)
+          });
+
           // Use operationalRows (with consolidated score objects) instead of currentRows (flattened)
           // Prefer direct index if present
           const idx = (prop as any).__index ?? (prop as any).row_index;
           let row: any | null = null;
           if (idx != null) {
+            console.log('[App] onOpenProperty - Searching by index:', idx);
             row = operationalRows.find(r => Number(r?.__index) === Number(idx)) || null;
+            if (row) {
+              console.log('[App] onOpenProperty - Found by index!');
+            } else {
+              console.log('[App] onOpenProperty - No match found by index');
+            }
           }
           if (!row) {
             // Fallback: match on question_id and model
             const qid = (prop as any).question_id;
             const modelName = String((prop as any).model || '');
 
-            console.log('[App] Searching for conversation with:', { qid, modelName, method });
-            console.log('[App] Sample operationalRows[0]:', operationalRows[0]);
-            console.log('[App] Total operationalRows:', operationalRows.length);
+            console.log('[App] onOpenProperty - Searching by question_id + model:', { qid, qid_type: typeof qid, modelName, method });
+            console.log('[App] onOpenProperty - Sample operationalRows[0]:', {
+              question_id: operationalRows[0]?.question_id,
+              question_id_type: typeof operationalRows[0]?.question_id,
+              model: operationalRows[0]?.model,
+              model_type: typeof operationalRows[0]?.model,
+              __index: operationalRows[0]?.__index
+            });
+            console.log('[App] onOpenProperty - Total operationalRows:', operationalRows.length);
 
             row = operationalRows.find(r => {
               const rq = r?.question_id;
@@ -2474,7 +2578,7 @@ function App() {
         }}
       />
     );
-  }, [activeTab, propertiesRows, currentRows, operationalRows, method, onView]);
+  }, [activeSection, propertiesRows, currentRows, operationalRows, method, onView]);
 
 
 
@@ -2490,6 +2594,304 @@ function App() {
   // Memoized callbacks to prevent unnecessary effect triggers in children
   const getPropertiesRowsCb = useCallback(() => propertiesRows, [propertiesRows]);
   const getOperationalRowsCb = useCallback(() => operationalRows, [operationalRows]);
+  
+  // Extraction panel callbacks
+  const onPropertiesMergedCb = useCallback((props: any[]) => {
+    console.log('[App] onPropertiesMergedCb - Received properties:', {
+      count: props.length,
+      firstProp: props[0],
+      operationalRowsCount: operationalRowsRef.current.length,
+      method: methodRef.current
+    });
+
+    setPropertiesByKey(prevMap => {
+      const newMap = new Map(prevMap);
+      props.forEach(p => {
+        const key = `${p.question_id}-${p.model}`;
+        if (!newMap.has(key)) newMap.set(key, []);
+        newMap.get(key)!.push(p);
+      });
+      return newMap;
+    });
+
+    // Also update propertiesRows for the PropertiesTab
+    // Enrich new properties with model_response from operational data
+    const enrichedProps = props.map((prop, propIdx) => {
+      console.log(`[App] onPropertiesMergedCb - Enriching property ${propIdx}:`, {
+        question_id: prop.question_id,
+        model: prop.model,
+        question_id_type: typeof prop.question_id,
+        model_type: typeof prop.model
+      });
+
+      // Find matching operational row by question_id and model
+      const matchingRow = operationalRowsRef.current.find(opRow => {
+        if (methodRef.current === 'single_model') {
+          const matches = opRow.question_id === prop.question_id && opRow.model === prop.model;
+          if (!matches && propIdx === 0) {
+            // Debug first property match attempt
+            console.log('[App] Checking opRow:', {
+              opRow_qid: opRow.question_id,
+              opRow_qid_type: typeof opRow.question_id,
+              opRow_model: opRow.model,
+              opRow_model_type: typeof opRow.model,
+              prop_qid: prop.question_id,
+              prop_model: prop.model,
+              qid_match: opRow.question_id === prop.question_id,
+              model_match: opRow.model === prop.model
+            });
+          }
+          return matches;
+        } else if (methodRef.current === 'side_by_side') {
+          return opRow.question_id === prop.question_id &&
+                 (opRow.model_a === prop.model || opRow.model_b === prop.model);
+        }
+        return false;
+      });
+
+      console.log(`[App] onPropertiesMergedCb - Match result for property ${propIdx}:`, {
+        found: !!matchingRow,
+        __index: matchingRow?.__index,
+        matchingRow_qid: matchingRow?.question_id,
+        matchingRow_model: matchingRow?.model
+      });
+
+      // Add model_response and __index from the matching operational row
+      return {
+        ...prop,
+        __index: matchingRow?.__index,
+        model_response: matchingRow?.model_response ||
+                       matchingRow?.model_a_response ||
+                       matchingRow?.model_b_response ||
+                       'No response found'
+      };
+    });
+
+    console.log('[App] onPropertiesMergedCb - Enriched properties:', {
+      count: enrichedProps.length,
+      firstEnriched: enrichedProps[0],
+      hasIndex: enrichedProps[0]?.__index !== undefined
+    });
+
+    // Add to existing propertiesRows (for single extraction, we append)
+    setPropertiesRows(prevRows => [...prevRows, ...enrichedProps]);
+    // Don't auto-switch tabs - stay in extraction step
+  }, []);
+  
+  const onBatchLoadedCb = useCallback((rows: any[]) => {
+    // Enrich properties with model_response from operational data
+    const enrichedRows = rows.map(prop => {
+      // Find matching operational row by question_id and model
+      const matchingRow = operationalRowsRef.current.find(opRow => {
+        if (methodRef.current === 'single_model') {
+          return opRow.question_id === prop.question_id && opRow.model === prop.model;
+        } else if (methodRef.current === 'side_by_side') {
+          return opRow.question_id === prop.question_id && 
+                 (opRow.model_a === prop.model || opRow.model_b === prop.model);
+        }
+        return false;
+      });
+      
+      // Add model_response and __index from the matching operational row
+      return {
+        ...prop,
+        __index: matchingRow?.__index,
+        model_response: matchingRow?.model_response ||
+                       matchingRow?.model_a_response ||
+                       matchingRow?.model_b_response ||
+                       'No response found'
+      };
+    });
+    
+    setPropertiesRows(enrichedRows);
+    // Don't auto-switch tabs - stay in extraction step to see properties in panel
+  }, []);
+  
+  const onBatchDoneCb = useCallback(() => {
+    setBatchRunning(false);
+    setPipelineStage('idle');
+  }, []);
+  
+  const onClustersUpdatedCb = useCallback((data: any) => {
+    if (!data) {
+      console.error('❌ onClustersUpdated received undefined/null data');
+      return;
+    }
+
+    // Show the clustering complete alert when new clusters arrive
+    setClusteringAlertDismissed(false);
+
+    // Enrich clusters with per-model quality data from metrics
+    let enrichedClusters = data.clusters || [];
+    if (data.metrics?.model_cluster_scores) {
+      const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
+
+      // Enrich model_cluster_scores with cluster metadata (meta.group)
+      if (normalizedMetrics.model_cluster_scores) {
+        normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+          normalizedMetrics.model_cluster_scores,
+          data.clusters || []
+        );
+      }
+
+      enrichedClusters = enrichClustersWithQualityData(
+        data.clusters || [],
+        normalizedMetrics.model_cluster_scores
+      );
+
+      // Build a map of examples by cluster label (metrics rows group by 'cluster' label)
+      const examplesByCluster = new Map<string, any[]>();
+      normalizedMetrics.model_cluster_scores.forEach((row: any) => {
+        const labelKey = String(row.cluster ?? '');
+        const hasExamples = Array.isArray(row.examples) && row.examples.length > 0;
+        if (!hasExamples) return;
+        const existing = examplesByCluster.get(labelKey) || [];
+        examplesByCluster.set(labelKey, existing.concat(row.examples));
+      });
+
+      // Enrich clusters with examples from model_cluster_scores (label match)
+      enrichedClusters = enrichedClusters.map(cluster => {
+        const labelKey = cluster.cluster_label || cluster.label || cluster.cluster || '';
+        const examples = examplesByCluster.get(String(labelKey)) || [];
+        return {
+          ...cluster,
+          examples
+        };
+      });
+    }
+
+    // Set clusters once with all enrichments (quality + examples)
+    setClusters(ensureExamplesArray(enrichedClusters));
+    setTotalConversationsByModel(data.total_conversations_by_model || null);
+    setTotalUniqueConversations(data.total_unique_conversations || null);
+
+    // Save metrics so they appear in the Metrics tab
+    if (data.metrics) {
+      const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
+
+      // Enrich model_cluster_scores with cluster metadata (meta.group)
+      if (normalizedMetrics.model_cluster_scores) {
+        normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+          normalizedMetrics.model_cluster_scores,
+          data.clusters || []
+        );
+      }
+
+      console.log('📊 resultsMetrics set:', normalizedMetrics.model_scores?.length || 0, 'model_scores');
+      setResultsMetrics(normalizedMetrics);
+    }
+  }, []);
+  
+  const onNavigateToMetricsCb = useCallback(() => {
+    // Navigate to Insights step when clustering + metrics are ready
+    setActiveSection('metrics');
+    setSidebarExpanded(false);
+  }, []);
+  
+  const onNavigateToClustersCb = useCallback(() => {
+    // Navigate to Clusters view when clustering is ready
+    setActiveSection('clusters');
+    setSidebarExpanded(false);
+  }, []);
+
+  // Reusable download results function
+  const handleDownloadResults = useCallback(async () => {
+    try {
+      const zip = new JSZip();
+      zip.file('clusters.jsonl', clusters.map(c => JSON.stringify(c)).join('\n'));
+      zip.file('properties.jsonl', propertiesRows.map(p => JSON.stringify(p)).join('\n'));
+      
+      if (operationalRows.length > 0) {
+        zip.file('conversations.jsonl', operationalRows.map(r => JSON.stringify(r)).join('\n'));
+      }
+      
+      if (resultsMetrics?.model_cluster_scores && resultsMetrics.model_cluster_scores.length > 0) {
+        zip.file('model_cluster_scores_df.jsonl', 
+          resultsMetrics.model_cluster_scores.map(m => JSON.stringify(m)).join('\n'));
+      }
+      
+      if (resultsMetrics?.cluster_scores && resultsMetrics.cluster_scores.length > 0) {
+        zip.file('cluster_scores_df.jsonl',
+          resultsMetrics.cluster_scores.map(m => JSON.stringify(m)).join('\n'));
+      }
+      
+      if (resultsMetrics?.model_scores && resultsMetrics.model_scores.length > 0) {
+        zip.file('model_scores_df.jsonl',
+          resultsMetrics.model_scores.map(m => JSON.stringify(m)).join('\n'));
+      }
+      
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const baseName = resultsName.trim() || uploadedFileName || 'clustering_results';
+      const filename = `${baseName}_${new Date().toISOString().slice(0,10)}.zip`;
+      saveAs(blob, filename);
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Failed to download results');
+    }
+  }, [clusters, propertiesRows, operationalRows, resultsMetrics, resultsName, uploadedFileName]);
+
+  // Metrics tab data callback - memoized to avoid infinite effect loops
+  const onMetricsDataProcessedCb = useCallback((data: {
+    availableModels: string[];
+    availableGroups: string[];
+    availableBehaviorTypes: string[];
+    availableQualityMetrics: string[];
+    summary: MetricsSummary | null;
+  }) => {
+    setMetricsAvailableModels(data.availableModels);
+    setMetricsAvailableGroups(data.availableGroups);
+    setMetricsAvailableQualityMetrics(data.availableQualityMetrics);
+    setMetricsSummary(data.summary);
+
+    // Auto-select sensible defaults if not set yet
+    setMetricsFilters(prev => {
+      const updates: Partial<MetricsFilters> = {};
+
+      if (!prev.qualityMetric && data.availableQualityMetrics.length > 0) {
+        updates.qualityMetric = data.availableQualityMetrics[0];
+      }
+
+      if (prev.selectedModels.length === 0 && data.availableModels.length > 0) {
+        updates.selectedModels = data.availableModels;
+      }
+
+      if (prev.selectedMetrics.length === 0 && data.availableQualityMetrics.length > 0) {
+        updates.selectedMetrics = data.availableQualityMetrics;
+      }
+
+      // Set default behavior types: all except 'positive'
+      if (prev.selectedBehaviorTypes.length === 0 && data.availableBehaviorTypes && data.availableBehaviorTypes.length > 0) {
+        updates.selectedBehaviorTypes = data.availableBehaviorTypes.filter(bt => bt !== 'positive');
+      }
+
+      return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
+    });
+  }, []);
+
+  // More extraction panel callbacks - memoize to prevent infinite loops
+  const getSelectedRowCb = useCallback(() => {
+    // Prioritize the row being viewed in the trace drawer, otherwise use the default selection
+    return (drawerOpen && selectedRow) ? selectedRow : selectedRowForExtraction;
+  }, [drawerOpen, selectedRow, selectedRowForExtraction]);
+  
+  const getAllRowsCb = useCallback(() => currentRows, [currentRows]);
+  
+  const onBatchStartCb = useCallback(() => {
+    setBatchRunning(true);
+    setPipelineStage('extraction');
+  }, []);
+  
+  const onBatchStatusCb = useCallback((progress: number, state: string | null, stage?: 'extraction' | 'clustering', details?: string) => {
+    setBatchProgress(progress);
+    setBatchState(state);
+    if (stage === 'clustering') {
+      setPipelineStage('clustering');
+    } else if (stage === 'extraction') {
+      setPipelineStage('extraction');
+    }
+    console.log(`Batch status: ${stage} - ${state} - ${details}`);
+  }, []);
+  
   const onRequestRecomputeCb = useCallback((included_property_ids?: string[]) => {
     (async () => {
       try {
@@ -2523,7 +2925,7 @@ function App() {
           transformedRows_sample: transformedRows[0],
           method: method,
           model_column_map: modelColumnMap,
-          note: 'score_columns omitted - using nested dict format'
+          note: 'Scores in nested dict format - backend will process all keys'
         });
 
         const res = await recomputeClusterMetrics({
@@ -2531,7 +2933,7 @@ function App() {
           properties: propertiesRows,
           operationalRows: transformedRows,
           included_property_ids,
-          // score_columns omitted - scores are already in nested dict format (scores: {reward: 0})
+          // score_columns omitted - scores in nested dict, backend processes all keys
           method,
           model_column_map: modelColumnMap,
           // Enable confidence intervals for metrics recomputation
@@ -2592,7 +2994,7 @@ function App() {
           </Box>
         </Box>
       )}
-      <AppBar position="fixed">
+      <AppBar position="fixed" ref={appBarRef}>
         <Toolbar sx={{ gap: 0, pl: 0 }}>
           <Box 
             sx={{ 
@@ -2700,270 +3102,182 @@ function App() {
             </Button>
           </Stack>
         </Toolbar>
+        {/* Global extraction/clustering progress, visible from all stages */}
+        {batchRunning && (
+          <Box sx={{ px: 3, pb: 1.5 }}>
+            <Typography variant="body2" sx={{ color: 'primary.main', mb: 0.5 }}>
+              {pipelineStage === 'extraction' && batchState
+                ? `Extracting properties: ${batchState} • ${Math.round((batchProgress || 0) * 100)}%`
+                : pipelineStage === 'clustering'
+                ? 'Clustering properties...'
+                : 'Processing...'}
+            </Typography>
+            <LinearProgress
+              variant={
+                pipelineStage === 'extraction' && (batchProgress || 0) > 0
+                  ? 'determinate'
+                  : 'indeterminate'
+              }
+              value={(batchProgress || 0) * 100}
+            />
+          </Box>
+        )}
+        {/* Clustering complete message */}
+        {clusters.length > 0 && !clusteringAlertDismissed && !isResultsMode && (
+          <Box sx={{ px: 3, pb: 1.5 }}>
+            <Alert
+              severity="success"
+              sx={{
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#065F46',
+                '& .MuiAlert-icon': {
+                  color: '#10B981'
+                }
+              }}
+              action={
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {clusters.length > 0 && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        setActiveSection('clusters');
+                        setSidebarExpanded(false);
+                      }}
+                      sx={{
+                        color: '#065F46',
+                        borderColor: 'rgba(6, 95, 70, 0.5)',
+                        '&:hover': {
+                          borderColor: '#065F46',
+                          backgroundColor: 'rgba(6, 95, 70, 0.1)'
+                        }
+                      }}
+                    >
+                      View Clusters
+                    </Button>
+                  )}
+                  {resultsMetrics && (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => {
+                        setActiveSection('metrics');
+                        setSidebarExpanded(false);
+                      }}
+                      sx={{
+                        backgroundColor: '#10B981',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: '#059669'
+                        }
+                      }}
+                    >
+                      View Insights
+                    </Button>
+                  )}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleDownloadResults}
+                    sx={{
+                      color: '#065F46',
+                      borderColor: 'rgba(6, 95, 70, 0.5)',
+                      '&:hover': {
+                        borderColor: '#065F46',
+                        backgroundColor: 'rgba(6, 95, 70, 0.1)'
+                      }
+                    }}
+                  >
+                    Download Results
+                  </Button>
+                  <IconButton
+                    size="small"
+                    onClick={() => setClusteringAlertDismissed(true)}
+                    sx={{
+                      color: '#065F46',
+                      ml: 1,
+                      '&:hover': {
+                        backgroundColor: 'rgba(6, 95, 70, 0.1)'
+                      }
+                    }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+              }
+            >
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#065F46' }}>
+                Clustering complete!
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#047857' }}>
+                Your properties have been clustered and insights are ready. Navigate to the <strong>Cluster Behaviors</strong> or <strong>View Insights</strong> section to explore the results.
+              </Typography>
+            </Alert>
+          </Box>
+        )}
       </AppBar>
-      {/* offset for fixed AppBar */}
-      <Box sx={{ height: (theme) => theme.mixins.toolbar.minHeight }} />
+      {/* offset for fixed AppBar - dynamically calculated to account for progress bar and clustering message */}
+      <Box sx={{ height: `${appBarHeight}px` }} />
       
       {/* Permanent Icon Sidebar */}
-          <PermanentIconSidebar 
-        activeSection={activeSection} 
+      <PermanentIconSidebar 
+        activeSection={activeSection}
         sidebarExpanded={sidebarExpanded}
         onSectionChange={(section) => {
           setActiveSection(section);
-          setSidebarExpanded(true);
-          // Clear highlight when user clicks extraction
-          if (section === 'extraction') {
+
+          const hasGlobalProperties = propertiesRows.length > 0;
+          const hasClusters = clusters.length > 0;
+          const hasMetrics = !!resultsMetrics;
+
+          if (section === 'data') {
+            setSidebarExpanded(false);
+          } else if (section === 'extraction') {
+            // Clear highlight when user clicks extraction
             setHighlightExtractionIcon(false);
+            // When properties exist, focus on the extraction/properties view.
+            // Otherwise, the data table remains visible while the extraction panel guides setup.
+            if (!hasGlobalProperties) {
+              console.log('📊 Extraction selected with no properties yet; keeping data table visible for context');
+            }
+            setSidebarExpanded(true);
+          } else if (section === 'clusters') {
+            if (!hasClusters) {
+              console.log('📊 Clusters section selected but no clusters are available yet');
+            }
+            setSidebarExpanded(false);
+          } else if (section === 'metrics') {
+            if (!hasMetrics) {
+              console.log('📊 Metrics section selected but no metrics are available yet');
+            }
+            setSidebarExpanded(false);
           }
-              if (section === 'metrics') {
-                // Stay within metrics family; default to Metrics view
-                setActiveTab('metrics');
-              }
         }}
         highlightExtraction={highlightExtractionIcon}
+        canGoToClusters={clusters.length > 0}
+        canGoToMetrics={!!resultsMetrics}
+        dataDone={operationalRows.length > 0}
+        extractionDone={propertiesRows.length > 0}
+        clustersDone={clusters.length > 0}
+        metricsDone={!!resultsMetrics}
+        currentStage={pipelineStage}
+        onDownloadResults={clusters.length > 0 ? handleDownloadResults : undefined}
       />
 
       {/* Removed expand chevron button; opening is handled by clicking icon sidebar */}
 
-      {/* Expanded Sidebar - Hidden for metrics (filters now in tab) */}
-      {activeSection !== 'metrics' && (
-        <ExpandedSidebar
-          activeSection={activeSection}
-          expanded={sidebarExpanded}
-          onToggleExpanded={() => setSidebarExpanded(!sidebarExpanded)}
-        >
-          {activeSection === 'data' && (
-            <DataStatsPanel 
-              dataOverview={dataOverview} 
-              method={method} 
-              operationalRows={operationalRows}
-              decimalPrecision={decimalPrecision}
-              onDecimalPrecisionChange={setDecimalPrecision}
-              uploadedFilename={uploadedFileName}
-              showConfigureColumns={availableColumns.length > 0 && !showColumnSelector}
-              onConfigureColumns={() => setShowColumnSelector(true)}
-            />
-          )}
-          {activeSection === 'extraction' && (
-            <Box sx={{ position: 'relative' }}>
-            <PropertyExtractionPanel
-              method={method}
-              uploadedFileName={uploadedFileName}
-              resultsName={resultsName}
-              onResultsNameChange={setResultsName}
-              demoSampleSize={isDemoMode ? demoSampleSize : undefined}
-              getSelectedRow={() => {
-                // Prioritize the row being viewed in the trace drawer, otherwise use the default selection
-                return (drawerOpen && selectedRow) ? selectedRow : selectedRowForExtraction;
-              }}
-              getAllRows={() => currentRows}
-              getOperationalRows={getOperationalRowsCb}
-              getPropertiesRows={getPropertiesRowsCb}
-              onPropertiesMerged={(props) => {
-                const newMap = new Map(propertiesByKey);
-              props.forEach(p => {
-                const key = `${p.question_id}-${p.model}`;
-                if (!newMap.has(key)) newMap.set(key, []);
-                newMap.get(key)!.push(p);
-              });
-              setPropertiesByKey(newMap);
-              
-              // Also update propertiesRows for the PropertiesTab
-              // Enrich new properties with model_response from operational data
-              const enrichedProps = props.map(prop => {
-                // Find matching operational row by question_id and model
-                const matchingRow = operationalRows.find(opRow => {
-                  if (method === 'single_model') {
-                    return opRow.question_id === prop.question_id && opRow.model === prop.model;
-                  } else if (method === 'side_by_side') {
-                    return opRow.question_id === prop.question_id && 
-                           (opRow.model_a === prop.model || opRow.model_b === prop.model);
-                  }
-                  return false;
-                });
-                
-                // Add model_response and __index from the matching operational row
-                return {
-                  ...prop,
-                  __index: matchingRow?.__index,
-                  model_response: matchingRow?.model_response ||
-                                 matchingRow?.model_a_response ||
-                                 matchingRow?.model_b_response ||
-                                 'No response found'
-                };
-              });
-              
-              // Add to existing propertiesRows (for single extraction, we append)
-              setPropertiesRows(prevRows => [...prevRows, ...enrichedProps]);
-              setActiveTab('properties'); // Switch to properties tab to see results
-            }}
-            onSelectEvidence={setSelectedEvidence}
-            onBatchLoaded={(rows) => {
-              // Enrich properties with model_response from operational data
-              const enrichedRows = rows.map(prop => {
-                // Find matching operational row by question_id and model
-                const matchingRow = operationalRows.find(opRow => {
-                  if (method === 'single_model') {
-                    return opRow.question_id === prop.question_id && opRow.model === prop.model;
-                  } else if (method === 'side_by_side') {
-                    return opRow.question_id === prop.question_id && 
-                           (opRow.model_a === prop.model || opRow.model_b === prop.model);
-                  }
-                  return false;
-                });
-                
-                // Add model_response and __index from the matching operational row
-                return {
-                  ...prop,
-                  __index: matchingRow?.__index,
-                  model_response: matchingRow?.model_response ||
-                                 matchingRow?.model_a_response ||
-                                 matchingRow?.model_b_response ||
-                                 'No response found'
-                };
-              });
-              
-              setPropertiesRows(enrichedRows);
-              setActiveTab('properties'); // Switch to properties tab to see results
-            }}
-            onBatchStart={() => setBatchRunning(true)}
-            onBatchStatus={(progress, state, stage, details) => {
-              setBatchProgress(progress);
-              setBatchState(state);
-              // Could use stage and details for enhanced UI feedback
-              console.log(`Batch status: ${stage} - ${state} - ${details}`);
-            }}
-            onBatchDone={() => setBatchRunning(false)}
-            onClustersUpdated={(data) => {
-              if (!data) {
-                console.error('❌ onClustersUpdated received undefined/null data');
-                return;
-              }
-
-              // Enrich clusters with per-model quality data from metrics
-              let enrichedClusters = data.clusters || [];
-              if (data.metrics?.model_cluster_scores) {
-                const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
-
-                // Enrich model_cluster_scores with cluster metadata (meta.group)
-                if (normalizedMetrics.model_cluster_scores) {
-                  normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
-                    normalizedMetrics.model_cluster_scores,
-                    data.clusters || []
-                  );
-                }
-
-                enrichedClusters = enrichClustersWithQualityData(
-                  data.clusters || [],
-                  normalizedMetrics.model_cluster_scores
-                );
-
-                // Build a map of examples by cluster label (metrics rows group by 'cluster' label)
-                const examplesByCluster = new Map<string, any[]>();
-                normalizedMetrics.model_cluster_scores.forEach((row: any) => {
-                  const labelKey = String(row.cluster ?? '');
-                  const hasExamples = Array.isArray(row.examples) && row.examples.length > 0;
-                  if (!hasExamples) return;
-                  const existing = examplesByCluster.get(labelKey) || [];
-                  examplesByCluster.set(labelKey, existing.concat(row.examples));
-                });
-
-                // Enrich clusters with examples from model_cluster_scores (label match)
-                enrichedClusters = enrichedClusters.map(cluster => {
-                  const labelKey = cluster.cluster_label || cluster.label || cluster.cluster || '';
-                  const examples = examplesByCluster.get(String(labelKey)) || [];
-                  return {
-                    ...cluster,
-                    examples
-                  };
-                });
-              }
-
-              // Set clusters once with all enrichments (quality + examples)
-              setClusters(ensureExamplesArray(enrichedClusters));
-              setTotalConversationsByModel(data.total_conversations_by_model || null);
-              setTotalUniqueConversations(data.total_unique_conversations || null);
-
-              // Save metrics so they appear in the Metrics tab
-              if (data.metrics) {
-                const normalizedMetrics = normalizeMetricsColumnNames(data.metrics);
-
-                // Enrich model_cluster_scores with cluster metadata (meta.group)
-                if (normalizedMetrics.model_cluster_scores) {
-                  normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
-                    normalizedMetrics.model_cluster_scores,
-                    data.clusters || []
-                  );
-                }
-
-                console.log('📊 resultsMetrics set:', normalizedMetrics.model_scores?.length || 0, 'model_scores');
-                setResultsMetrics(normalizedMetrics);
-              }
-            }}
-            onNavigateToMetrics={() => {
-              // Navigate to metrics tab to view clustering results
-              setActiveTab('metrics');
-              // Collapse property extraction panel when clustering finishes
-              setSidebarExpanded(false);
-            }}
-            onOpenTrace={(row) => {
-              // Format trace data properly based on method (same as onView function)
-              if (method === "single_model") {
-                const messages = ensureOpenAIFormat(String(row?.["prompt"] ?? ""), row?.["model_response"]);
-                setSelectedTrace({ type: "single", messages });
-              } else if (method === "side_by_side") {
-                const prompt = String(row?.["prompt"] ?? "");
-                const messagesA = ensureOpenAIFormat(prompt, row?.["model_a_response"]);
-                const messagesB = ensureOpenAIFormat(prompt, row?.["model_b_response"]);
-                setSelectedTrace({
-                  type: "sbs",
-                  messagesA,
-                  messagesB,
-                  modelA: String(row?.["model_a"] ?? "Model A"),
-                  modelB: String(row?.["model_b"] ?? "Model B"),
-                });
-              }
-              setSelectedRow(row);
-              setDrawerOpen(true);
-              setSelectedEvidence(null);
-              setEvidenceTargetModel(undefined);
-            }}
-            onCloseTrace={() => {
-              setDrawerOpen(false);
-              setSelectedTrace(null);
-              setSelectedRow(null);
-              setSelectedEvidence(null);
-              setEvidenceTargetModel(undefined);
-              setSelectedProperty(null);
-            }}
-          />
-          {(isResultsMode || !backendAvailable) && (
-            <Box sx={{ position: 'absolute', inset: 0, zIndex: (theme) => theme.zIndex.modal + 1, bgcolor: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, pointerEvents: 'all' }}>
-              <Box sx={{ bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 4, border: '1px solid #EA580C', textAlign: 'center' }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {isResultsMode
-                    ? 'Extraction disabled in results mode. Upload raw data to enable extraction.'
-                    : 'Backend not connected. Set VITE_BACKEND to your backend URL to enable extraction.'}
-                </Typography>
-              </Box>
-            </Box>
-          )}
-          </Box>
-        )}
-        {/* Clustering section removed - now integrated into Property Extraction */}
-        {/* Metrics control panel removed - now using horizontal filter bar in MetricsTab */}
-        </ExpandedSidebar>
-      )}
-
             <Container maxWidth={false} sx={{
-        py: 2,
+        py: 1,
+        pt: 2, // Reduced top padding below header
         flexGrow: 1,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'stretch',
-        ml: '60px', // Account for permanent icon sidebar only
+        ml: '150px', // Account for permanent icon sidebar (150px wide)
         mr: 0, // No right margin
-        width: 'calc(100vw - 60px)', // Constrain width to account for icon sidebar only
+        width: 'calc(100vw - 150px)', // Constrain width to account for icon sidebar (150px)
         maxWidth: 'none', // Override default maxWidth
         overflow: 'auto' // Ensure proper scroll containment
       }}>
@@ -3074,33 +3388,93 @@ function App() {
 
         {/* Show data interface only after data is loaded and column mapping is complete */}
         {originalRows.length > 0 && !showColumnSelector && (
-          <>
+        <>
             {/* Show filter notice if any rows were dropped due to missing scores */}
             {filterNotice && (
-              <Box sx={{ mb: 1, p: 1.5, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#92400E', borderRadius: 1 }}>
+              <Box
+                sx={{
+                  mb: 1,
+                  p: 1.5,
+                  border: '1px solid #F59E0B',
+                  background: '#FFFBEB',
+                  color: '#92400E',
+                  borderRadius: 1,
+                }}
+              >
                 {filterNotice}
               </Box>
             )}
 
-            {dataOverview && (
-              <Box sx={{
-                mb: 2,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 3
-              }}>
-                <Box sx={{ color: 'text.secondary' }}>
-                  <strong>{dataOverview.rowCount}</strong> rows ·{' '}
-                  <strong>{dataOverview.uniquePrompts}</strong> unique prompts ·{' '}
-                  <strong>{dataOverview.uniqueModels}</strong> unique models
-                </Box>
-                {/* Removed hint: Click headers to sort • Use filters to narrow results */}
-              </Box>
+            {activeSection === 'data' && dataOverview && (
+              <DataOverviewBanner dataOverview={dataOverview} method={method} />
             )}
 
-
+            {/* Extraction panel in main content for Extraction step */}
+            {activeSection === 'extraction' && (
+              <Box sx={{ mb: 2, position: 'relative' }}>
+            <PropertyExtractionPanel
+              method={method}
+              uploadedFileName={uploadedFileName}
+              resultsName={resultsName}
+              onResultsNameChange={setResultsName}
+              demoSampleSize={isDemoMode ? demoSampleSize : undefined}
+              getSelectedRow={getSelectedRowCb}
+              getAllRows={getAllRowsCb}
+              getOperationalRows={getOperationalRowsCb}
+              getPropertiesRows={getPropertiesRowsCb}
+              onPropertiesMerged={onPropertiesMergedCb}
+            onSelectEvidence={setSelectedEvidence}
+            onBatchLoaded={onBatchLoadedCb}
+                  onBatchStart={onBatchStartCb}
+            onBatchStatus={onBatchStatusCb}
+                  onBatchDone={onBatchDoneCb}
+            onClustersUpdated={onClustersUpdatedCb}
+            onNavigateToMetrics={onNavigateToMetricsCb}
+            onNavigateToClusters={onNavigateToClustersCb}
+            onOpenTrace={(row) => {
+              // Format trace data properly based on method (same as onView function)
+              if (method === "single_model") {
+                const messages = ensureOpenAIFormat(String(row?.["prompt"] ?? ""), row?.["model_response"]);
+                setSelectedTrace({ type: "single", messages });
+              } else if (method === "side_by_side") {
+                const prompt = String(row?.["prompt"] ?? "");
+                const messagesA = ensureOpenAIFormat(prompt, row?.["model_a_response"]);
+                const messagesB = ensureOpenAIFormat(prompt, row?.["model_b_response"]);
+                setSelectedTrace({
+                  type: "sbs",
+                  messagesA,
+                  messagesB,
+                  modelA: String(row?.["model_a"] ?? "Model A"),
+                  modelB: String(row?.["model_b"] ?? "Model B"),
+                });
+              }
+              setSelectedRow(row);
+              setDrawerOpen(true);
+              setSelectedEvidence(null);
+              setEvidenceTargetModel(undefined);
+            }}
+            onCloseTrace={() => {
+              setDrawerOpen(false);
+              setSelectedTrace(null);
+              setSelectedRow(null);
+              setSelectedEvidence(null);
+              setEvidenceTargetModel(undefined);
+              setSelectedProperty(null);
+            }}
+          />
+          {(isResultsMode || !backendAvailable) && (
+            <Box sx={{ position: 'absolute', inset: 0, zIndex: (theme) => theme.zIndex.modal + 1, bgcolor: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, pointerEvents: 'all' }}>
+              <Box sx={{ bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 4, border: '1px solid #EA580C', textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {isResultsMode
+                    ? 'Extraction disabled in results mode. Upload raw data to enable extraction.'
+                    : 'Backend not connected. Set VITE_BACKEND to your backend URL to enable extraction.'}
+                </Typography>
+              </Box>
+            </Box>
+          )}
+          </Box>
+            )}
 
             {/* Operation Chain Summary */}
             <FilterSummary
@@ -3108,39 +3482,9 @@ function App() {
               onRemoveOperation={removeOperation}
             />
 
-            {/* Tabs for switching between Data, Properties, and Clusters */}
+            {/* Top action row: extraction hint and results download */}
             <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
-          <Tabs
-            value={activeTab}
-            onChange={(_, v) => {
-              setActiveTab(v);
-              if (v === 'metrics') setActiveSection('metrics');
-            }}
-            textColor="inherit"
-            indicatorColor="primary"
-            sx={{ 
-              flex: 1,
-              '& .MuiTab-root': {
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-                borderRadius: '8px 8px 0 0',
-                marginRight: '4px',
-                marginBottom: '0',
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderBottom: 'none',
-                color: 'black',
-                '&.Mui-selected': {
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)',
-                  zIndex: 1,
-                  position: 'relative',
-                  color: 'black'
-                }
-              }
-            }}
-          >
-            <Tab value="table" label="Data" title="View model responses" />
             {/* Hint message for extraction feature - shown when data is loaded but no properties */}
             {originalRows.length > 0 && !showColumnSelector && propertiesRows.length === 0 && (
               <Box
@@ -3151,7 +3495,6 @@ function App() {
                   backgroundColor: '#EFF6FF', 
                   border: '1px solid #4C6EF5', 
                   borderRadius: 1,
-                  ml: 1,
                   display: 'inline-flex',
                   alignItems: 'center',
                   height: '36px'
@@ -3162,68 +3505,15 @@ function App() {
                 </Typography>
               </Box>
             )}
-            {propertiesRows.length > 0 && (
-              <Tab value="properties" label={`Properties (${propertiesRows.length})`} title="View extracted behaviors per trace" />
-            )}
-            {clusters.length > 0 && (
-              <Tab value="clusters" label={`Clusters (${clusters.length})`} title="View common behaviors in traces" />
-            )}
-            {resultsMetrics && (
-              <Tab value="metrics" label="Insights" title="Get model & dataset level insights" />
-            )}
-          </Tabs>
           </Box>
-          {clusters.length > 0 && (
-            <Button
-              startIcon={<DownloadIcon />}
-              onClick={async () => {
-                try {
-                  const zip = new JSZip();
-                  zip.file('clusters.jsonl', clusters.map(c => JSON.stringify(c)).join('\n'));
-                  zip.file('properties.jsonl', propertiesRows.map(p => JSON.stringify(p)).join('\n'));
-                  
-                  if (operationalRows.length > 0) {
-                    zip.file('conversations.jsonl', operationalRows.map(r => JSON.stringify(r)).join('\n'));
-                  }
-                  
-                  if (resultsMetrics?.model_cluster_scores && resultsMetrics.model_cluster_scores.length > 0) {
-                    zip.file('model_cluster_scores_df.jsonl', 
-                      resultsMetrics.model_cluster_scores.map(m => JSON.stringify(m)).join('\n'));
-                  }
-                  
-                  if (resultsMetrics?.cluster_scores && resultsMetrics.cluster_scores.length > 0) {
-                    zip.file('cluster_scores_df.jsonl',
-                      resultsMetrics.cluster_scores.map(m => JSON.stringify(m)).join('\n'));
-                  }
-                  
-                  if (resultsMetrics?.model_scores && resultsMetrics.model_scores.length > 0) {
-                    zip.file('model_scores_df.jsonl',
-                      resultsMetrics.model_scores.map(m => JSON.stringify(m)).join('\n'));
-                  }
-                  
-                  const blob = await zip.generateAsync({ type: 'blob' });
-                  const baseName = resultsName.trim() || uploadedFileName || 'clustering_results';
-                  const filename = `${baseName}_${new Date().toISOString().slice(0,10)}.zip`;
-                  saveAs(blob, filename);
-                } catch (err) {
-                  console.error('Download failed:', err);
-                  alert('Failed to download results');
-                }
-              }}
-              variant="outlined"
-              size="small"
-            >
-              Download Results
-            </Button>
-          )}
         </Box>
 
-        {/* Content based on active tab */}
+        {/* Content based on active section */}
         {/* Mount table/properties only when active to keep memory low */}
-        {activeTab === 'table' ? tableContent : null}
-        {activeTab === 'properties' ? propertiesContent : null}
-        {(activeTab === 'clusters' || hasViewedClusters) && (
-          <Box sx={{ display: activeTab === 'clusters' ? 'block' : 'none' }}>
+        {activeSection === 'data' ? tableContent : null}
+        {activeSection === 'extraction' ? propertiesContent : null}
+        {(activeSection === 'clusters' || hasViewedClusters) && (
+          <Box sx={{ display: activeSection === 'clusters' ? 'block' : 'none' }}>
             <ClustersTab
               clusters={clusters}
               totalConversationsByModel={totalConversationsByModel}
@@ -3241,7 +3531,7 @@ function App() {
             />
           </Box>
         )}
-        {activeTab === 'metrics' && (
+        {activeSection === 'metrics' && (
           <Box sx={{ mt: 1 }}>
             {resultsMetrics ? (
               <MetricsTab
@@ -3250,36 +3540,7 @@ function App() {
                 onFiltersChange={setMetricsFilters}
                 totalUniqueConversations={totalUniqueConversations}
                 method={method}
-                onDataProcessed={(data) => {
-                  setMetricsAvailableModels(data.availableModels);
-                  setMetricsAvailableGroups(data.availableGroups);
-                  setMetricsAvailableQualityMetrics(data.availableQualityMetrics);
-                  setMetricsSummary(data.summary);
-
-                  // Auto-select defaults if not set
-                  setMetricsFilters(prev => {
-                    const updates: Partial<MetricsFilters> = {};
-
-                    if (!prev.qualityMetric && data.availableQualityMetrics.length > 0) {
-                      updates.qualityMetric = data.availableQualityMetrics[0];
-                    }
-
-                    if (prev.selectedModels.length === 0 && data.availableModels.length > 0) {
-                      updates.selectedModels = data.availableModels;
-                    }
-
-                    if (prev.selectedMetrics.length === 0 && data.availableQualityMetrics.length > 0) {
-                      updates.selectedMetrics = data.availableQualityMetrics;
-                    }
-
-                    // Set default behavior types: all except 'positive'
-                    if (prev.selectedBehaviorTypes.length === 0 && data.availableBehaviorTypes && data.availableBehaviorTypes.length > 0) {
-                      updates.selectedBehaviorTypes = data.availableBehaviorTypes.filter(bt => bt !== 'positive');
-                    }
-
-                    return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
-                  });
-                }}
+                onDataProcessed={onMetricsDataProcessedCb}
                 onNavigateToCluster={handleNavigateToCluster}
                 onViewExample={(cluster) => {
                   // Randomly select an example from the cluster

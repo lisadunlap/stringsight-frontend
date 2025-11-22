@@ -22,8 +22,8 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
-  Tabs,
-  Tab
+  Button,
+  Menu,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { FrequencyChartAlt } from './charts/FrequencyChartAlt';
@@ -31,6 +31,7 @@ import { ModelComparisonTab } from './ModelComparisonTab';
 import type { ModelClusterRow, MetricsFilters, MetricsSummary } from '../../types/metrics';
 import { computeOverallProportion, computeGlobalQualityDelta } from './metricsUtils';
 import { ClusterLabel } from '../ClusterLabel';
+import { MetricsFilterBar } from './MetricsFilterBar';
 
 // Threshold for displaying common failures (show any pattern where at least one model has > this frequency)
 const COMMON_FAILURE_MIN_FREQUENCY = 0.05; // 5%
@@ -56,6 +57,16 @@ interface MetricsInsightsOverviewProps {
   showCI?: boolean;
   /** Optional dataset summary (used to derive percentages when not provided per-cluster) */
   summary?: MetricsSummary;
+  /** Optional filter change handler for inline filter dropdown in header */
+  onFiltersChange?: (filters: MetricsFilters) => void;
+  /** Available models for filters dropdown */
+  availableModels?: string[];
+  /** Available quality metrics for filters dropdown */
+  availableQualityMetrics?: string[];
+  /** Available behavior types (normalized) for filters dropdown */
+  availableBehaviorTypes?: string[];
+  /** Whether confidence intervals are present in the data */
+  hasConfidenceIntervals?: boolean;
 }
 
 // Normalize group names to standard categories
@@ -110,7 +121,12 @@ export function MetricsInsightsOverview({
   method = 'unknown',
   topClusters,
   showCI = false,
-  summary
+  summary,
+  onFiltersChange,
+  availableModels,
+  availableQualityMetrics,
+  availableBehaviorTypes,
+  hasConfidenceIntervals,
 }: MetricsInsightsOverviewProps) {
   // Debug logging
   console.log('[MetricsInsightsOverview] Rendering with:', {
@@ -413,6 +429,28 @@ export function MetricsInsightsOverview({
     availableTabs.length > 0 ? availableTabs[0].key : null
   );
 
+  // Filters dropdown anchor
+  const [filtersAnchorEl, setFiltersAnchorEl] = useState<null | HTMLElement>(null);
+  const filtersMenuOpen = Boolean(filtersAnchorEl);
+
+  const handleFiltersButtonClick = (event: React.MouseEvent<HTMLElement>) => {
+    setFiltersAnchorEl(event.currentTarget);
+  };
+
+  const handleFiltersMenuClose = () => {
+    setFiltersAnchorEl(null);
+  };
+
+  // Count active filters (excluding showCI, which is treated as a display default)
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.selectedModels.length > 0) count += 1;
+    if (filters.selectedMetrics.length > 0) count += 1;
+    if (filters.selectedBehaviorTypes && filters.selectedBehaviorTypes.length > 0) count += 1;
+    if (filters.significanceOnly) count += 1;
+    return count;
+  }, [filters]);
+
   // Keep the active tab in sync with the available tabs and ensure we never
   // select a tab that has no data
   useEffect(() => {
@@ -441,24 +479,109 @@ export function MetricsInsightsOverview({
 
   return (
     <Box sx={{ mb: 4 }}>
-      <Tabs
-        value={activeTab}
-        onChange={(_, newValue) => setActiveTab(newValue as InsightsTabKey)}
+      {/* Header row: view selector + filters dropdown */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mb: 1,
+        }}
+      >
+        {/* Segmented control for view selection */}
+        <Box
+          sx={{
+            display: 'flex',
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            backgroundColor: '#FFFFFF',
+            p: 0.5,
+            gap: 0.5,
+            flexWrap: 'wrap',
+            maxWidth: '100%',
+          }}
+        >
+          {availableTabs.map(tab => {
+            const isActive = activeTab === tab.key;
+            return (
+              <Button
+                key={tab.key}
+                size="small"
+                onClick={() => setActiveTab(tab.key)}
+                sx={{
+                  textTransform: 'none',
+                  borderRadius: 1,
+                  px: 2.25,
+                  py: 0.75,
+                  minHeight: 34,
+                  fontSize: '0.95rem',
+                  fontWeight: isActive ? 600 : 500,
+                  color: isActive ? 'primary.contrastText' : 'text.secondary',
+                  backgroundColor: isActive ? 'primary.main' : 'transparent',
+                  boxShadow: isActive ? '0 1px 2px rgba(15, 23, 42, 0.18)' : 'none',
+                  '&:hover': {
+                    backgroundColor: isActive ? 'primary.dark' : 'rgba(148, 163, 184, 0.16)',
+                  },
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label}
+              </Button>
+            );
+          })}
+        </Box>
+
+        {onFiltersChange && availableModels && availableQualityMetrics && (
+          <Button
+            variant="text"
+            size="small"
+            onClick={handleFiltersButtonClick}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 500,
+              color: 'text.primary',
+            }}
+          >
+            {activeFiltersCount > 0
+              ? `Filters (${activeFiltersCount} active)`
+              : 'Filters'}
+          </Button>
+        )}
+      </Box>
+
+      {/* Divider line under header */}
+      <Box
         sx={{
           borderBottom: 1,
           borderColor: 'divider',
-          mb: 2,
-          '& .MuiTab-root': {
-            textTransform: 'none',
-            fontWeight: 500,
-            fontSize: '1rem'
-          }
+          mb: 1.5,
         }}
-      >
-        {availableTabs.map(tab => (
-          <Tab key={tab.key} label={tab.label} value={tab.key} />
-        ))}
-      </Tabs>
+      />
+
+      {/* Filters dropdown menu */}
+      {onFiltersChange && availableModels && availableQualityMetrics && (
+        <Menu
+          anchorEl={filtersAnchorEl}
+          open={filtersMenuOpen}
+          onClose={handleFiltersMenuClose}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          keepMounted
+        >
+          <Box sx={{ p: 1 }}>
+            <MetricsFilterBar
+              filters={filters}
+              onFiltersChange={onFiltersChange}
+              availableModels={availableModels}
+              availableQualityMetrics={availableQualityMetrics}
+              availableBehaviorTypes={availableBehaviorTypes || []}
+              hasConfidenceIntervals={hasConfidenceIntervals || false}
+              variant="menu"
+            />
+          </Box>
+        </Menu>
+      )}
 
       {/* 1. COMMON FAILURES */}
       {activeTab === 'commonFailures' && insights.commonFailures.length > 0 && (

@@ -3,8 +3,7 @@
  *
  * Shows:
  * 1. Cluster counts by group (negative critical, negative non-critical, stylistic - excludes positive)
- * 2. Number of clusters that significantly affect quality (deduplicated across metrics)
- * 3. Number of misaligned metrics (unique metrics that are misaligned, not per-behavior)
+ * 2. Number of misaligned metrics (unique metrics that are misaligned, not per-behavior)
  */
 
 import { Box, Paper, Stack, Typography, Chip } from '@mui/material';
@@ -55,9 +54,6 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
     // Count unique clusters by group
     const clustersByGroup = new Map<string, Set<string>>();
 
-    // Track which clusters significantly affect quality (across all metrics)
-    const clustersWithSignificantQuality = new Set<string>();
-
     // Track which metrics are misaligned (across all behaviors)
     const misalignedMetrics = new Set<string>();
 
@@ -76,10 +72,6 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
       qualityMetrics.forEach(metric => {
         const qualitySigKey = `quality_delta_${metric}_significant`;
         const isSignificant = row[qualitySigKey as keyof typeof row];
-
-        if (isSignificant) {
-          clustersWithSignificantQuality.add(row.cluster);
-        }
 
         // Check for misalignment:
         // - Negative behaviors with positive quality delta
@@ -119,7 +111,6 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
 
     return {
       groupCounts,
-      significantQualityClusters: clustersWithSignificantQuality.size,
       misalignedMetrics: misalignedMetrics.size
     };
   }, [data, qualityMetrics]);
@@ -129,135 +120,101 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
       elevation={0}
       sx={{
         position: 'relative',
-        p: 3,
-        mb: 3,
+        p: 2.5,
+        mb: 1.5,
         bgcolor: '#ffffff',
         borderRadius: 2,
         border: '2px solid transparent',
         backgroundImage: 'linear-gradient(white, white), linear-gradient(90deg, #2563eb, #10b981)',
         backgroundOrigin: 'border-box',
         backgroundClip: 'padding-box, border-box',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08)'
+        // Match Properties overview banner: no strong drop shadow on the metrics banner
+        boxShadow: 'none',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 6,
+        alignItems: 'flex-start',
+        justifyContent: 'space-between'
       }}
     >
-      <Stack direction="row" spacing={4} alignItems="center" flexWrap="wrap">
-        {/* Cluster counts by group */}
-        <Box>
-          <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
-            Clusters by Type
-          </Typography>
-          <Stack direction="row" spacing={1.5} flexWrap="wrap">
-            {stats.groupCounts.map(({ group, count, color, label }) => (
-              <Chip
-                key={group}
-                label={
-                  <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: color }}>
-                      {count}
-                    </Typography>
-                    <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: color }}>
-                      {label}
-                    </Typography>
-                  </Box>
-                }
-                size="medium"
-                sx={{
-                  bgcolor: `${color}15`,
-                  height: 'auto',
-                  py: 1,
-                  px: 1.5,
-                  border: 'none',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-                  '& .MuiChip-label': {
-                    px: 0
-                  }
-                }}
-              />
-            ))}
-          </Stack>
-        </Box>
-
-        {/* Clusters significantly affecting quality */}
-        <Box>
-          <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
-            Quality Impact
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      {/* Cluster counts by group */}
+      <Box>
+        <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
+          Clusters by Type
+        </Typography>
+        <Stack direction="row" spacing={1.5} flexWrap="wrap">
+          {stats.groupCounts.map(({ group, count, color, label }) => (
             <Chip
+              key={group}
               label={
                 <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography component="span" sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#8B5CF6' }}>
-                    {stats.significantQualityClusters}
+                  <Typography component="span" sx={{ fontSize: '1.1rem', fontWeight: 700, color: color }}>
+                    {count}
                   </Typography>
-                  <Typography component="span" sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#8B5CF6' }}>
-                    cluster{stats.significantQualityClusters !== 1 ? 's' : ''}
+                  <Typography component="span" sx={{ fontSize: '0.85rem', fontWeight: 600, color: color }}>
+                    {label}
                   </Typography>
                 </Box>
               }
               size="medium"
               sx={{
-                bgcolor: '#8B5CF615',
+                bgcolor: `${color}15`,
                 height: 'auto',
-                py: 1,
-                px: 1.5,
+                py: 0.75,
+                px: 1.25,
                 border: 'none',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
                 '& .MuiChip-label': {
                   px: 0
                 }
               }}
             />
-            <Typography variant="caption" sx={{ color: '#111827' }}>
-              significantly affect quality
-            </Typography>
-          </Box>
-        </Box>
+          ))}
+        </Stack>
+      </Box>
 
-        {/* Misaligned metrics */}
-        <Box>
-          <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
-            Misalignment
+      {/* Misaligned metrics */}
+      <Box sx={{ minWidth: 200 }}>
+        <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
+          Misalignment
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Chip
+            label={
+              <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography component="span" sx={{
+                  fontSize: '1.1rem',
+                  fontWeight: 700,
+                  color: stats.misalignedMetrics > 0 ? '#EF4444' : '#10B981'
+                }}>
+                  {stats.misalignedMetrics}
+                </Typography>
+                <Typography component="span" sx={{
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: stats.misalignedMetrics > 0 ? '#EF4444' : '#10B981'
+                }}>
+                  metric{stats.misalignedMetrics !== 1 ? 's' : ''}
+                </Typography>
+              </Box>
+            }
+            size="medium"
+            sx={{
+              bgcolor: stats.misalignedMetrics > 0 ? '#EF444415' : '#10B98115',
+              height: 'auto',
+              py: 0.75,
+              px: 1.25,
+              border: 'none',
+              '& .MuiChip-label': {
+                px: 0
+              },
+              cursor: 'default'
+            }}
+          />
+          <Typography variant="caption" sx={{ color: '#111827' }}>
+            misaligned
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip
-              label={
-                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography component="span" sx={{
-                    fontSize: '1.25rem',
-                    fontWeight: 700,
-                    color: stats.misalignedMetrics > 0 ? '#EF4444' : '#10B981'
-                  }}>
-                    {stats.misalignedMetrics}
-                  </Typography>
-                  <Typography component="span" sx={{
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    color: stats.misalignedMetrics > 0 ? '#EF4444' : '#10B981'
-                  }}>
-                    metric{stats.misalignedMetrics !== 1 ? 's' : ''}
-                  </Typography>
-                </Box>
-              }
-              size="medium"
-              sx={{
-                bgcolor: stats.misalignedMetrics > 0 ? '#EF444415' : '#10B98115',
-                height: 'auto',
-                py: 1,
-                px: 1.5,
-                border: 'none',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-                '& .MuiChip-label': {
-                  px: 0
-                },
-                cursor: 'default'
-              }}
-            />
-            <Typography variant="caption" sx={{ color: '#111827' }}>
-              misaligned
-            </Typography>
-          </Box>
         </Box>
-      </Stack>
+      </Box>
     </Paper>
   );
 }
