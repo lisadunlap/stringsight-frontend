@@ -3,6 +3,7 @@ import { Box, Typography, Button, Stack, Chip, Tooltip, IconButton, Fade, Paper 
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { FormControl, InputLabel, Select, MenuItem, TextField, Checkbox, ListItemText, OutlinedInput } from '@mui/material';
 import { ClusterLabel } from './ClusterLabel';
+import ClustersOverviewBanner from './ClustersOverviewBanner';
 
 // Model color palette (matches FrequencyChartAlt and MetricsInsightsOverview)
 const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
@@ -362,9 +363,13 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
   }
 
   return (
-    <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'hidden', background: '#FFFFFF' }}>
-      {/* Legend / helper text */}
-      <Box sx={{ p: 1.5, background: '#F3F4F6', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+    <Box>
+      {/* Clusters Overview Banner */}
+      <ClustersOverviewBanner clusters={enrichedClusters} />
+      
+      <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'hidden', background: '#FFFFFF' }}>
+        {/* Legend / helper text */}
+        <Box sx={{ p: 1.5, background: '#F3F4F6', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
         {/* <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <InfoOutlinedIcon sx={{ fontSize: 16, color: '#6B7280' }} />
           <Typography variant="caption" color="text.secondary">
@@ -724,6 +729,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         }
         return row;
       })}
+      </Box>
     </Box>
   );
 }

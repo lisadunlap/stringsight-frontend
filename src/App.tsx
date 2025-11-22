@@ -3417,11 +3417,13 @@ function App() {
               uploadedFileName={uploadedFileName}
               resultsName={resultsName}
               onResultsNameChange={setResultsName}
+              isResultsMode={isResultsMode}
               demoSampleSize={isDemoMode ? demoSampleSize : undefined}
               getSelectedRow={getSelectedRowCb}
               getAllRows={getAllRowsCb}
               getOperationalRows={getOperationalRowsCb}
               getPropertiesRows={getPropertiesRowsCb}
+              getClusters={() => clusters}
               onPropertiesMerged={onPropertiesMergedCb}
             onSelectEvidence={setSelectedEvidence}
             onBatchLoaded={onBatchLoadedCb}
@@ -3462,13 +3464,11 @@ function App() {
               setSelectedProperty(null);
             }}
           />
-          {(isResultsMode || !backendAvailable) && (
+          {!backendAvailable && (
             <Box sx={{ position: 'absolute', inset: 0, zIndex: (theme) => theme.zIndex.modal + 1, bgcolor: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, pointerEvents: 'all' }}>
               <Box sx={{ bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 4, border: '1px solid #EA580C', textAlign: 'center' }}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {isResultsMode
-                    ? 'Extraction disabled in results mode. Upload raw data to enable extraction.'
-                    : 'Backend not connected. Set VITE_BACKEND to your backend URL to enable extraction.'}
+                  Backend not connected. Set VITE_BACKEND to your backend URL to enable extraction.
                 </Typography>
               </Box>
             </Box>

@@ -223,10 +223,12 @@ interface PropertyExtractionPanelProps {
   uploadedFileName?: string;
   resultsName?: string;
   onResultsNameChange?: (name: string) => void;
+  isResultsMode?: boolean;
   getSelectedRow: () => Record<string, any> | null;
   getAllRows: () => Record<string, any>[];
   getOperationalRows: () => any[];
   getPropertiesRows: () => any[];
+  getClusters?: () => any[];
   onPropertiesMerged: (props: any[]) => void;
   onSelectEvidence: (evidence: string[], targetModel?: string) => void;
   onBatchLoaded: (rows: any[]) => void;
@@ -255,10 +257,12 @@ export default function PropertyExtractionPanel({
   uploadedFileName,
   resultsName: resultsNameProp,
   onResultsNameChange,
+  isResultsMode = false,
   getSelectedRow,
   getAllRows,
   getOperationalRows,
   getPropertiesRows,
+  getClusters,
   onPropertiesMerged,
   onSelectEvidence,
   onBatchLoaded,
@@ -327,7 +331,14 @@ export default function PropertyExtractionPanel({
 
   // Controls whether the main control panel is expanded or collapsed.
   // Initially expanded; will auto-collapse after "Run on all traces".
-  const [panelExpanded, setPanelExpanded] = React.useState<boolean>(true);
+  // If loading from results (clusters already exist), start collapsed.
+  const [panelExpanded, setPanelExpanded] = React.useState<boolean>(() => {
+    if (getClusters) {
+      const existingClusters = getClusters();
+      return existingClusters.length === 0;
+    }
+    return true;
+  });
 
   // Full-screen prompt viewer
   const [promptFullscreen, setPromptFullscreen] = React.useState<boolean>(false);
@@ -879,6 +890,10 @@ export default function PropertyExtractionPanel({
           mb: 1,
           borderRadius: 1,
           '&:before': { display: 'none' },
+          ...(isResultsMode && {
+            opacity: 0.6,
+            bgcolor: '#F9FAFB',
+          }),
         }}
       >
         <AccordionSummary 
@@ -890,7 +905,14 @@ export default function PropertyExtractionPanel({
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
-          {/* demo banner removed */}
+          {/* Results mode banner */}
+          {isResultsMode && (
+            <Box sx={{ mb: 2, bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 1, border: '1px solid #EA580C', textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                Extraction disabled in results mode. Upload raw data to enable extraction.
+              </Typography>
+            </Box>
+          )}
 
           <Typography variant="body2" sx={{ color: 'primary.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
             Extract interesting properties from your traces. Click 'Extract on Row 0' to see an example.
