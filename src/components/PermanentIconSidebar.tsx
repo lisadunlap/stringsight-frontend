@@ -84,7 +84,7 @@ function IconButtonItem({
             height: 48,
             borderRadius: 2,
             backgroundColor: shouldShowActiveBackground ? 'primary.main' : 'transparent',
-            color: shouldShowActiveBackground ? 'primary.contrastText' : customColor || (highlight ? 'warning.main' : 'text.secondary'),
+            color: shouldShowActiveBackground ? 'primary.contrastText' : (customColor || (highlight ? 'warning.main' : 'text.secondary')),
             pointerEvents: 'none', // Disable IconButton's own click handling
             '&.Mui-disabled': {
               color: 'action.disabled',
@@ -97,10 +97,10 @@ function IconButtonItem({
         <Typography
           variant="body2"
           sx={{
-            color: disabled 
-              ? 'action.disabled' 
-              : shouldShowActiveBackground 
-                ? 'primary.main' 
+            color: disabled
+              ? 'action.disabled'
+              : shouldShowActiveBackground
+                ? 'primary.main'
                 : 'text.primary',
             fontSize: '1rem',
             lineHeight: 1.2,
@@ -143,7 +143,7 @@ export default function PermanentIconSidebar({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-start',
-        pt: 6, // Extra top padding to match content area
+        pt: 4, // Increased top padding
         pb: 3,
         pl: 1, // Reduced left padding
         pr: 1, // Reduced right padding
@@ -206,7 +206,7 @@ export default function PermanentIconSidebar({
         onClick={() => onSectionChange('extraction')}
         disabled={!dataDone}
         highlight={highlightExtraction}
-        customColor={extractionDone ? '#10B981' : undefined}
+        customColor="#10B981"
       />
 
       {/* Progress connector: Extraction → Clusters */}

@@ -36,7 +36,7 @@ type Method = 'single_model' | 'side_by_side' | 'unknown';
  */
 function sanitizeRowForSerialization(row: Record<string, any>, seen = new WeakSet()): Record<string, any> {
   const sanitized: Record<string, any> = {};
-  
+
   // Handle circular references
   if (typeof row === 'object' && row !== null) {
     if (seen.has(row)) {
@@ -44,24 +44,24 @@ function sanitizeRowForSerialization(row: Record<string, any>, seen = new WeakSe
     }
     seen.add(row);
   }
-  
+
   for (const [key, value] of Object.entries(row)) {
     // Skip functions, symbols, and undefined
     if (typeof value === 'function' || typeof value === 'symbol') {
       continue;
     }
-    
+
     // Handle undefined - convert to null or skip
     if (value === undefined) {
       continue; // Skip undefined values
     }
-    
+
     // Handle null - keep as is
     if (value === null) {
       sanitized[key] = null;
       continue;
     }
-    
+
     // Handle arrays
     if (Array.isArray(value)) {
       sanitized[key] = value.map(item => {
@@ -72,7 +72,7 @@ function sanitizeRowForSerialization(row: Record<string, any>, seen = new WeakSe
       });
       continue;
     }
-    
+
     // Handle objects (but not Date, RegExp, etc.)
     if (typeof value === 'object') {
       // Check for common non-serializable objects
@@ -93,11 +93,11 @@ function sanitizeRowForSerialization(row: Record<string, any>, seen = new WeakSe
       }
       continue;
     }
-    
+
     // Primitive values (string, number, boolean) are safe
     sanitized[key] = value;
   }
-  
+
   return sanitized;
 }
 
@@ -108,12 +108,12 @@ function validateRowForExtraction(row: Record<string, any>, method: Method): { v
   if (!row) {
     return { valid: false, error: 'Row is null or undefined' };
   }
-  
+
   // Check for required prompt field
   if (!row.prompt && row.prompt !== '') {
     return { valid: false, error: 'Row is missing required field: prompt' };
   }
-  
+
   if (method === 'single_model') {
     if (!row.model_response && row.model_response !== '') {
       return { valid: false, error: 'Row is missing required field: model_response (for single_model method)' };
@@ -126,7 +126,7 @@ function validateRowForExtraction(row: Record<string, any>, method: Method): { v
     const hasModelB = row.model_b !== undefined && row.model_b !== null;
     const hasResponseA = row.model_a_response !== undefined && row.model_a_response !== null;
     const hasResponseB = row.model_b_response !== undefined && row.model_b_response !== null;
-    
+
     if (!hasModelA && !hasModelB) {
       return { valid: false, error: 'Row is missing required fields: model_a or model_b (for side_by_side method)' };
     }
@@ -134,7 +134,7 @@ function validateRowForExtraction(row: Record<string, any>, method: Method): { v
       return { valid: false, error: 'Row is missing required fields: model_a_response or model_b_response (for side_by_side method)' };
     }
   }
-  
+
   return { valid: true };
 }
 
@@ -212,7 +212,7 @@ function transformRowsForBackend(
 // Demo mode fixed settings
 const DEMO_MODE_SETTINGS = {
   modelName: 'gpt-4.1',
-  embeddingModel: 'openai/text-embedding-3-small',
+  embeddingModel: 'openai/text-embedding-3-large',
   summarizationModel: 'gpt-4.1-mini',
   matchingModel: 'gpt-4.1-mini',
   groupBy: 'behavior_type' as 'none' | 'category' | 'behavior_type',
@@ -250,6 +250,7 @@ interface PropertyExtractionPanelProps {
   }) => void;
   onNavigateToMetrics?: () => void;
   onNavigateToClusters?: () => void;
+  onScrollToProperties?: () => void;
 }
 
 export default function PropertyExtractionPanel({
@@ -275,9 +276,10 @@ export default function PropertyExtractionPanel({
   onClustersUpdated,
   onNavigateToMetrics,
   onNavigateToClusters,
+  onScrollToProperties,
 }: PropertyExtractionPanelProps) {
   const tutorial = useTutorial();
-  
+
   // Helper function to map prompt names to display labels
   const getPromptDisplayLabel = (name: string): string => {
     const labelMap: Record<string, string> = {
@@ -286,7 +288,7 @@ export default function PropertyExtractionPanel({
     };
     return labelMap[name] || name;
   };
-  
+
   const [promptOptions, setPromptOptions] = React.useState<{ name: string; label: string; has_task_description: boolean; preview: string; default_task_description_single?: string | null; default_task_description_sbs?: string | null; }[]>([]);
   const [selectedPrompt, setSelectedPrompt] = React.useState<string>(
     () => localStorage.getItem('stringsight.selectedPrompt') || 'default'
@@ -311,6 +313,7 @@ export default function PropertyExtractionPanel({
   const [sampleSize, setSampleSize] = React.useState<number | null>(null);
 
   const [busy, setBusy] = React.useState<boolean>(false);
+  const [extractionProgress, setExtractionProgress] = React.useState<number>(0);
   const [lastExtractProps, setLastExtractProps] = React.useState<any[]>([]);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
@@ -320,9 +323,9 @@ export default function PropertyExtractionPanel({
 
   // Clustering configuration
   const [minClusterSize, setMinClusterSize] = React.useState<number>(5);
-  const [embeddingModel, setEmbeddingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : 'openai/text-embedding-3-small');
+  const [embeddingModel, setEmbeddingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : 'openai/text-embedding-3-large');
   const [embeddingModels, setEmbeddingModels] = React.useState<string[]>([]);
-  const [groupBy, setGroupBy] = React.useState<'none'|'category'|'behavior_type'>(isDemoMode ? DEMO_MODE_SETTINGS.groupBy : 'behavior_type');
+  const [groupBy, setGroupBy] = React.useState<'none' | 'category' | 'behavior_type'>(isDemoMode ? DEMO_MODE_SETTINGS.groupBy : 'behavior_type');
   const [summarizationModel, setSummarizationModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : 'gpt-4.1');
   const [matchingModel, setMatchingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : 'gpt-4.1-mini');
   const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
@@ -443,8 +446,18 @@ export default function PropertyExtractionPanel({
     const methodValid = method === 'single_model' || method === 'side_by_side';
     if (!row || !methodValid) return;
     setBusy(true);
+    setExtractionProgress(0);
+    let progressInterval: NodeJS.Timeout | null = null;
     try {
       setErrorMsg(null);
+
+      // Simulate progress during extraction
+      progressInterval = setInterval(() => {
+        setExtractionProgress((prev) => {
+          if (prev >= 90) return prev; // Don't go to 100% until done
+          return prev + Math.random() * 15; // Increment by 0-15%
+        });
+      }, 300);
 
       // Debug logging
       console.log('[PropertyExtraction] Extracting from row:', {
@@ -459,7 +472,7 @@ export default function PropertyExtractionPanel({
         question_id: row.question_id,
         __index: row.__index,
       });
-      
+
       // Validate row has required fields
       const validation = validateRowForExtraction(row, method);
       if (!validation.valid) {
@@ -467,7 +480,7 @@ export default function PropertyExtractionPanel({
         setErrorMsg(`Row validation failed: ${validation.error}`);
         return;
       }
-      
+
       // Sanitize row to remove non-serializable data
       let sanitizedRow: Record<string, any>;
       try {
@@ -477,7 +490,7 @@ export default function PropertyExtractionPanel({
         setErrorMsg(`Failed to prepare row data: ${e?.message || 'Unknown serialization error'}`);
         return;
       }
-      
+
       // Test JSON serialization before making the request
       try {
         const testBody = { row: sanitizedRow, method };
@@ -487,7 +500,7 @@ export default function PropertyExtractionPanel({
         setErrorMsg(`Failed to serialize request data: ${e?.message || 'JSON serialization error. Check for circular references or non-serializable data.'}`);
         return;
       }
-      
+
       const outputDir = generateOutputDir();
       const body: any = {
         row: sanitizedRow,
@@ -501,7 +514,7 @@ export default function PropertyExtractionPanel({
         max_workers: maxWorkers,
         output_dir: outputDir,
       };
-      
+
       console.log('[PropertyExtraction] Making API call with:', {
         method,
         system_prompt: selectedPrompt,
@@ -511,7 +524,7 @@ export default function PropertyExtractionPanel({
         row_question_id: body.row?.question_id,
         row___index: body.row?.__index,
       });
-      
+
       // Check backend health before making the request
       const backendHealthy = await checkBackendHealth();
       if (!backendHealthy) {
@@ -534,8 +547,11 @@ export default function PropertyExtractionPanel({
         );
         return;
       }
-      
+
       const res = await extractSingle({ ...body, return_debug: true });
+      if (progressInterval) clearInterval(progressInterval);
+      setExtractionProgress(100);
+
       onPropertiesMerged(res.properties || []);
       setLastExtractProps(res.properties || []);
 
@@ -547,14 +563,23 @@ export default function PropertyExtractionPanel({
           tutorial.nextStep();
         }
       }
-      
+
       if ((res.failures || []).length > 0) {
         setErrorMsg(`Parsing issues detected (${res.failures.length}). Try a different prompt or check JSON format.`);
       }
+
+      // Scroll to properties table after a short delay to ensure it's rendered
+      setTimeout(() => {
+        if (onScrollToProperties) {
+          onScrollToProperties();
+        }
+      }, 300);
     } catch (e: any) {
+      if (progressInterval) clearInterval(progressInterval);
+      setExtractionProgress(0);
       console.error('[PropertyExtraction] Error in runExtractSingle:', e);
       const errorMessage = String(e?.message || e);
-      
+
       // Provide more helpful error messages
       if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('Network request failed')) {
         const apiBase = (import.meta as any).env?.VITE_BACKEND || (globalThis as any)?.VITE_BACKEND || "/api";
@@ -589,13 +614,27 @@ export default function PropertyExtractionPanel({
       }
     } finally {
       setBusy(false);
+      // Reset progress after a short delay
+      setTimeout(() => setExtractionProgress(0), 1000);
     }
   }
 
   async function runExtractBatch() {
-    const rows = getAllRows();
+    console.log('[PropertyExtraction] runExtractBatch called');
+    const rows = getOperationalRows();  // Use operational rows which have the original columns
+    console.log('[PropertyExtraction] Rows retrieved:', rows?.length);
+
     const methodValid = method === 'single_model' || method === 'side_by_side';
-    if (!rows || rows.length === 0 || !methodValid) return;
+    console.log('[PropertyExtraction] Method:', method, 'Valid:', methodValid);
+
+    if (!rows || rows.length === 0) {
+      console.error('[PropertyExtraction] No rows to extract!');
+      return;
+    }
+    if (!methodValid) {
+      console.error('[PropertyExtraction] Invalid method:', method);
+      return;
+    }
 
     // Collapse the control panel into an accordion when running on all traces.
     setPanelExpanded(false);
@@ -640,17 +679,29 @@ export default function PropertyExtractionPanel({
         const t = setInterval(async () => {
           try {
             const s = await extractJobStatus(startRes.job_id);
-            setJobState(s.state);
+            // Map backend status to UI state if needed, or use directly
+            // Backend returns: queued, processing, completed, failed
+            setJobState(s.status);
             setJobProgress(s.progress || 0);
-            onBatchStatus?.(s.progress || 0, s.state, 'extraction', 'Extracting properties...');
-            if (s.state === 'done') {
+            onBatchStatus?.(s.progress || 0, s.status, 'extraction', 'Extracting properties...');
+
+            if (s.status === 'completed') {
               clearInterval(t);
+              console.log('[PropertyExtraction] Job completed! Fetching results...');
               const r = await extractJobResult(startRes.job_id);
+              console.log('[PropertyExtraction] Results fetched:', r);
               extractedProperties = r.properties || [];
+              console.log('[PropertyExtraction] Extracted properties count:', extractedProperties.length);
+
               // Don't set lastExtractProps for batch - only show in Properties tab
-              (onBatchLoaded as any)?.(extractedProperties);
+              if (onBatchLoaded) {
+                console.log('[PropertyExtraction] Calling onBatchLoaded...');
+                (onBatchLoaded as any)(extractedProperties);
+              } else {
+                console.warn('[PropertyExtraction] onBatchLoaded callback is missing!');
+              }
               resolve();
-            } else if (s.state === 'cancelled') {
+            } else if (s.status === 'cancelled') {
               clearInterval(t);
               const r = await extractJobResult(startRes.job_id);
               extractedProperties = r.properties || [];
@@ -658,9 +709,9 @@ export default function PropertyExtractionPanel({
               (onBatchLoaded as any)?.(extractedProperties);
               setErrorMsg(`Job cancelled. Retrieved ${extractedProperties.length} partial results.`);
               resolve();
-            } else if (s.state === 'error') {
+            } else if (s.status === 'failed' || s.status === 'error') {
               clearInterval(t);
-              reject(new Error(s.error || 'Job error'));
+              reject(new Error(s.error_message || 'Job error'));
             }
           } catch (e) {
             clearInterval(t);
@@ -807,7 +858,7 @@ export default function PropertyExtractionPanel({
           : 'N/A',
         method: body.method,
         model_column_map: body.model_column_map,
-        hasScoreColumns: !!body.score_columns,
+        hasScoreColumns: !!(body as any).score_columns,
       });
 
       const res = await runClustering(body as any);
@@ -896,7 +947,7 @@ export default function PropertyExtractionPanel({
           }),
         }}
       >
-        <AccordionSummary 
+        <AccordionSummary
           expandIcon={<ExpandMoreIcon />}
           sx={{ minHeight: 'auto', '& .MuiAccordionSummary-content': { margin: '4px 0' } }}
         >
@@ -938,11 +989,11 @@ export default function PropertyExtractionPanel({
                 }}
                 renderInput={(params) => <TextField {...params} label="Task Type" />}
               />
-              
+
               {/* <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                 {promptOptions.length} prompts available
               </Typography> */}
-              
+
               {canTaskDescribe && (
                 <Stack spacing={1}>
                   <TextField
@@ -1009,7 +1060,7 @@ export default function PropertyExtractionPanel({
           {/* Advanced Settings Section */}
           <Box sx={{ mt: 3 }}>
             <Accordion>
-              <AccordionSummary 
+              <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
                 sx={{ minHeight: 'auto', py: 0.25, '& .MuiAccordionSummary-content': { margin: '4px 0' } }}
               >
@@ -1017,167 +1068,179 @@ export default function PropertyExtractionPanel({
               </AccordionSummary>
               <AccordionDetails>
                 <Stack spacing={2}>
-              {/* LLM Settings Section */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                  LLM Settings
-                </Typography>
-                <Stack spacing={1.5}>
-                  <TextField
-                    size="small"
-                    label="Property Annotator"
-                    value={isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName}
-                    onChange={(e) => setModelName(e.target.value)}
-                    disabled={isDemoMode}
-                    helperText={isDemoMode ? 'Fixed in demo mode' : undefined}
-                  />
-                  <TextField
-                    size="small"
-                    label="Sample size"
-                    type="number"
-                    value={sampleSize || ''}
-                    onChange={(e) => setSampleSize(e.target.value ? Number(e.target.value) : null)}
-                    placeholder="Leave empty for all prompts"
-                    helperText={sampleSize ? `Will sample ${sampleSize} prompts total` : 'Process all prompts'}
-                  />
-                  <TextField
-                    size="small"
-                    label="Results folder name"
-                    value={resultsNameProp || ''}
-                    onChange={(e) => onResultsNameChange?.(e.target.value)}
-                    placeholder="Auto-generated from filename"
-                    helperText={resultsNameProp ? `Results will be saved to: ${resultsNameProp}_[timestamp]` : 'Defaults to uploaded filename'}
-                  />
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography variant="subtitle2">Full system prompt</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <Box sx={{
-                        p: 2,
-                        border: '1px dashed',
-                        borderColor: 'divider',
-                        borderRadius: 1,
-                        backgroundColor: 'background.default'
-                      }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                            Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
+                  {/* LLM Settings Section */}
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                      LLM Settings
+                    </Typography>
+                    <Stack spacing={1.5}>
+                      <TextField
+                        size="small"
+                        label="Property Annotator"
+                        value={isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName}
+                        onChange={(e) => setModelName(e.target.value)}
+                        disabled={isDemoMode}
+                        helperText={isDemoMode ? 'Fixed in demo mode' : undefined}
+                      />
+                      <TextField
+                        size="small"
+                        label="Sample size"
+                        type="number"
+                        value={sampleSize || ''}
+                        onChange={(e) => setSampleSize(e.target.value ? Number(e.target.value) : null)}
+                        placeholder="Leave empty for all prompts"
+                        helperText={sampleSize ? `Will sample ${sampleSize} prompts total` : 'Process all prompts'}
+                      />
+                      <TextField
+                        size="small"
+                        label="Results folder name"
+                        value={resultsNameProp || ''}
+                        onChange={(e) => onResultsNameChange?.(e.target.value)}
+                        placeholder="Auto-generated from filename"
+                        helperText={resultsNameProp ? `Results will be saved to: ${resultsNameProp}_[timestamp]` : 'Defaults to uploaded filename'}
+                      />
+                      <Accordion>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Typography variant="subtitle2">Full system prompt</Typography>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          <Box sx={{
+                            p: 2,
+                            border: '1px dashed',
+                            borderColor: 'divider',
+                            borderRadius: 1,
+                            backgroundColor: 'background.default'
+                          }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
+                              </Typography>
+                              <IconButton
+                                size="small"
+                                onClick={() => setPromptFullscreen(true)}
+                                sx={{ ml: 1 }}
+                                title="Expand to full screen"
+                              >
+                                <FullscreenIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                            <Box sx={{
+                              p: 1.5,
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              borderRadius: 1,
+                              backgroundColor: '#FFFFFF',
+                              maxHeight: 280,
+                              overflow: 'auto',
+                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
+                              fontSize: 12,
+                              whiteSpace: 'pre-wrap',
+                              lineHeight: 1.6,
+                            }}>
+                              {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
+                            </Box>
+                          </Box>
+                        </AccordionDetails>
+                      </Accordion>
+                    </Stack>
+                  </Box>
+
+                  {/* Clustering Settings Section */}
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                      Clustering Settings
+                    </Typography>
+                    <Stack spacing={1.5}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        After extraction, properties will be automatically clustered and metrics computed.
+                      </Typography>
+
+                      <TextField
+                        size="small"
+                        label="Min cluster size"
+                        type="number"
+                        value={minClusterSize}
+                        onChange={(e) => setMinClusterSize(Number(e.target.value))}
+                        inputProps={{ min: 1, max: 100 }}
+                        helperText="Minimum number of properties required to form a cluster"
+                      />
+
+                      <FormControl size="small" disabled={isDemoMode}>
+                        <InputLabel id="embedding-model-label">Embedding model</InputLabel>
+                        <Select
+                          labelId="embedding-model-label"
+                          value={isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : embeddingModel}
+                          label="Embedding model"
+                          onChange={(e) => setEmbeddingModel(String(e.target.value))}
+                        >
+                          {(embeddingModels.length ? embeddingModels : [embeddingModel]).map(m => (
+                            <MenuItem key={m} value={m}>{m}</MenuItem>
+                          ))}
+                        </Select>
+                        {isDemoMode && (
+                          <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                            Fixed in demo mode
                           </Typography>
-                          <IconButton
-                            size="small"
-                            onClick={() => setPromptFullscreen(true)}
-                            sx={{ ml: 1 }}
-                            title="Expand to full screen"
-                          >
-                            <FullscreenIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                        <Box sx={{
-                          p: 1.5,
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          borderRadius: 1,
-                          backgroundColor: '#FFFFFF',
-                          maxHeight: 280,
-                          overflow: 'auto',
-                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
-                          fontSize: 12,
-                          whiteSpace: 'pre-wrap',
-                          lineHeight: 1.6,
-                        }}>
-                          {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
-                        </Box>
-                      </Box>
-                    </AccordionDetails>
-                  </Accordion>
+                        )}
+                      </FormControl>
+
+                      <FormControl size="small" disabled={isDemoMode}>
+                        <InputLabel id="group-by-label">Group by</InputLabel>
+                        <Select
+                          labelId="group-by-label"
+                          value={isDemoMode ? DEMO_MODE_SETTINGS.groupBy : groupBy}
+                          label="Group by"
+                          onChange={(e) => setGroupBy(e.target.value as any)}
+                        >
+                          <MenuItem value={'none'}>None</MenuItem>
+                          <MenuItem value={'category'}>category</MenuItem>
+                          <MenuItem value={'behavior_type'}>behavior_type</MenuItem>
+                        </Select>
+                        {isDemoMode && (
+                          <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                            Fixed in demo mode
+                          </Typography>
+                        )}
+                      </FormControl>
+
+                      <TextField
+                        size="small"
+                        label="Summarization model"
+                        value={isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : summarizationModel}
+                        onChange={(e) => setSummarizationModel(e.target.value)}
+                        disabled={isDemoMode}
+                        helperText={isDemoMode ? 'Fixed in demo mode' : 'Model used for cluster label summarization'}
+                      />
+
+                      <TextField
+                        size="small"
+                        label="Matching model"
+                        value={isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : matchingModel}
+                        onChange={(e) => setMatchingModel(e.target.value)}
+                        disabled={isDemoMode}
+                        helperText={isDemoMode ? 'Fixed in demo mode' : 'Model used for cluster/property matching'}
+                      />
+                    </Stack>
+                  </Box>
                 </Stack>
-              </Box>
-
-              {/* Clustering Settings Section */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                  Clustering Settings
-                </Typography>
-                <Stack spacing={1.5}>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    After extraction, properties will be automatically clustered and metrics computed.
-                  </Typography>
-
-                  <TextField
-                    size="small"
-                    label="Min cluster size"
-                    type="number"
-                    value={minClusterSize}
-                    onChange={(e) => setMinClusterSize(Number(e.target.value))}
-                    inputProps={{ min: 1, max: 100 }}
-                    helperText="Minimum number of properties required to form a cluster"
-                  />
-
-                  <FormControl size="small" disabled={isDemoMode}>
-                  <InputLabel id="embedding-model-label">Embedding model</InputLabel>
-                  <Select
-                    labelId="embedding-model-label"
-                    value={isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : embeddingModel}
-                    label="Embedding model"
-                    onChange={(e) => setEmbeddingModel(String(e.target.value))}
-                  >
-                    {(embeddingModels.length ? embeddingModels : [embeddingModel]).map(m => (
-                      <MenuItem key={m} value={m}>{m}</MenuItem>
-                    ))}
-                  </Select>
-                  {isDemoMode && (
-                    <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                      Fixed in demo mode
-                    </Typography>
-                  )}
-                </FormControl>
-
-                <FormControl size="small" disabled={isDemoMode}>
-                  <InputLabel id="group-by-label">Group by</InputLabel>
-                  <Select
-                    labelId="group-by-label"
-                    value={isDemoMode ? DEMO_MODE_SETTINGS.groupBy : groupBy}
-                    label="Group by"
-                    onChange={(e) => setGroupBy(e.target.value as any)}
-                  >
-                    <MenuItem value={'none'}>None</MenuItem>
-                    <MenuItem value={'category'}>category</MenuItem>
-                    <MenuItem value={'behavior_type'}>behavior_type</MenuItem>
-                  </Select>
-                  {isDemoMode && (
-                    <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                      Fixed in demo mode
-                    </Typography>
-                  )}
-                </FormControl>
-
-                <TextField
-                  size="small"
-                  label="Summarization model"
-                  value={isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : summarizationModel}
-                  onChange={(e) => setSummarizationModel(e.target.value)}
-                  disabled={isDemoMode}
-                  helperText={isDemoMode ? 'Fixed in demo mode' : 'Model used for cluster label summarization'}
-                />
-
-                <TextField
-                  size="small"
-                  label="Matching model"
-                  value={isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : matchingModel}
-                  onChange={(e) => setMatchingModel(e.target.value)}
-                  disabled={isDemoMode}
-                  helperText={isDemoMode ? 'Fixed in demo mode' : 'Model used for cluster/property matching'}
-                />
-              </Stack>
-            </Box>
-          </Stack>
               </AccordionDetails>
             </Accordion>
           </Box>
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column', mt: 3 }}>
+            {busy && extractionProgress > 0 && (
+              <Box sx={{ width: '100%', mb: 1 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={extractionProgress}
+                  sx={{ height: 6, borderRadius: 1 }}
+                />
+                <Typography variant="caption" sx={{ mt: 0.5, display: 'block', textAlign: 'center', color: 'text.secondary' }}>
+                  Extracting properties... {Math.round(extractionProgress)}%
+                </Typography>
+              </Box>
+            )}
             <Button
               variant="contained"
               onClick={runExtractSingle}
@@ -1208,27 +1271,27 @@ export default function PropertyExtractionPanel({
       </Accordion>
 
       {errorMsg && (
-        <Box sx={{ 
-          p: 2, 
-          border: '1px solid', 
-          borderColor: 'error.main', 
-          backgroundColor: 'error.light', 
-          color: 'error.contrastText', 
-          borderRadius: 1 
+        <Box sx={{
+          p: 2,
+          border: '1px solid',
+          borderColor: 'error.main',
+          backgroundColor: 'error.light',
+          color: 'error.contrastText',
+          borderRadius: 1
         }}>
           <Typography variant="body2">{errorMsg}</Typography>
         </Box>
       )}
 
       {clusteringComplete && (
-        <Alert 
-          severity="success" 
+        <Alert
+          severity="success"
           sx={{ mb: 2 }}
           action={
             <Stack direction="row" spacing={1}>
               {onNavigateToClusters && (
-                <Button 
-                  size="small" 
+                <Button
+                  size="small"
                   variant="outlined"
                   onClick={() => {
                     onNavigateToClusters();
@@ -1238,8 +1301,8 @@ export default function PropertyExtractionPanel({
                 </Button>
               )}
               {onNavigateToMetrics && (
-                <Button 
-                  size="small" 
+                <Button
+                  size="small"
                   variant="contained"
                   onClick={() => {
                     onNavigateToMetrics();

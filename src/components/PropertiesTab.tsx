@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Table, TableHead, TableRow, TableCell, TableBody, Button, TableContainer, Accordion, AccordionSummary, AccordionDetails, Typography, Chip, Pagination, Fade, Tooltip } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { retroColors } from '../theme';
 import FilterBar from './FilterBar';
 import FormattedCell from './FormattedCell';
 import PropertiesOverviewBanner from './PropertiesOverviewBanner';
@@ -293,7 +294,6 @@ export default function PropertiesTab({
         <Button
           size="small"
           variant="text"
-          color="secondary"
           startIcon={<VisibilityOutlinedIcon />}
           onClick={(e) => {
             e.stopPropagation();
@@ -306,7 +306,7 @@ export default function PropertiesTab({
             });
             onOpenProperty(rowData);
           }}
-          sx={{ fontWeight: 600 }}
+          sx={{ fontWeight: 600, color: retroColors.blue }}
         >
           View
         </Button>
@@ -431,7 +431,7 @@ export default function PropertiesTab({
   }, [filtered, availableColumns]);
 
   return (
-    <Box sx={{ pt: 0.5 }}>
+    <Box>
       {/* (Prompt/task description controls intentionally not included here) */}
       {/* Properties Overview Banner */}
       <PropertiesOverviewBanner properties={rows} />

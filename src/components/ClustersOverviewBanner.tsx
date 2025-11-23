@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, Typography, Chip } from '@mui/material';
+import { Box, Typography, Chip, Tooltip } from '@mui/material';
+import { retroColors } from '../theme';
 
 interface ClustersOverviewBannerProps {
   /**
@@ -101,129 +102,195 @@ export default function ClustersOverviewBanner({
           Clusters overview
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <Chip
-            label={
-              <Box
-                component="span"
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-              >
-                <Typography
+          <Tooltip
+            title="Total number of clusters"
+            arrow
+            placement="top"
+          >
+            <Chip
+              label={
+                <Box
                   component="span"
-                  sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#10B981' }}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                 >
-                  {counts.positive}
-                </Typography>
-                <Typography
-                  component="span"
-                  sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#10B981' }}
-                >
-                  Positive
-                </Typography>
-              </Box>
-            }
-            size="medium"
-            sx={{
-              bgcolor: '#10B98115',
-              height: 'auto',
-              py: 0.75,
-              px: 1.25,
-              border: 'none',
-              '& .MuiChip-label': { px: 0 },
-            }}
-          />
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#2563eb' }}
+                  >
+                    {clusters.length}
+                  </Typography>
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#2563eb' }}
+                  >
+                    Total
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: '#2563eb15',
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                '& .MuiChip-label': { px: 0 },
+                cursor: 'help',
+              }}
+            />
+          </Tooltip>
 
-          <Chip
-            label={
-              <Box
-                component="span"
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-              >
-                <Typography
+          <Tooltip
+            title="Key insight about the task, failure recovery, defending against jailbreak attempts, etc."
+            arrow
+            placement="top"
+          >
+            <Chip
+              label={
+                <Box
                   component="span"
-                  sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#EF4444' }}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                 >
-                  {counts.negativeCritical}
-                </Typography>
-                <Typography
-                  component="span"
-                  sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#EF4444' }}
-                >
-                  Negative (Critical)
-                </Typography>
-              </Box>
-            }
-            size="medium"
-            sx={{
-              bgcolor: '#EF444415',
-              height: 'auto',
-              py: 0.75,
-              px: 1.25,
-              border: 'none',
-              '& .MuiChip-label': { px: 0 },
-            }}
-          />
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '1.1rem', fontWeight: 700, color: retroColors.green }}
+                  >
+                    {counts.positive}
+                  </Typography>
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '0.85rem', fontWeight: 600, color: retroColors.green }}
+                  >
+                    Positive
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: `${retroColors.green}15`,
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                '& .MuiChip-label': { px: 0 },
+                cursor: 'help',
+              }}
+            />
+          </Tooltip>
 
-          <Chip
-            label={
-              <Box
-                component="span"
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-              >
-                <Typography
+          <Tooltip
+            title="Direct cause of task failure or serious policy violation (e.g. being jailbroken, gibberish)"
+            arrow
+            placement="top"
+          >
+            <Chip
+              label={
+                <Box
                   component="span"
-                  sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#F97316' }}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                 >
-                  {counts.negativeNonCritical}
-                </Typography>
-                <Typography
-                  component="span"
-                  sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#F97316' }}
-                >
-                  Negative (Non-Critical)
-                </Typography>
-              </Box>
-            }
-            size="medium"
-            sx={{
-              bgcolor: '#F9731615',
-              height: 'auto',
-              py: 0.75,
-              px: 1.25,
-              border: 'none',
-              '& .MuiChip-label': { px: 0 },
-            }}
-          />
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '1.1rem', fontWeight: 700, color: retroColors.red }}
+                  >
+                    {counts.negativeCritical}
+                  </Typography>
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '0.85rem', fontWeight: 600, color: retroColors.red }}
+                  >
+                    Negative (Critical)
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: `${retroColors.red}15`,
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                '& .MuiChip-label': { px: 0 },
+                cursor: 'help',
+              }}
+            />
+          </Tooltip>
 
-          <Chip
-            label={
-              <Box
-                component="span"
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-              >
-                <Typography
+          <Tooltip
+            title="A behavior which is not desirable but not the direct cause of failure (e.g. a miscalculation that was later corrected)"
+            arrow
+            placement="top"
+          >
+            <Chip
+              label={
+                <Box
                   component="span"
-                  sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#8B5CF6' }}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                 >
-                  {counts.style}
-                </Typography>
-                <Typography
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '1.1rem', fontWeight: 700, color: retroColors.orange }}
+                  >
+                    {counts.negativeNonCritical}
+                  </Typography>
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '0.85rem', fontWeight: 600, color: retroColors.orange }}
+                  >
+                    Negative (Non-Critical)
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: `${retroColors.orange}15`,
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                '& .MuiChip-label': { px: 0 },
+                cursor: 'help',
+              }}
+            />
+          </Tooltip>
+
+          <Tooltip
+            title="Purely stylistic with no impact on correctness or safety (e.g. tone, formatting)"
+            arrow
+            placement="top"
+          >
+            <Chip
+              label={
+                <Box
                   component="span"
-                  sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#8B5CF6' }}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                 >
-                  Style
-                </Typography>
-              </Box>
-            }
-            size="medium"
-            sx={{
-              bgcolor: '#8B5CF615',
-              height: 'auto',
-              py: 0.75,
-              px: 1.25,
-              border: 'none',
-              '& .MuiChip-label': { px: 0 },
-            }}
-          />
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '1.1rem', fontWeight: 700, color: retroColors.purple }}
+                  >
+                    {counts.style}
+                  </Typography>
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '0.85rem', fontWeight: 600, color: retroColors.purple }}
+                  >
+                    Style
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: `${retroColors.purple}15`,
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                '& .MuiChip-label': { px: 0 },
+                cursor: 'help',
+              }}
+            />
+          </Tooltip>
         </Box>
       </Box>
     </Box>

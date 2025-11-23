@@ -5,6 +5,7 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FormattedCell from './FormattedCell';
+import { retroColors } from '../theme';
 
 const DataTable = React.memo(function DataTable({
   rows,
@@ -112,10 +113,9 @@ const DataTable = React.memo(function DataTable({
               <Button
                 size="small"
                 variant="text"
-                color="secondary"
                 startIcon={<VisibilityOutlinedIcon />}
                 onClick={() => onView(info.row.original)}
-                sx={{ fontWeight: 600 }}
+                sx={{ fontWeight: 600, color: retroColors.blue }}
               >
                 View
               </Button>
