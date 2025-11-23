@@ -19,8 +19,7 @@ import {
   DialogContent,
   DialogActions,
   IconButton,
-  InputAdornment,
-  Alert
+  InputAdornment
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
@@ -330,7 +329,6 @@ export default function PropertyExtractionPanel({
   const [matchingModel, setMatchingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : 'gpt-4.1-mini');
   const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
   const [currentStage, setCurrentStage] = React.useState<'extraction' | 'clustering' | null>(null);
-  const [clusteringComplete, setClusteringComplete] = React.useState<boolean>(false);
 
   // Controls whether the main control panel is expanded or collapsed.
   // Initially expanded; will auto-collapse after "Run on all traces".
@@ -904,8 +902,6 @@ export default function PropertyExtractionPanel({
         onClustersUpdated(res);
       }
 
-      // Mark clustering as complete to show banner
-      setClusteringComplete(true);
 
       // Don't navigate automatically - stay in extraction step
       // User will see banner and can navigate manually
@@ -1283,45 +1279,6 @@ export default function PropertyExtractionPanel({
         </Box>
       )}
 
-      {clusteringComplete && (
-        <Alert
-          severity="success"
-          sx={{ mb: 2 }}
-          action={
-            <Stack direction="row" spacing={1}>
-              {onNavigateToClusters && (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => {
-                    onNavigateToClusters();
-                  }}
-                >
-                  View Clusters
-                </Button>
-              )}
-              {onNavigateToMetrics && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  onClick={() => {
-                    onNavigateToMetrics();
-                  }}
-                >
-                  View Insights
-                </Button>
-              )}
-            </Stack>
-          }
-        >
-          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-            Clustering complete!
-          </Typography>
-          <Typography variant="body2">
-            Your properties have been clustered and insights are ready. Navigate to the <strong>Cluster Behaviors</strong> or <strong>View Insights</strong> tab to explore the results.
-          </Typography>
-        </Alert>
-      )}
 
 
       {/* Full-screen prompt dialog */}

@@ -35,18 +35,18 @@ interface ClusterSidecardProps {
   cluster: any | null;
   method: 'single_model' | 'side_by_side' | 'unknown';
   decimals?: number;
-  
+
   // Data access functions
   getPropertiesRows?: () => any[];
   getOperationalRows?: () => any[];
-  
+
   // Model cluster scores for enrichment
   modelClusterScores?: any[];
   totalUniqueConversations?: number | null;
-  
+
   // Show confidence intervals
   showCI?: boolean;
-  
+
   // Show significance tags
   showSignificance?: boolean;
 }
@@ -164,7 +164,7 @@ export default function ClusterSidecard({
               qualityDeltaSignificant[metricNameClean] = m[key];
             } else if (!key.includes('_ci_') && !key.includes('_significant')) {
               qualityDeltas[metricName] = m[key];
-              
+
               // Check for CI bounds
               const ciLowerKey = `quality_delta_${metricName}_ci_lower`;
               const ciUpperKey = `quality_delta_${metricName}_ci_upper`;
@@ -237,17 +237,17 @@ export default function ClusterSidecard({
   // Create consistent model color mapping - must be before any conditional returns
   const modelColors = useMemo(() => {
     if (!enrichedCluster || !enrichedCluster.meta) return {};
-    
+
     const meta = enrichedCluster.meta || {};
     const perModelProps = meta.proportion_by_model || {};
     const qualityDeltaByModel = meta.quality_delta_by_model || {};
-    
+
     const palette = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6'];
     const models = Array.from(new Set([
       ...Object.keys(perModelProps),
       ...Object.keys(qualityDeltaByModel)
     ])).sort();
-    
+
     const colorMap: Record<string, string> = {};
     models.forEach((model, idx) => {
       colorMap[model] = palette[idx % palette.length];
@@ -272,7 +272,7 @@ export default function ClusterSidecard({
 
   // Compute overall significance flags
   const isSignificantInFrequency = Object.values(proportionDeltaSignificantByModel).some(v => v === true);
-  const isSignificantInQuality = Object.values(qualityDeltaSignificantByModel).some(metrics => 
+  const isSignificantInQuality = Object.values(qualityDeltaSignificantByModel).some(metrics =>
     Object.values(metrics).some(v => v === true)
   );
 
@@ -280,8 +280,8 @@ export default function ClusterSidecard({
   console.log('[ClusterSidecard] qualityDeltaByModel:', qualityDeltaByModel);
   console.log('[ClusterSidecard] qualityDeltaByModel keys:', Object.keys(qualityDeltaByModel));
   console.log('[ClusterSidecard] qualityDeltaCIByModel:', qualityDeltaCIByModel);
-  console.log('[ClusterSidecard] Significance flags:', { 
-    isSignificantInFrequency, 
+  console.log('[ClusterSidecard] Significance flags:', {
+    isSignificantInFrequency,
     isSignificantInQuality,
     proportionDeltaSignificantByModel,
     qualityDeltaSignificantByModel
@@ -311,7 +311,7 @@ export default function ClusterSidecard({
         const rq = r?.question_id;
         const qidMatch = String(rq) === String(qid) || Number(rq) === Number(qid);
         if (!qidMatch) return false;
-        
+
         if (method === 'single_model') {
           const rModel = String(r?.model || '').trim();
           return rModel === modelName;
@@ -394,7 +394,7 @@ export default function ClusterSidecard({
           </Box>
 
           {/* Content */}
-          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <Box sx={{ flex: 1, overflow: 'auto', p: 0 }}>
             <Box ref={propertyTracePrintRef}>
               <PropertyTraceHeader
                 selectedRow={row}
@@ -407,36 +407,40 @@ export default function ClusterSidecard({
                 }}
                 onDownloadPDF={handlePropertyTracePrint}
                 backLabel="Back to Cluster"
+                disableNegativeMargin={true}
               />
-              {isSideBySide && messagesA.length > 0 && messagesB.length > 0 ? (
-                <SideBySideTrace
-                  messagesA={messagesA}
-                  messagesB={messagesB}
-                  modelA={modelA || "Model A"}
-                  modelB={modelB || "Model B"}
-                  highlights={ev}
-                  targetModel={(prop as any).model}
-                  rawResponseA={row?.["model_a_response"]}
-                  rawResponseB={row?.["model_b_response"]}
-                  scoreA={scoreA}
-                  scoreB={scoreB}
-                />
-              ) : messages.length > 0 ? (
-                <ConversationTrace
-                  messages={messages}
-                  highlights={ev}
-                  modelName={modelName}
-                  score={score}
-                  promptText={promptText}
-                  hideDownloadButton={true}
-                />
-              ) : (
-                <Box sx={{ p: 3, border: '1px dashed #E5E7EB', borderRadius: 1, background: '#FAFAFA' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Conversation not available for this property.
-                  </Typography>
-                </Box>
-              )}
+              <Box sx={{ p: 2 }}>
+
+                {isSideBySide && messagesA.length > 0 && messagesB.length > 0 ? (
+                  <SideBySideTrace
+                    messagesA={messagesA}
+                    messagesB={messagesB}
+                    modelA={modelA || "Model A"}
+                    modelB={modelB || "Model B"}
+                    highlights={ev}
+                    targetModel={(prop as any).model}
+                    rawResponseA={row?.["model_a_response"]}
+                    rawResponseB={row?.["model_b_response"]}
+                    scoreA={scoreA}
+                    scoreB={scoreB}
+                  />
+                ) : messages.length > 0 ? (
+                  <ConversationTrace
+                    messages={messages}
+                    highlights={ev}
+                    modelName={modelName}
+                    score={score}
+                    promptText={promptText}
+                    hideDownloadButton={true}
+                  />
+                ) : (
+                  <Box sx={{ p: 3, border: '1px dashed #E5E7EB', borderRadius: 1, background: '#FAFAFA' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Conversation not available for this property.
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
             </Box>
           </Box>
         </Box>
@@ -453,20 +457,20 @@ export default function ClusterSidecard({
   // Build property list with model names
   const propertyList = hasItems
     ? items.map((item: any) => ({
-        id: item.property_id,
-        description: item.property_description || '',
-        model: item.model || '',
-      }))
+      id: item.property_id,
+      description: item.property_description || '',
+      model: item.model || '',
+    }))
     : descriptions.map((pd, i) => {
-        const pid = ids[i] != null ? String(ids[i]) : undefined;
-        const prop = pid ? propertiesById.get(String(pid)) : null;
-        const modelName = prop?.model != null ? String(prop.model) : null;
-        return {
-          id: pid,
-          description: pd,
-          model: modelName,
-        };
-      });
+      const pid = ids[i] != null ? String(ids[i]) : undefined;
+      const prop = pid ? propertiesById.get(String(pid)) : null;
+      const modelName = prop?.model != null ? String(prop.model) : null;
+      return {
+        id: pid,
+        description: pd,
+        model: modelName,
+      };
+    });
 
   return (
     <Drawer
@@ -488,7 +492,7 @@ export default function ClusterSidecard({
             // Determine bubble color based on group
             let bgColor = 'rgba(233, 213, 255, 0.1)'; // default light purple
             let textColor = '#581C87'; // darker purple
-            
+
             if (group) {
               const groupLower = group.toLowerCase();
               if (groupLower === 'positive') {
@@ -505,7 +509,7 @@ export default function ClusterSidecard({
                 textColor = '#6B21A8'; // darker purple
               }
             }
-            
+
             return (
               <Box
                 sx={{
@@ -585,7 +589,7 @@ export default function ClusterSidecard({
                   bgColor = `${retroColors.purple}15`;
                   textColor = retroColors.purple;
                 }
-                
+
                 return (
                   <Typography
                     variant="caption"
@@ -602,7 +606,7 @@ export default function ClusterSidecard({
                   </Typography>
                 );
               })()}
-              
+
               {/* Significance tags */}
               {showSignificance && (
                 <>
@@ -646,8 +650,7 @@ export default function ClusterSidecard({
 
             {/* Overall quality metrics */}
             {overallQuality && Object.keys(overallQuality).length > 0 && (
-              <Box sx={{ mt: 2, p: 2, backgroundColor: '#F9FAFB', borderRadius: 1, border: '1px solid #E5E7EB' }}>
-                <Typography variant="subtitle2" sx={{ mb: 1, color: '#334155' }}>Overall Quality</Typography>
+              <Box sx={{ mt: 2 }}>
                 <Stack direction="column" spacing={0.5}>
                   {Object.entries(overallQuality).map(([k, v]) => {
                     const d = overallQualityDelta && typeof overallQualityDelta[k] === 'number' ? overallQualityDelta[k] : undefined;
@@ -825,7 +828,7 @@ export default function ClusterSidecard({
                                     xref: 'paper',
                                     yref: 'paper',
                                     line: {
-                                      color: 'rgba(239, 68, 68, 0.5)',
+                                      color: 'rgba(239, 68, 68, 0.3)',
                                       width: 2,
                                       dash: 'dash',
                                     },
@@ -841,7 +844,7 @@ export default function ClusterSidecard({
                                     xref: 'paper',
                                     yref: 'paper',
                                     line: {
-                                      color: 'rgba(16, 185, 129, 0.5)',
+                                      color: 'rgba(16, 185, 129, 0.3)',
                                       width: 2,
                                       dash: 'dash',
                                     },
@@ -861,7 +864,7 @@ export default function ClusterSidecard({
                                     ayref: 'paper',
                                     arrowhead: 2,
                                     arrowwidth: 1.5,
-                                    arrowcolor: 'rgba(239, 68, 68, 0.5)',
+                                    arrowcolor: 'rgba(239, 68, 68, 0.3)',
                                     showarrow: true,
                                   },
                                   // Arrow at top of green line (top-right) - pointing in direction of good behavior
@@ -876,7 +879,7 @@ export default function ClusterSidecard({
                                     ayref: 'paper',
                                     arrowhead: 2,
                                     arrowwidth: 1.5,
-                                    arrowcolor: 'rgba(16, 185, 129, 0.5)',
+                                    arrowcolor: 'rgba(16, 185, 129, 0.3)',
                                     showarrow: true,
                                   },
                                 ],

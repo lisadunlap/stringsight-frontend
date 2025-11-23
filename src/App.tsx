@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, Component } from "react";
-import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton, Tooltip, Alert, FormControl, InputLabel, Select, MenuItem, Switch } from "@mui/material";
+import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton, Tooltip, Alert, FormControl, InputLabel, Select, MenuItem, Switch, Menu } from "@mui/material";
 import DownloadIcon from '@mui/icons-material/Download';
 import CloseIcon from '@mui/icons-material/Close';
 import JSZip from 'jszip';
@@ -585,6 +585,9 @@ function App() {
   // Demo mode selector dialog state
   const [demoModeSelectorOpen, setDemoModeSelectorOpen] = useState(false);
 
+  // Results load menu state
+  const [resultsMenuAnchor, setResultsMenuAnchor] = useState<null | HTMLElement>(null);
+
   // ... rest of the component ...
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -734,6 +737,7 @@ function App() {
   // Refs for file inputs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resultsInputRef = useRef<HTMLInputElement>(null);
+  const resultsZipInputRef = useRef<HTMLInputElement>(null);
 
   // Backend availability check on mount
   React.useEffect(() => {
@@ -972,8 +976,13 @@ function App() {
     setResultsLoadingMessage('Loading demo data...');
 
     try {
-      // Fetch from public root; ensure file exists at public/taubench_airline.jsonl
-      const res = await fetch('/taubench_airline.jsonl');
+      // Choose file based on selected mode
+      const demoFileName = selectedMode === 'side_by_side' 
+        ? 'taubench_airline_sbs.jsonl' 
+        : 'taubench_airline.jsonl';
+      
+      // Fetch from public root; ensure file exists at public/taubench_airline.jsonl or public/taubench_airline_sbs.jsonl
+      const res = await fetch(`/${demoFileName}`);
       if (!res.ok) {
         throw new Error(`Failed to fetch demo data (HTTP ${res.status})`);
       }
@@ -998,17 +1007,24 @@ function App() {
       setFilterNotice(null);
 
       // Set filename for demo data
-      setUploadedFileName('taubench_airline');
-      setResultsName('taubench_airline');
+      const baseFileName = selectedMode === 'side_by_side' ? 'taubench_airline_sbs' : 'taubench_airline';
+      setUploadedFileName(baseFileName);
+      setResultsName(baseFileName);
 
       // Create mapping based on user-selected mode
       const autoMapping: ColumnMapping = {
         promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
         responseCols: selectedMode === 'side_by_side'
-          ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
-          : columns.filter(c => c.includes('model_response')),
+          ? [
+              columns.find(c => c.includes('model_a_response')) || '',
+              columns.find(c => c.includes('model_b_response')) || ''
+            ].filter(Boolean)
+          : columns.filter(c => c === 'model_response'),
         modelCols: selectedMode === 'side_by_side'
-          ? columns.filter(c => (c.includes('model_a') || c.includes('model_b')) && !c.includes('response'))
+          ? [
+              columns.find(c => c.includes('model_a') && !c.includes('response')) || '',
+              columns.find(c => c.includes('model_b') && !c.includes('response')) || ''
+            ].filter(Boolean)
           : columns.filter(c => c.toLowerCase() === 'model'),
         scoreCols: columns.filter(c => c.toLowerCase().includes('score')),
         method: selectedMode
@@ -1358,6 +1374,352 @@ function App() {
       }
     }
   }, [resetUiStateForNewSource, processDataWithMapping]);
+
+  // Load results from zip file
+  const onLoadResultsZip = React.useCallback(async (file: File) => {
+    resetUiStateForNewSource('results');
+    setIsLoadingResults(true);
+    setResultsLoadingMessage('Extracting and loading results from zip file...');
+
+    // Helper to ensure examples is always an array
+    const ensureExamples = (cs: any[]) => (cs || []).map((c: any) => ({ ...c, examples: c.examples || [] }));
+
+    try {
+      // Extract zip file
+      let zip: JSZip;
+      let zipContents: JSZip;
+      try {
+        zip = new JSZip();
+        zipContents = await zip.loadAsync(file);
+      } catch (e: any) {
+        throw new Error(`Invalid zip file. Please ensure you're uploading a valid .zip file. Error: ${e?.message || 'Unknown error'}`);
+      }
+      
+      console.log('📦 Zip file contents:', Object.keys(zipContents.files));
+
+      // Convert zip files to File-like objects for processing
+      const fileArray: File[] = [];
+      for (const [filename, zipEntry] of Object.entries(zipContents.files)) {
+        // Skip directories
+        if (zipEntry.dir) continue;
+        
+        // Get file content as blob
+        const blob = await zipEntry.async('blob');
+        // Create a File-like object with the original filename
+        const file = new File([blob], filename.split('/').pop() || filename, { type: 'application/json' });
+        fileArray.push(file);
+      }
+
+      // Filter JSON/JSONL files
+      const jsonFiles = fileArray.filter(f => f.name.endsWith('.json') || f.name.endsWith('.jsonl'));
+
+      console.log('📄 JSON/JSONL files found in zip:', jsonFiles.map(f => f.name));
+
+      if (jsonFiles.length === 0) {
+        const allFiles = Object.keys(zipContents.files).filter(f => !zipContents.files[f].dir);
+        throw new Error(
+          `No JSON or JSONL files found in zip file.\n\n` +
+          `Found files: ${allFiles.length > 0 ? allFiles.join(', ') : 'none'}\n\n` +
+          `Expected files:\n` +
+          `- conversation.jsonl or conversations.jsonl (required)\n` +
+          `- properties.jsonl (optional)\n` +
+          `- clusters.jsonl (optional)\n` +
+          `- model_cluster_scores_df.jsonl (optional)\n` +
+          `- cluster_scores_df.jsonl (optional)\n` +
+          `- model_scores_df.jsonl (optional)`
+        );
+      }
+
+      let conversations: any[] = [];
+      let properties: any[] = [];
+      let clusters: any[] = [];
+      let metrics: any = null;
+
+      // Load each file based on name (same logic as onLoadResultsLocal)
+      for (const file of jsonFiles) {
+        const text = await file.text();
+        const name = file.name.toLowerCase();
+
+        console.log(`🔍 Processing file: ${file.name} (${text.length} bytes)`);
+
+        try {
+          if (name === 'conversation.jsonl' || name === 'conversations.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            conversations = lines.map(line => JSON.parse(line));
+            console.log(`✅ Loaded ${conversations.length} conversations from ${file.name}`);
+            console.log(`📊 Sample conversation:`, conversations[0]);
+          } else if (name === 'full_dataset.json' || name === 'conversations.json') {
+            if (conversations.length > 0) {
+              console.log(`⏭️ Skipping ${file.name} - already loaded conversations from .jsonl file`);
+              continue;
+            }
+
+            const data = JSON.parse(text);
+
+            if (Array.isArray(data)) {
+              conversations = data;
+            } else if (data && typeof data === 'object') {
+              if (Array.isArray(data.conversations)) {
+                conversations = data.conversations;
+              } else if (Array.isArray(data.data)) {
+                conversations = data.data;
+              } else if (Array.isArray(data.rows)) {
+                conversations = data.rows;
+              } else if (Array.isArray(data.results)) {
+                conversations = data.results;
+              } else {
+                conversations = [data];
+              }
+
+              if (Array.isArray(data.properties) && properties.length === 0) {
+                properties = data.properties;
+                console.log(`✅ Loaded ${properties.length} properties from ${file.name}`);
+              }
+              if (Array.isArray(data.clusters) && clusters.length === 0) {
+                clusters = data.clusters;
+                console.log(`✅ Loaded ${clusters.length} clusters from ${file.name}`);
+              }
+            }
+
+            console.log(`✅ Loaded ${conversations.length} conversations from ${file.name}`);
+            console.log(`📊 Sample conversation:`, conversations[0]);
+            console.log(`📊 Sample conversation keys:`, Object.keys(conversations[0] || {}));
+          } else if (name === 'properties.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            properties = lines.map(line => JSON.parse(line));
+            console.log(`✅ Loaded ${properties.length} properties from ${file.name}`);
+          } else if (name === 'parsed_properties.jsonl') {
+            if (properties.length === 0) {
+              const lines = text.split('\n').filter(l => l.trim());
+              properties = lines.map(line => JSON.parse(line));
+              console.log(`✅ Loaded ${properties.length} properties from ${file.name} (legacy format)`);
+            }
+          } else if (name === 'clusters.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            clusters = lines.map(line => JSON.parse(line));
+            console.log(`✅ Loaded ${clusters.length} clusters from ${file.name}`);
+          } else if (name === 'model_cluster_scores_df.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            const scores = lines.map(line => JSON.parse(line));
+            if (!metrics) metrics = {};
+            metrics.model_cluster_scores = scores;
+            console.log(`✅ Loaded ${scores.length} model_cluster_scores from ${file.name}`);
+          } else if (name === 'cluster_scores_df.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            const scores = lines.map(line => JSON.parse(line));
+            if (!metrics) metrics = {};
+            metrics.cluster_scores = scores;
+            console.log(`✅ Loaded ${scores.length} cluster_scores from ${file.name}`);
+          } else if (name === 'model_scores_df.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            const scores = lines.map(line => JSON.parse(line));
+            if (!metrics) metrics = {};
+            metrics.model_scores = scores;
+            console.log(`✅ Loaded ${scores.length} model_scores from ${file.name}`);
+          } else {
+            console.log(`⚠️ Skipping unrecognized file: ${file.name}`);
+          }
+        } catch (e: any) {
+          console.error(`❌ Failed to parse ${file.name}:`, e);
+          const errorMsg = e?.message || String(e);
+          throw new Error(
+            `Failed to parse file "${file.name}" in zip.\n\n` +
+            `Error: ${errorMsg}\n\n` +
+            `Please ensure the file is valid JSON or JSONL format.`
+          );
+        }
+      }
+
+      if (conversations.length === 0) {
+        const foundFiles = jsonFiles.map(f => f.name).join(', ');
+        throw new Error(
+          `No conversation data found in zip file.\n\n` +
+          `Found files: ${foundFiles || 'none'}\n\n` +
+          `Required: One of the following files with conversation data:\n` +
+          `- conversation.jsonl\n` +
+          `- conversations.jsonl\n` +
+          `- full_dataset.json\n` +
+          `- conversations.json\n\n` +
+          `The zip file should contain at least one of these files with your conversation/response data.`
+        );
+      }
+
+      // Process conversations (same as onLoadResultsLocal)
+      console.log('🔧 Processing conversations...');
+      const columns = inferColumns(conversations);
+      console.log('📋 Detected columns:', columns);
+
+      const detectedMethod = detectMethodFromColumns(columns);
+      console.log('🎯 Detected method:', detectedMethod);
+      setMethod(detectedMethod);
+
+      setOriginalRows(conversations);
+      setAvailableColumns(columns);
+
+      const operational = conversations.map((conv, idx) => ({
+        __index: idx,
+        question_id: conv.question_id,
+        prompt: conv.prompt,
+
+        ...(conv.model && {
+          model: conv.model,
+          model_response: conv.model_response,
+          score: conv.score
+        }),
+
+        ...(conv.model_a && {
+          model_a: conv.model_a,
+          model_b: conv.model_b,
+          model_a_response: conv.model_a_response,
+          model_b_response: conv.model_b_response,
+          score_a: conv.score_a,
+          score_b: conv.score_b
+        })
+      }));
+
+      console.log('🔧 DEBUG: Setting operationalRows:', {
+        count: operational.length,
+        sampleRow: operational[0],
+        method: detectedMethod,
+        hasScores: operational[0]?.score || operational[0]?.score_a || operational[0]?.score_b
+      });
+      setOperationalRows(operational);
+
+      const modelNames = detectedMethod === 'side_by_side' && operational.length > 0
+        ? { modelA: operational[0]?.model_a, modelB: operational[0]?.model_b }
+        : undefined;
+
+      const { rows: flattened, columns: flattenedColumns } = flattenScores(operational, detectedMethod, modelNames);
+      console.log('📊 DEBUG: After flattening:', {
+        outputRows: flattened.length,
+        sampleOutputRow: flattened[0],
+        columns: flattenedColumns,
+        scoreColumns: flattenedColumns.filter(c => c.startsWith('score_'))
+      });
+      setCurrentRows(flattened);
+
+      setShowColumnSelector(false);
+
+      if (properties.length > 0) {
+        setPropertiesRows(properties);
+        console.log(`✅ Loaded ${properties.length} properties`);
+      }
+
+      if (clusters.length > 0) {
+        if (Object.keys(metrics || {}).length > 0) {
+          const normalizedMetrics = normalizeMetricsColumnNames(metrics);
+          console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
+
+          if (normalizedMetrics.model_cluster_scores) {
+            normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+              normalizedMetrics.model_cluster_scores,
+              clusters
+            );
+          }
+
+          setResultsMetrics(normalizedMetrics);
+
+          if (normalizedMetrics.model_cluster_scores) {
+            const enrichedClusters = enrichClustersWithQualityData(
+              clusters,
+              normalizedMetrics.model_cluster_scores
+            );
+            setClusters(ensureExamples(enrichedClusters));
+            console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with pre-computed metrics)`);
+          }
+        } else if (conversations.length > 0 && properties.length > 0) {
+          console.log('🔢 Computing metrics on-the-fly from conversations + properties + clusters');
+          console.log('🔢 Data available:', {
+            conversations: conversations.length,
+            operational: operational.length,
+            properties: properties.length,
+            clusters: clusters.length
+          });
+
+          try {
+            const { computeClusterMetrics } = await import('./lib/clusterMetrics');
+
+            const clusterMetrics = computeClusterMetrics(
+              operational,
+              properties,
+              clusters
+            );
+
+            console.log('🔢 Computed metrics for clusters:', clusterMetrics.length);
+            console.log('🔢 Sample cluster metrics:', clusterMetrics[0]);
+
+            const enrichedClusters = clusters.map(cluster => {
+              const metrics = clusterMetrics.find(m => String(m.cluster_id) === String(cluster.id));
+              if (!metrics) {
+                console.warn('⚠️ No metrics found for cluster:', cluster.id);
+                return cluster;
+              }
+
+              console.log(`📊 Enriching cluster ${cluster.label} with:`, {
+                quality_delta_by_model: metrics.quality_delta_by_model,
+                total_unique_conversations: metrics.total_unique_conversations
+              });
+
+              return {
+                ...cluster,
+                meta: {
+                  ...cluster.meta,
+                  proportion_overall: metrics.proportion_overall,
+                  proportion_by_model: metrics.proportion_by_model,
+                  quality_by_model: metrics.quality_by_model,
+                  quality_delta_by_model: metrics.quality_delta_by_model,
+                  total_unique_conversations: metrics.total_unique_conversations
+                }
+              };
+            });
+
+            setClusters(ensureExamples(enrichedClusters));
+            console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with computed metrics)`);
+            console.log('✅ Sample enriched cluster meta:', enrichedClusters[0]?.meta);
+          } catch (error) {
+            console.error('❌ Error computing cluster metrics:', error);
+            setClusters(ensureExamples(clusters));
+            console.log(`⚠️ Loaded ${clusters.length} clusters without metrics due to error`);
+          }
+        } else {
+          setClusters(ensureExamples(clusters));
+          console.log(`✅ Loaded ${clusters.length} clusters (no metrics available)`);
+        }
+      }
+
+      if (clusters.length > 0 && Object.keys(metrics || {}).length > 0) {
+        setActiveSection('metrics');
+        console.log('📊 Switched to Metrics view');
+      } else if (clusters.length > 0) {
+        setActiveSection('clusters');
+        console.log('📊 Switched to Clusters view');
+      } else if (properties.length > 0) {
+        setActiveSection('extraction');
+        console.log('📊 Switched to Properties view');
+      } else {
+        setActiveSection('data');
+        console.log('📊 Staying on Data view');
+      }
+
+      console.log('✅ Results loaded successfully from zip:', {
+        conversations: conversations.length,
+        properties: properties.length,
+        clusters: clusters.length,
+        hasMetrics: !!metrics
+      });
+
+    } catch (e: any) {
+      console.error('❌ Failed to load results from zip:', e);
+      setResultsError(String(e?.message || e));
+    } finally {
+      setIsLoadingResults(false);
+      setResultsLoadingMessage('');
+      // Reset file input so the same zip can be uploaded again
+      if (resultsInputRef.current) {
+        resultsInputRef.current.value = '';
+      }
+    }
+  }, [resetUiStateForNewSource]);
 
   // Removed local results folder loader (unused)
 
@@ -1726,14 +2088,6 @@ function App() {
       setSelectedProperty(null); // Clear property context when viewing from main table
     } else {
       console.log('[App] onView - Preserving evidence (preserveEvidence=true)');
-    }
-
-    // If the demo-data tutorial is on the "data table" step, auto-advance when a model response is opened
-    if (tutorial && tutorial.activeTutorialId === 'demo-data' && tutorial.steps && tutorial.steps[tutorial.currentStepIndex]) {
-      const step = tutorial.steps[tutorial.currentStepIndex];
-      if (step.id === 'demo-step-1-data-table') {
-        tutorial.nextStep();
-      }
     }
   }, [method, operationalRows, tutorial]);
 
@@ -3180,7 +3534,7 @@ function App() {
             <Button
               variant="contained"
               size="small"
-              component="label"
+              onClick={(e) => setResultsMenuAnchor(e.currentTarget)}
               sx={{
                 color: 'white',
                 backgroundColor: 'secondary.main', // Uses retro purple from theme
@@ -3190,22 +3544,63 @@ function App() {
               }}
             >
               Load Results
-              <input
-                ref={resultsInputRef}
-                type="file"
-                hidden
-                /* @ts-ignore - webkitdirectory is not in TypeScript types but widely supported */
-                webkitdirectory=""
-                directory=""
-                multiple
-                onChange={(e) => {
-                  const files = e.target.files;
-                  if (files && files.length > 0) {
-                    void onLoadResultsLocal(files);
-                  }
-                }}
-              />
             </Button>
+            <Menu
+              anchorEl={resultsMenuAnchor}
+              open={Boolean(resultsMenuAnchor)}
+              onClose={() => setResultsMenuAnchor(null)}
+            >
+              <MenuItem
+                onClick={() => {
+                  setResultsMenuAnchor(null);
+                  // Small delay to ensure menu closes before file picker opens
+                  setTimeout(() => {
+                    resultsInputRef.current?.click();
+                  }, 100);
+                }}
+              >
+                Load Folder
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setResultsMenuAnchor(null);
+                  // Small delay to ensure menu closes before file picker opens
+                  setTimeout(() => {
+                    resultsZipInputRef.current?.click();
+                  }, 100);
+                }}
+              >
+                Load Zip File
+              </MenuItem>
+            </Menu>
+            {/* Hidden file inputs */}
+            <input
+              ref={resultsInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              /* @ts-ignore - webkitdirectory is not in TypeScript types but widely supported */
+              webkitdirectory=""
+              directory=""
+              multiple
+              onChange={(e) => {
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                  void onLoadResultsLocal(files);
+                }
+              }}
+            />
+            <input
+              ref={resultsZipInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              accept=".zip"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  void onLoadResultsZip(file);
+                }
+              }}
+            />
             <Button
               variant="contained"
               size="small"

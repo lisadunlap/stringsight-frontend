@@ -29,6 +29,12 @@ interface TutorialStepState extends TutorialStepDefinition {
 }
 
 /**
+ * Flag to temporarily disable tutorial overlay (useful for development).
+ * Set to true to disable all tutorial messages.
+ */
+const TUTORIAL_DISABLED = true;
+
+/**
  * In-memory configuration of tutorials.
  *
  * This is intentionally simple and focused on the minimal "demo data" flow.
@@ -43,18 +49,11 @@ const TUTORIAL_DEFINITIONS: Record<TutorialId, TutorialStepDefinition[]> = {
       requireActionToProceed: false,
     },
     {
-      id: 'demo-step-2-extract-trace',
-      targetId: 'extract-properties-trace',
-      title: 'Property extraction trace',
-      body: 'Use property extraction to turn raw model responses into structured properties you can analyze.',
-      requireActionToProceed: false,
-    },
-    {
       id: 'demo-step-3-extract-row-0',
       targetId: 'extract-row-0',
-      title: 'Try extracting a single row',
-      body: 'Start by extracting properties for the selected row. This lets you preview how the extractor works on one example before running it on all rows.',
-      requireActionToProceed: true,
+      title: 'Extract behaviors for your traces',
+      body: 'Click on the "Label Behaviors" icon in the sidebar to start automatically extracting behaviors from your traces.',
+      requireActionToProceed: false,
     },
     {
       id: 'demo-step-4-view-properties',
@@ -186,7 +185,7 @@ function TutorialOverlay({
     };
   }, [step]);
 
-  if (!activeTutorialId || !steps || !step) {
+  if (TUTORIAL_DISABLED || !activeTutorialId || !steps || !step) {
     return null;
   }
 
@@ -224,23 +223,6 @@ function TutorialOverlay({
         pointerEvents: 'none',
       }}
     >
-      {/* Highlight border around target (if found) - skip for property extraction trace textbox */}
-      {targetRect && step.targetId !== 'extract-properties-trace' && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: targetRect.top - 8,
-            left: targetRect.left - 8,
-            width: targetRect.width + 16,
-            height: targetRect.height + 16,
-            borderRadius: 2,
-            border: '2px solid #22C55E',
-            boxShadow: '0 0 0 1px rgba(15, 23, 42, 0.5)',
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-
       {/* Tutorial card */}
       <Box
         sx={{

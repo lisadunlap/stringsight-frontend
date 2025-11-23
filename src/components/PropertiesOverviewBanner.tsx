@@ -7,13 +7,15 @@ interface PropertiesOverviewBannerProps {
    * Array of property rows returned from extraction.
    * Expected keys (if present) that affect counts:
    * - `behavior_type`: string label such as "positive", "negative (critical)", "negative (non-critical)", "style".
+   * - `unexpected_behavior`: boolean indicating if this is an unexpected behavior.
    */
   properties: any[];
 }
 
 /**
  * Overview banner for extracted properties, showing counts of
- * positive / negative (critical) / negative (non-critical) / style properties.
+ * positive / negative (critical) / negative (non-critical) / style properties,
+ * and unexpected behaviors.
  *
  * Used in the Extraction step so that, even before any extraction,
  * users see "0" counts that update as properties are added.
@@ -28,6 +30,7 @@ export default function PropertiesOverviewBanner({
         negativeCritical: 0,
         negativeNonCritical: 0,
         style: 0,
+        unexpected: 0,
       };
 
       properties.forEach((row) => {
@@ -48,6 +51,12 @@ export default function PropertiesOverviewBanner({
           result.negativeNonCritical += 1;
         } else if (type === 'style') {
           result.style += 1;
+        }
+
+        // Count unexpected behaviors
+        const unexpected = row?.unexpected_behavior;
+        if (unexpected === true || unexpected === 'True' || unexpected === 'true') {
+          result.unexpected += 1;
         }
       });
 
@@ -273,6 +282,60 @@ export default function PropertiesOverviewBanner({
               size="medium"
               sx={{
                 bgcolor: '#8B5CF615',
+                height: 'auto',
+                py: 0.75,
+                px: 1.25,
+                border: 'none',
+                '& .MuiChip-label': { px: 0 },
+                cursor: 'help',
+              }}
+            />
+          </Tooltip>
+        </Box>
+      </Box>
+      <Box>
+        <Typography
+          variant="caption"
+          sx={{
+            mb: 1,
+            display: 'block',
+            color: '#6b7280',
+            textTransform: 'uppercase',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+          }}
+        >
+          Unexpected Behaviors
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Tooltip
+            title="Bizarre anomalies such as infinite loops, gibberish, hallucinations of non-existent tools, getting mad at the user, etc."
+            arrow
+            placement="top"
+          >
+            <Chip
+              label={
+                <Box
+                  component="span"
+                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                >
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#92400E' }}
+                  >
+                    {counts.unexpected}
+                  </Typography>
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#92400E' }}
+                  >
+                    Unexpected
+                  </Typography>
+                </Box>
+              }
+              size="medium"
+              sx={{
+                bgcolor: '#FEF3C7',
                 height: 'auto',
                 py: 0.75,
                 px: 1.25,

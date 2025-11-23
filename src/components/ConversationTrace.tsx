@@ -21,14 +21,13 @@ function normalizeVisibleNewlines(text: string): string {
 function escapeRegex(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
 // Normalize LaTeX delimiters to formats supported by remark-math.
-// We only normalize to display math with $$...$$ so that single `$` remains
-// literal text (avoids treating currency like $320 as LaTeX).
+// Convert \[...\] to $$...$$ and \(...\) to $...$
 function normalizeLatexDelimiters(text: string): string {
   // Replace \[...\] with $$...$$ (display math)
   // In replacement strings, $$ = one $, so $$$$$1$$$$ = $$ + content + $$
   text = text.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$');
-  // Treat \(...\) as display math as well to avoid introducing single-$ inline math
-  text = text.replace(/\\\(([\s\S]*?)\\\)/g, '$$$$$1$$$$');
+  // Replace \(...\) with $...$ (inline math)
+  text = text.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
   return text;
 }
 
@@ -1056,7 +1055,7 @@ export function ConversationTrace({
                         overflowWrap: 'anywhere',
                       }}>
                         <ReactMarkdown
-                          remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }], remarkBreaks]}
+                          remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
                           rehypePlugins={[rehypeKatex]}
                           components={{
                             p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</p>,
@@ -1146,7 +1145,7 @@ export function ConversationTrace({
                   }}
                 >
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }], remarkBreaks]}
+                    remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
                     rehypePlugins={[rehypeKatex]}
                     components={{
                       p: ({ children }) => <p style={{ margin: '4px 0' }}>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</p>,

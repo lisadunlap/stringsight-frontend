@@ -509,18 +509,6 @@ export function FrequencyChartAlt({
                       })()}
                     </Typography>
                   )}
-                  {typeof globalQualityDelta === 'number' && isFinite(globalQualityDelta) && (
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontSize: 12,
-                        color: globalQualityDelta > 0 ? 'success.main' : (globalQualityDelta < 0 ? 'error.main' : 'text.secondary'),
-                        fontWeight: 500
-                      }}
-                    >
-                      Δ quality: {globalQualityDelta > 0 ? '+' : ''}{globalQualityDelta.toFixed(2)}
-                    </Typography>
-                  )}
                 </Stack>
               </Box>
 

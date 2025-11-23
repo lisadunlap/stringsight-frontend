@@ -721,18 +721,6 @@ export function MetricsInsightsOverview({
                             return `${failure.totalSize.toLocaleString()} conversations${suffix}`;
                           })()}
                         </Typography>
-                        {typeof failure.globalQualityDelta === 'number' && isFinite(failure.globalQualityDelta) && (
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontSize: 12,
-                              color: failure.globalQualityDelta > 0 ? 'success.main' : (failure.globalQualityDelta < 0 ? 'error.main' : 'text.secondary'),
-                              fontWeight: 500
-                            }}
-                          >
-                            Δ quality: {failure.globalQualityDelta > 0 ? '+' : ''}{failure.globalQualityDelta.toFixed(2)}
-                          </Typography>
-                        )}
                       </Stack>
                     </Box>
 

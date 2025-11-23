@@ -25,9 +25,10 @@ export default function PropertyTraceHeader({
   evidenceTargetModel,
   onBack,
   onDownloadPDF,
-  backLabel = 'Back'
-}: PropertyTraceHeaderProps) {
-  
+  backLabel = 'Back',
+  disableNegativeMargin = false
+}: PropertyTraceHeaderProps & { disableNegativeMargin?: boolean }) {
+
 
   // Get metadata fields for 3-column layout
   const getMetadataFields = () => {
@@ -108,7 +109,7 @@ export default function PropertyTraceHeader({
         backgroundColor: '#FFFFFF',
         pb: 1,
         pt: 1,
-        mx: -2, // Extend to container edges (negative margin to offset container padding)
+        mx: disableNegativeMargin ? 0 : -2, // Extend to container edges (negative margin to offset container padding)
         px: 2, // Restore padding for content
         boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
         mb: 2
@@ -138,16 +139,6 @@ export default function PropertyTraceHeader({
           </Box>
         )}
 
-        <Typography 
-          variant="subtitle2" 
-          sx={{ 
-            color: '#1976d2', 
-            fontWeight: 600, 
-            mb: 1
-          }}
-        >
-          Property Information
-        </Typography>
 
         {/* Property Description */}
         {selectedProperty?.property_description && (
@@ -186,7 +177,7 @@ export default function PropertyTraceHeader({
       </Box>
 
       {/* Rest of property information - scrollable */}
-      <Box sx={{ mb: 2 }}>
+      <Box sx={{ mb: 2, px: disableNegativeMargin ? 2 : 0 }}>
 
         {/* Model Field - Show which model this property applies to (side-by-side only) */}
         {shouldShowModelField && (
@@ -210,10 +201,10 @@ export default function PropertyTraceHeader({
 
         {/* Metadata Fields in 3-column layout */}
         {metadataFields.length > 0 && (
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(3, 1fr)', 
-            gap: 2, 
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 2,
             mb: 1.5,
             mt: 1,
             p: 1.5,

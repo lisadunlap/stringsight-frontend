@@ -666,24 +666,6 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                       return `${clusterSize.toLocaleString()} properties`;
                     })()}
                   </Typography>
-                  {(() => {
-                    const overallQualityDeltaObj: Record<string, number> = (meta as any).quality_delta || {};
-                    const deltaVals = Object.values(overallQualityDeltaObj).filter(v => typeof v === 'number' && isFinite(v)) as number[];
-                    if (deltaVals.length === 0) return null;
-                    const avgDelta = deltaVals.reduce((a, b) => a + b, 0) / deltaVals.length;
-                    return (
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontSize: 12,
-                          color: avgDelta > 0 ? 'success.main' : (avgDelta < 0 ? 'error.main' : 'text.secondary'),
-                          fontWeight: 500
-                        }}
-                      >
-                        Δ quality: {avgDelta > 0 ? '+' : ''}{avgDelta.toFixed(2)}
-                      </Typography>
-                    );
-                  })()}
                 </Stack>
               </Box>
 
