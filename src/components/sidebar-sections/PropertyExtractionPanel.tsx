@@ -252,6 +252,24 @@ interface PropertyExtractionPanelProps {
   onScrollToProperties?: () => void;
 }
 
+// Helper to fetch and parse JSONL
+async function fetchJsonl(url: string): Promise<any[]> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+    }
+    const text = await response.text();
+    return text
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => JSON.parse(line));
+  } catch (error) {
+    console.error(`Error loading ${url}:`, error);
+    throw error;
+  }
+}
+
 export default function PropertyExtractionPanel({
   method,
   uploadedFileName,
@@ -640,6 +658,46 @@ export default function PropertyExtractionPanel({
     // Close the trace viewer to focus on batch progress
     onCloseTrace?.();
 
+    // DEMO MODE INTERCEPTION
+    if (isDemoMode) {
+      setBusy(true);
+      setCurrentStage('extraction');
+      onBatchStart?.();
+      setErrorMsg(null);
+      setJobProgress(0);
+      setJobState('processing');
+
+      try {
+        // Simulate progress
+        for (let i = 0; i <= 100; i += 10) {
+          setJobProgress(i);
+          onBatchStatus?.(i, 'processing', 'extraction', 'Extracting properties (Demo Mode)...');
+          await new Promise(r => setTimeout(r, 200));
+        }
+
+        const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
+        const properties = await fetchJsonl(`/${dataFolder}/validated_properties.jsonl`);
+
+        if (onBatchLoaded) {
+          onBatchLoaded(properties);
+        }
+
+        setBusy(false);
+        setCurrentStage(null);
+
+        // Trigger clustering
+        await runClusteringWithProperties(properties);
+
+        onBatchDone?.();
+      } catch (e) {
+        console.error('Demo extraction failed:', e);
+        setErrorMsg(`Demo extraction failed: ${String(e)}`);
+        setBusy(false);
+        setCurrentStage(null);
+      }
+      return;
+    }
+
     setBusy(true);
     setCurrentStage('extraction');
     onBatchStart?.();
@@ -763,6 +821,48 @@ export default function PropertyExtractionPanel({
 
     setClusteringBusy(true);
     setCurrentStage('clustering');
+
+    // DEMO MODE INTERCEPTION
+    if (isDemoMode) {
+      onBatchStatus?.(0, 'clustering', 'clustering', `Clustering ${properties.length} properties (Demo Mode)...`);
+
+      try {
+        // Simulate progress
+        await new Promise(r => setTimeout(r, 2000));
+
+        const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
+
+        const [clusters, modelClusterScores, clusterScores, modelScores] = await Promise.all([
+          fetchJsonl(`/${dataFolder}/clusters.jsonl`),
+          fetchJsonl(`/${dataFolder}/model_cluster_scores_df.jsonl`),
+          fetchJsonl(`/${dataFolder}/cluster_scores_df.jsonl`),
+          fetchJsonl(`/${dataFolder}/model_scores_df.jsonl`)
+        ]);
+
+        const res = {
+          clusters,
+          metrics: {
+            model_cluster_scores: modelClusterScores,
+            cluster_scores: clusterScores,
+            model_scores: modelScores
+          }
+        };
+
+        if (onClustersUpdated) {
+          onClustersUpdated(res);
+        }
+
+        onBatchStatus?.(1, 'done', 'clustering', 'Clustering complete');
+      } catch (e) {
+        console.error('Demo clustering failed:', e);
+        setErrorMsg(`Demo clustering failed: ${String(e)}`);
+        onBatchStatus?.(0, 'error', 'clustering', `Demo clustering failed: ${String(e)}`);
+      } finally {
+        setClusteringBusy(false);
+        setCurrentStage(null);
+      }
+      return;
+    }
 
     try {
       // Transform operationalRows to backend-expected format

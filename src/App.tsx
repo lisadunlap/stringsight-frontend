@@ -9,12 +9,12 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import FindInPageIcon from '@mui/icons-material/FindInPage';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CodeIcon from '@mui/icons-material/Code';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import FindInPageIcon from '@mui/icons-material/FindInPage';
 import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
 import { flattenScores, normalizeMetricsColumnNames, enrichModelClusterScoresWithMetadata } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
@@ -580,13 +580,14 @@ function App() {
     setCurrentRows([]);
     setPropertiesRows([]);
     setClusters([]);
+    setIsDemoSession(false); // Added
   };
-
   // Login dialog state
   const [loginOpen, setLoginOpen] = useState(false);
 
   // Demo mode selector dialog state
   const [demoModeSelectorOpen, setDemoModeSelectorOpen] = useState(false);
+  const [isDemoSession, setIsDemoSession] = useState(false); // Added
 
   // Results load menu state
   const [resultsMenuAnchor, setResultsMenuAnchor] = useState<null | HTMLElement>(null);
@@ -661,7 +662,7 @@ function App() {
     sortBy: 'proportion_delta_desc',
     topN: 5,
     significanceOnly: false,
-    showCI: true,
+    showCI: false,
   });
 
   // Benchmark view mode for data tab
@@ -688,7 +689,7 @@ function App() {
         sortBy: 'proportion_delta_desc',
         topN: 5,
         significanceOnly: false,
-        showCI: true,
+        showCI: false,
       });
       // Clear previous metrics metadata
       setMetricsAvailableModels([]);
@@ -848,6 +849,11 @@ function App() {
     setMethod('unknown');
     setIsResultsMode(mode === 'results');
     setResultsMetrics(null);
+    setHasViewedClusters(false); // Added
+    setIsDemoSession(false); // Added
+    setUploadedFileName(''); // Added
+    setResultsName(''); // Added
+    setResultsError(null); // Added
     // Hide column selector when loading results (results are already in correct format)
     if (mode === 'results') {
       setShowColumnSelector(false);
@@ -1013,6 +1019,7 @@ function App() {
       const baseFileName = selectedMode === 'side_by_side' ? 'taubench_airline_sbs' : 'taubench_airline';
       setUploadedFileName(baseFileName);
       setResultsName(baseFileName);
+      setIsDemoSession(true); // Added
 
       // Create mapping based on user-selected mode
       const autoMapping: ColumnMapping = {
@@ -2299,7 +2306,7 @@ function App() {
 
     console.log(`Final result (flattened): ${displayData.length} rows`);
     setCurrentRows(displayData);
-  }, [operationalRows, method]);
+  }, [operationalRows, method, isDemoMode, demoSampleSize]);
 
   // Legacy wrapper for backward compatibility
   const applyFilters = useCallback(async (newFilters: Filter[]) => {
@@ -2815,7 +2822,7 @@ function App() {
               sortBy: 'proportion_delta_desc',
               topN: 5,
               significanceOnly: false,
-              showCI: true,
+              showCI: false,
             }}
             onQualityMetricsChange={(metrics) => {
               setAvailableQualityMetrics(metrics);
@@ -3257,18 +3264,18 @@ function App() {
     }
   }, [clusters, propertiesRows, operationalRows, resultsMetrics, resultsName, uploadedFileName]);
 
-  // Auto-download results when clustering completes (disabled)
-  // React.useEffect(() => {
-  //   if (clusteringJustCompleted && clusters.length > 0 && !batchRunning) {
-  //     // Trigger download after a short delay to ensure all state updates are complete
-  //     const timer = setTimeout(() => {
-  //       handleDownloadResults();
-  //       setClusteringJustCompleted(false); // Reset flag so we don't auto-download again
-  //     }, 1000);
+  // Auto-download results when clustering completes
+  React.useEffect(() => {
+    if (clusteringJustCompleted && clusters.length > 0 && !batchRunning) {
+      // Trigger download after a short delay to ensure all state updates are complete
+      const timer = setTimeout(() => {
+        handleDownloadResults();
+        setClusteringJustCompleted(false); // Reset flag so we don't auto-download again
+      }, 1000);
 
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [clusteringJustCompleted, clusters.length, batchRunning, handleDownloadResults]);
+      return () => clearTimeout(timer);
+    }
+  }, [clusteringJustCompleted, clusters.length, batchRunning, handleDownloadResults]);
 
   // Metrics tab data callback - memoized to avoid infinite effect loops
   const onMetricsDataProcessedCb = useCallback((data: {
@@ -3983,7 +3990,7 @@ function App() {
                   resultsName={resultsName}
                   onResultsNameChange={setResultsName}
                   isResultsMode={isResultsMode}
-                  demoSampleSize={isDemoMode ? demoSampleSize : undefined}
+                  demoSampleSize={isDemoMode || isDemoSession ? demoSampleSize : undefined} // Modified
                   getSelectedRow={getSelectedRowCb}
                   getAllRows={getAllRowsCb}
                   getOperationalRows={getOperationalRowsCb}

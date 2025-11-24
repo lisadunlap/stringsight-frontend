@@ -1,0 +1,9 @@
+{
+  "total_input_properties": 400,
+  "total_parsed_properties": 1960,
+  "parse_errors": 1,
+  "unknown_model_filtered": 0,
+  "empty_list_responses": 0,
+  "parsing_success_rate": 4.9,
+  "failures_count": 1
+}
