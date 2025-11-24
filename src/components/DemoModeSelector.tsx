@@ -39,7 +39,7 @@ export default function DemoModeSelector({
       </DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Select how you want to explore the demo dataset.
+          We will analyze TauBench, a benchmark that simulates a customer service agent for airlines. Select how you want to analyze this data.
         </Typography>
 
         <Box sx={{ display: 'flex', gap: 2 }}>

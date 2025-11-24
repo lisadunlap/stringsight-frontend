@@ -578,6 +578,62 @@ export default function PropertyExtractionPanel({
         row___index: body.row?.__index,
       });
 
+      // DEMO MODE INTERCEPTION: Load cached properties for row 0
+      if (isDemoMode && (sanitizedRow.question_id === '0-0' || sanitizedRow.__index === 0)) {
+        console.log('[PropertyExtraction] Demo mode: Loading cached properties for row 0');
+        setExtracting(true);
+        setExtractionProgress(0);
+
+        try {
+          // Simulate brief loading (1 second)
+          for (let i = 0; i <= 100; i += 10) {
+            setExtractionProgress(i);
+            await new Promise(r => setTimeout(r, 100));
+          }
+
+          const zipFileName = method === 'side_by_side' ? 'taubench_airline_data_sbs.zip' : 'taubench_airline_data.zip';
+          const allProperties = await fetchJsonlFromZip(`/${zipFileName}`, 'validated_properties.jsonl');
+
+          // Find properties for this specific row (question_id 0-0)
+          const rowProperties = allProperties.filter(p => p.question_id === '0-0');
+
+          if (rowProperties.length === 0) {
+            throw new Error('No cached properties found for row 0');
+          }
+
+          console.log(`[PropertyExtraction] Loaded ${rowProperties.length} cached properties for row 0`);
+
+          onPropertiesMerged(rowProperties);
+          setLastExtractProps(rowProperties);
+
+          // Mark tutorial step as completed
+          if (tutorial && tutorial.activeTutorialId === 'demo-data' && tutorial.steps && tutorial.steps[tutorial.currentStepIndex]) {
+            tutorial.markActionCompleted('demo-data', 'demo-step-3-extract-row-0');
+            const step = tutorial.steps[tutorial.currentStepIndex];
+            if (step.id === 'demo-step-3-extract-row-0') {
+              tutorial.nextStep();
+            }
+          }
+
+          // Scroll to properties table
+          setTimeout(() => {
+            if (onScrollToProperties) {
+              onScrollToProperties();
+            }
+          }, 300);
+
+          setExtracting(false);
+          setExtractionProgress(0);
+          return;
+        } catch (e: any) {
+          console.error('[PropertyExtraction] Failed to load cached properties:', e);
+          setErrorMsg(`Failed to load cached demo properties: ${e?.message || String(e)}`);
+          setExtracting(false);
+          setExtractionProgress(0);
+          return;
+        }
+      }
+
       // Check backend health before making the request
       const backendHealthy = await checkBackendHealth();
       if (!backendHealthy) {
