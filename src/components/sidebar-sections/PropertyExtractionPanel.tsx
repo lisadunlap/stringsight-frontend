@@ -256,7 +256,16 @@ interface PropertyExtractionPanelProps {
 async function fetchJsonl(url: string): Promise<any[]> {
   try {
     console.log('[fetchJsonl] Fetching:', url);
-    const response = await fetch(url);
+
+    // Add cache-busting to avoid stale 404 responses
+    const response = await fetch(url, {
+      cache: 'no-cache',
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
+
     console.log('[fetchJsonl] Response status:', response.status, response.statusText);
     console.log('[fetchJsonl] Response headers:', Object.fromEntries(response.headers.entries()));
 
