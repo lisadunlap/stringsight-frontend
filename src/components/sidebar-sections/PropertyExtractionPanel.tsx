@@ -255,11 +255,26 @@ interface PropertyExtractionPanelProps {
 // Helper to fetch and parse JSONL
 async function fetchJsonl(url: string): Promise<any[]> {
   try {
+    console.log('[fetchJsonl] Fetching:', url);
     const response = await fetch(url);
+    console.log('[fetchJsonl] Response status:', response.status, response.statusText);
+    console.log('[fetchJsonl] Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+      throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
     }
+
+    const contentType = response.headers.get('content-type');
+    console.log('[fetchJsonl] Content-Type:', contentType);
+
     const text = await response.text();
+    console.log('[fetchJsonl] Response text preview:', text.substring(0, 200));
+
+    // Check if we got HTML instead of JSONL
+    if (text.trim().startsWith('<!doctype') || text.trim().startsWith('<html')) {
+      throw new Error(`Received HTML instead of JSONL from ${url}. The file may not exist or the path is incorrect.`);
+    }
+
     return text
       .split('\n')
       .filter(line => line.trim())
