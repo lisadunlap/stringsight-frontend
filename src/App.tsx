@@ -3264,19 +3264,6 @@ function App() {
     }
   }, [clusters, propertiesRows, operationalRows, resultsMetrics, resultsName, uploadedFileName]);
 
-  // Auto-download results when clustering completes
-  React.useEffect(() => {
-    if (clusteringJustCompleted && clusters.length > 0 && !batchRunning) {
-      // Trigger download after a short delay to ensure all state updates are complete
-      const timer = setTimeout(() => {
-        handleDownloadResults();
-        setClusteringJustCompleted(false); // Reset flag so we don't auto-download again
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [clusteringJustCompleted, clusters.length, batchRunning, handleDownloadResults]);
-
   // Metrics tab data callback - memoized to avoid infinite effect loops
   const onMetricsDataProcessedCb = useCallback((data: {
     availableModels: string[];
@@ -3853,6 +3840,10 @@ function App() {
                 </Box>
               </Box>
 
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>3) Click Done to load your table and explore</Typography>
+
               <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
                 <Button
                   variant="contained"
@@ -3878,9 +3869,20 @@ function App() {
                   Try Demo Data
                 </Button>
               </Box>
-              <Typography variant="body2" sx={{ color: 'text.primary' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
-              <Typography variant="body2" sx={{ color: 'text.primary' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
-              <Typography variant="body2" sx={{ color: 'text.primary' }}>3) Click Done to load your table and explore</Typography>
+
+              <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                <img 
+                  src="/stringsight_ui.png" 
+                  alt="StringSight UI" 
+                  style={{ 
+                    maxWidth: '100%', 
+                    height: 'auto',
+                    borderRadius: '8px',
+                    border: '2px solid #e5e7eb',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 4px 10px -2px rgba(0, 0, 0, 0.15)'
+                  }} 
+                />
+              </Box>
 
               <Box sx={{ mt: 2, mb: 1 }}>
                 <Typography variant="subtitle1" sx={{ color: '#374151', fontWeight: 600, mb: 1 }}>What data format should I use?</Typography>

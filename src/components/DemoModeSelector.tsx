@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import {
   CompareArrows as SideBySideIcon,
-  Person as SingleModelIcon,
+  Analytics as StandardIcon,
 } from '@mui/icons-material';
 
 interface DemoModeSelectorProps {
@@ -39,7 +39,7 @@ export default function DemoModeSelector({
       </DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Select how you want to explore the demo dataset. You can change this later by uploading your own data.
+          Select how you want to explore the demo dataset.
         </Typography>
 
         <Box sx={{ display: 'flex', gap: 2 }}>
@@ -56,7 +56,7 @@ export default function DemoModeSelector({
           >
             <CardActionArea onClick={() => onSelect('single_model')}>
               <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                <SingleModelIcon
+                <StandardIcon
                   sx={{
                     fontSize: 48,
                     color: 'primary.main',
@@ -64,10 +64,10 @@ export default function DemoModeSelector({
                   }}
                 />
                 <Typography variant="h6" gutterBottom>
-                  Single Model
+                  Standard
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Analyze responses from a single model. Ideal for understanding model behavior patterns, extracting properties, and identifying failure modes.
+                  Analyze each of your model traces individually. Ideal for when you have responses for only 1 model or want to compare 3+ models.
                 </Typography>
               </CardContent>
             </CardActionArea>
