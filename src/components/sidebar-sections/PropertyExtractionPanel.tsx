@@ -352,7 +352,7 @@ export default function PropertyExtractionPanel({
   const generateOutputDir = React.useCallback(() => {
     const baseName = resultsNameProp?.trim() || uploadedFileName || 'results';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: YYYY-MM-DDTHH-MM-SS
-    return `results/frontend/${baseName}_${timestamp}`;
+    return `frontend/${baseName}_${timestamp}`;
   }, [resultsNameProp, uploadedFileName]);
 
   // Load prompts and embedding models on mount
