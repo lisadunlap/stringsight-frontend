@@ -668,11 +668,15 @@ export default function PropertyExtractionPanel({
       setJobState('processing');
 
       try {
-        // Simulate progress
-        for (let i = 0; i <= 100; i += 10) {
-          setJobProgress(i);
-          onBatchStatus?.(i, 'processing', 'extraction', 'Extracting properties (Demo Mode)...');
-          await new Promise(r => setTimeout(r, 200));
+        // Simulate progress (5 seconds)
+        // 50 steps * 100ms = 5000ms
+        // Simulate progress (5 seconds)
+        // 50 steps * 100ms = 5000ms
+        for (let i = 0; i <= 100; i += 2) {
+          const progress = i / 100;
+          setJobProgress(progress);
+          onBatchStatus?.(progress, 'processing', 'extraction', 'Extracting properties (Demo Mode)...');
+          await new Promise(r => setTimeout(r, 100));
         }
 
         const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
@@ -827,8 +831,15 @@ export default function PropertyExtractionPanel({
       onBatchStatus?.(0, 'clustering', 'clustering', `Clustering ${properties.length} properties (Demo Mode)...`);
 
       try {
-        // Simulate progress
-        await new Promise(r => setTimeout(r, 2000));
+        // Simulate progress (5 seconds)
+        // 50 steps * 100ms = 5000ms
+        // Simulate progress (5 seconds)
+        // 50 steps * 100ms = 5000ms
+        for (let i = 0; i <= 100; i += 2) {
+          const progress = i / 100;
+          onBatchStatus?.(progress, 'clustering', 'clustering', `Clustering ${properties.length} properties (Demo Mode)...`);
+          await new Promise(r => setTimeout(r, 100));
+        }
 
         const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
 

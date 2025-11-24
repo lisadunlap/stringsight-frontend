@@ -4041,7 +4041,7 @@ function App() {
                   <Box sx={{ position: 'absolute', inset: 0, zIndex: (theme) => theme.zIndex.modal + 1, bgcolor: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, pointerEvents: 'all' }}>
                     <Box sx={{ bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 4, border: '1px solid #EA580C', textAlign: 'center' }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        Backend not connected. Set VITE_BACKEND to your backend URL to enable extraction.
+                        We are having trouble connecting, thank your for your patience!
                       </Typography>
                     </Box>
                   </Box>
