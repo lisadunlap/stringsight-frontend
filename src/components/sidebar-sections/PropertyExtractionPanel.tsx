@@ -944,10 +944,16 @@ export default function PropertyExtractionPanel({
         }}
       >
         <AccordionSummary
-          expandIcon={<ExpandMoreIcon />}
-          sx={{ minHeight: 'auto', '& .MuiAccordionSummary-content': { margin: '4px 0' } }}
+          expandIcon={<ExpandMoreIcon sx={{ color: 'white' }} />}
+          sx={{
+            minHeight: 'auto',
+            backgroundColor: 'primary.main',
+            color: 'white',
+            '& .MuiAccordionSummary-content': { margin: '8px 0' },
+            '&:hover': { backgroundColor: 'primary.dark' }
+          }}
         >
-          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'white' }}>
             Property extraction controls
           </Typography>
         </AccordionSummary>
@@ -962,7 +968,7 @@ export default function PropertyExtractionPanel({
           )}
 
           <Typography variant="body2" sx={{ color: 'primary.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
-            Extract interesting properties from your traces. Click 'Extract on Row 0' to see an example.
+            Label interesting behaviors from your traces. Click 'Label Trace at Row 0' to see an example.
           </Typography>
           <Box>
             <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
@@ -1238,7 +1244,7 @@ export default function PropertyExtractionPanel({
               </Box>
             )}
             <Button
-              variant="contained"
+              variant="outlined"
               onClick={runExtractSingle}
               disabled={busy || clusteringBusy || !methodValid || !getSelectedRow()}
               sx={{ width: '100%' }}
@@ -1246,21 +1252,21 @@ export default function PropertyExtractionPanel({
             >
               {(() => {
                 const row = getSelectedRow();
-                if (!row) return 'Extract on selected';
+                if (!row) return 'Label Trace at Selected Row';
                 const index = (row as any)?.__index;
-                return index !== undefined ? `Extract on Row ${index}` : 'Extract on selected';
+                return index !== undefined ? `Label Trace at Row ${index}` : 'Label Trace at Selected Row';
               })()}
             </Button>
             <Button
-              variant="outlined"
+              variant="contained"
               onClick={runExtractBatch}
               disabled={busy || clusteringBusy || !methodValid}
               sx={{ width: '100%' }}
               data-tutorial-id="extract-all-rows"
             >
               {sampleSize && sampleSize > 0
-                ? `Run on sample (${sampleSize} prompts)`
-                : `Run on all traces (${getAllRows().length})`}
+                ? `Label and Cluster Sample (${sampleSize} traces)`
+                : `Label and Cluster All Traces (${getAllRows().length})`}
             </Button>
           </Box>
         </AccordionDetails>
