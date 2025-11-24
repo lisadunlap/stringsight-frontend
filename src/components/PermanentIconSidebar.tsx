@@ -236,7 +236,7 @@ export default function PermanentIconSidebar({
         tooltip={
           canGoToClusters
             ? 'Clusters - Common behavior patterns'
-            : 'Run property extraction to discover clusters'
+            : 'Run Label Behaviors to discover clusters'
         }
         label={
           <>

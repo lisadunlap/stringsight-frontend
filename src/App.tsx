@@ -56,6 +56,7 @@ import { getToken, removeToken } from "./lib/auth";
 import LogoutIcon from '@mui/icons-material/Logout';
 import { retroColors } from "./theme";
 import DemoModeSelector from "./components/DemoModeSelector";
+import DemoGuidancePopup from "./components/DemoGuidancePopup";
 
 
 
@@ -589,6 +590,9 @@ function App() {
   const [demoModeSelectorOpen, setDemoModeSelectorOpen] = useState(false);
   const [isDemoSession, setIsDemoSession] = useState(false); // Added
 
+  // Demo guidance popup state - tracks which section popups have been dismissed
+  const [dismissedDemoPopups, setDismissedDemoPopups] = useState<Set<string>>(new Set());
+
   // Results load menu state
   const [resultsMenuAnchor, setResultsMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -698,6 +702,13 @@ function App() {
       setMetricsSummary(null);
     }
   }, [resultsMetrics]);
+
+  // Auto-dismiss clustering alert when user navigates to metrics tab
+  React.useEffect(() => {
+    if (activeSection === 'metrics' && !clusteringAlertDismissed) {
+      setClusteringAlertDismissed(true);
+    }
+  }, [activeSection, clusteringAlertDismissed]);
 
   // Demo mode: Check if demo mode is enabled (backend operations will be limited to 100 rows)
   const isDemoMode = import.meta.env.VITE_DEMO === 'true';
@@ -854,6 +865,7 @@ function App() {
     setUploadedFileName(''); // Added
     setResultsName(''); // Added
     setResultsError(null); // Added
+    setDismissedDemoPopups(new Set()); // Reset demo guidance popups
     // Hide column selector when loading results (results are already in correct format)
     if (mode === 'results') {
       setShowColumnSelector(false);
@@ -965,6 +977,11 @@ function App() {
   }
 
   const tutorial = useTutorial();
+
+  // Handler for dismissing demo guidance popups
+  const handleDismissDemoPopup = React.useCallback((section: string) => {
+    setDismissedDemoPopups(prev => new Set(prev).add(section));
+  }, []);
 
   // When the demo-data tutorial reaches the "extract trace" step, automatically
   // switch to the Extraction section so users see where to run property extraction.
@@ -1257,13 +1274,17 @@ function App() {
 
       // Load properties (no pre-enrichment needed - PropertiesTab handles at render time)
       // Don't add __index since property index doesn't match conversation index
-      if (properties.length > 0) {
+      // Skip loading properties in demo mode to start with empty table
+      if (properties.length > 0 && !isDemoMode) {
         setPropertiesRows(properties);
         console.log(`✅ Loaded ${properties.length} properties`);
+      } else if (isDemoMode && properties.length > 0) {
+        console.log(`⚠️ Demo mode: Skipping ${properties.length} pre-loaded properties - table will start empty`);
       }
 
       // Load or compute metrics and enrich clusters
-      if (clusters.length > 0) {
+      // Skip loading clusters in demo mode to allow fresh clustering
+      if (clusters.length > 0 && !isDemoMode) {
         if (Object.keys(metrics).length > 0) {
           // Use pre-computed metrics if available
           const normalizedMetrics = normalizeMetricsColumnNames(metrics);
@@ -1348,13 +1369,16 @@ function App() {
           setClusters(ensureExamplesArray(clusters));
           console.log(`✅ Loaded ${clusters.length} clusters (no metrics available)`);
         }
+      } else if (isDemoMode && clusters.length > 0) {
+        console.log(`⚠️ Demo mode: Skipping ${clusters.length} pre-loaded clusters - will cluster from scratch`);
       }
 
       // Switch to appropriate view based on loaded data
-      if (clusters.length > 0 && Object.keys(metrics).length > 0) {
+      // In demo mode, stay on data tab to let user follow the tutorial
+      if (!isDemoMode && clusters.length > 0 && Object.keys(metrics).length > 0) {
         setActiveSection('metrics');
         console.log('📊 Switched to Metrics view');
-      } else if (clusters.length > 0) {
+      } else if (!isDemoMode && clusters.length > 0) {
         setActiveSection('clusters');
         console.log('📊 Switched to Clusters view');
       } else if (properties.length > 0) {
@@ -2791,7 +2815,7 @@ function App() {
         <Box sx={{ mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Quality Metrics
+              Your Data Summary
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="body2" sx={{ color: benchmarkViewMode === 'table' ? 'text.primary' : 'text.secondary' }}>
@@ -2900,15 +2924,7 @@ function App() {
   // Memoized properties content
   const propertiesContent = useMemo(() => {
     if (activeSection !== 'extraction') return null;
-    if (propertiesRows.length === 0) {
-      return (
-        <Box sx={{ p: 2, border: '1px solid #E5E7EB', borderRadius: 0.5, background: '#FFFFFF' }}>
-          <Typography variant="body1" color="text.secondary">
-            No properties available yet. Run "Extract on selected" or "Run on all traces" from the sidebar.
-          </Typography>
-        </Box>
-      );
-    }
+    // Always render PropertiesTab (even when empty) to show overview banner with zeros
     return (
       <PropertiesTab
         rows={propertiesRows}
@@ -3613,7 +3629,7 @@ function App() {
         {/* Global extraction/clustering progress, visible from all stages */}
         {batchRunning && (
           <Box sx={{ px: 3, pb: 1.5 }}>
-            <Typography variant="body2" sx={{ color: 'primary.main', mb: 0.5 }}>
+            <Typography variant="body2" sx={{ color: 'primary.main', mb: 0.5, fontWeight: 600, fontSize: '0.9rem' }}>
               {pipelineStage === 'extraction' && batchState
                 ? `Extracting properties: ${batchState} • ${Math.round((batchProgress || 0) * 100)}%`
                 : pipelineStage === 'clustering'
@@ -3627,6 +3643,15 @@ function App() {
                   : 'indeterminate'
               }
               value={(batchProgress || 0) * 100}
+              sx={{
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                '& .MuiLinearProgress-bar': {
+                  borderRadius: 4,
+                  backgroundColor: '#2563eb',
+                }
+              }}
             />
           </Box>
         )}
@@ -3634,37 +3659,21 @@ function App() {
         {clusters.length > 0 && !clusteringAlertDismissed && !isResultsMode && (
           <Box sx={{ px: 3, pb: 1.5 }}>
             <Alert
-              severity="success"
+              severity="info"
               sx={{
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                color: '#065F46',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                border: '1px solid rgba(37, 99, 235, 0.3)',
+                color: '#1e40af',
                 '& .MuiAlert-icon': {
-                  color: '#10B981'
+                  color: '#2563eb'
+                },
+                '& .MuiAlert-action': {
+                  alignItems: 'flex-end',
+                  paddingTop: 0
                 }
               }}
               action={
-                <Stack direction="row" spacing={1} alignItems="center">
-                  {clusters.length > 0 && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => {
-                        setActiveSection('clusters');
-                        setSidebarExpanded(false);
-                      }}
-                      sx={{
-                        color: '#065F46',
-                        borderColor: 'rgba(6, 95, 70, 0.5)',
-                        '&:hover': {
-                          borderColor: '#065F46',
-                          backgroundColor: 'rgba(6, 95, 70, 0.1)'
-                        }
-                      }}
-                    >
-                      View Clusters
-                    </Button>
-                  )}
+                <Stack direction="row" spacing={1}>
                   {resultsMetrics && (
                     <Button
                       size="small"
@@ -3674,10 +3683,10 @@ function App() {
                         setSidebarExpanded(false);
                       }}
                       sx={{
-                        backgroundColor: '#10B981',
+                        backgroundColor: '#2563eb',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#059669'
+                          backgroundColor: '#1d4ed8'
                         }
                       }}
                     >
@@ -3690,11 +3699,11 @@ function App() {
                     startIcon={<DownloadIcon />}
                     onClick={handleDownloadResults}
                     sx={{
-                      color: '#065F46',
-                      borderColor: 'rgba(6, 95, 70, 0.5)',
+                      color: '#1e40af',
+                      borderColor: 'rgba(30, 64, 175, 0.5)',
                       '&:hover': {
-                        borderColor: '#065F46',
-                        backgroundColor: 'rgba(6, 95, 70, 0.1)'
+                        borderColor: '#1e40af',
+                        backgroundColor: 'rgba(30, 64, 175, 0.1)'
                       }
                     }}
                   >
@@ -3704,10 +3713,10 @@ function App() {
                     size="small"
                     onClick={() => setClusteringAlertDismissed(true)}
                     sx={{
-                      color: '#065F46',
+                      color: '#1e40af',
                       ml: 1,
                       '&:hover': {
-                        backgroundColor: 'rgba(6, 95, 70, 0.1)'
+                        backgroundColor: 'rgba(30, 64, 175, 0.1)'
                       }
                     }}
                   >
@@ -3716,11 +3725,11 @@ function App() {
                 </Stack>
               }
             >
-              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#065F46' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#1e40af' }}>
                 Clustering complete!
               </Typography>
-              <Typography variant="body2" sx={{ color: '#047857' }}>
-                Your properties have been clustered and insights are ready. Navigate to the <strong>Cluster Behaviors</strong> or <strong>View Insights</strong> section to explore the results.
+              <Typography variant="body2" sx={{ color: '#1e3a8a' }}>
+                Your properties have been clustered and insights are ready. Click <strong>View Insights</strong> to explore the results.
               </Typography>
             </Alert>
           </Box>
@@ -3955,37 +3964,28 @@ function App() {
               </Box>
             )}
 
-            {activeSection === 'data' && dataOverview && (
-              <DataOverviewBanner dataOverview={dataOverview} method={method} />
+            {/* Demo guidance popup for Data tab - shown when demo data is loaded and not yet dismissed */}
+            {activeSection === 'data' && isDemoSession && !dismissedDemoPopups.has('data') && operationalRows.length > 0 && (
+              <DemoGuidancePopup
+                section="data"
+                onDismiss={() => handleDismissDemoPopup('data')}
+              />
             )}
 
-            {/* Hint message for extraction feature - shown when data is loaded but no properties (demo mode or demo data loaded) */}
-            {(isDemoMode || uploadedFileName.includes('taubench_airline')) && activeSection === 'data' && originalRows.length > 0 && !showColumnSelector && propertiesRows.length === 0 && (
-              <Box
-                sx={{
-                  mb: 2,
-                  px: 2,
-                  py: 1.5,
-                  backgroundColor: '#EFF6FF',
-                  border: '2px solid',
-                  borderColor: 'primary.main',
-                  borderRadius: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                }}
-              >
-                <ArrowBackIcon sx={{ color: 'primary.main', fontSize: 32 }} />
-                <FindInPageIcon sx={{ color: '#10B981', fontSize: 28 }} />
-                <Typography variant="h6" sx={{ color: 'primary.main', fontWeight: 600 }}>
-                  Click <strong>'Label Behaviors'</strong> in the sidebar to analyze your traces
-                </Typography>
-              </Box>
+            {activeSection === 'data' && dataOverview && (
+              <DataOverviewBanner dataOverview={dataOverview} method={method} />
             )}
 
             {/* Extraction panel in main content for Extraction step */}
             {activeSection === 'extraction' && (
               <Box sx={{ mb: 2, position: 'relative' }}>
+                {/* Demo guidance popup for Extraction section */}
+                {isDemoSession && !dismissedDemoPopups.has('properties') && operationalRows.length > 0 && (
+                  <DemoGuidancePopup
+                    section="properties"
+                    onDismiss={() => handleDismissDemoPopup('properties')}
+                  />
+                )}
                 <PropertyExtractionPanel
                   method={method}
                   uploadedFileName={uploadedFileName}
@@ -4073,6 +4073,13 @@ function App() {
             ) : null}
             {(activeSection === 'clusters' || hasViewedClusters) && (
               <Box sx={{ display: activeSection === 'clusters' ? 'block' : 'none' }}>
+                {/* Demo guidance popup for Clusters section */}
+                {isDemoSession && !dismissedDemoPopups.has('clusters') && activeSection === 'clusters' && clusters.length > 0 && (
+                  <DemoGuidancePopup
+                    section="clusters"
+                    onDismiss={() => handleDismissDemoPopup('clusters')}
+                  />
+                )}
                 <ClustersTab
                   clusters={clusters}
                   totalConversationsByModel={totalConversationsByModel}
@@ -4092,6 +4099,13 @@ function App() {
             )}
             {activeSection === 'metrics' && (
               <Box>
+                {/* Demo guidance popup for Metrics section */}
+                {isDemoSession && !dismissedDemoPopups.has('metrics') && resultsMetrics && (
+                  <DemoGuidancePopup
+                    section="metrics"
+                    onDismiss={() => handleDismissDemoPopup('metrics')}
+                  />
+                )}
                 {resultsMetrics ? (
                   <MetricsTab
                     resultsData={resultsMetrics}

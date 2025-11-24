@@ -94,7 +94,17 @@ export default function PropertiesTab({
 
   // Get all available columns from the enriched properties data with custom ordering
   const availableColumns = React.useMemo(() => {
-    if (enrichedRows.length === 0) return [];
+    // When no rows, show default expected columns for properties
+    if (enrichedRows.length === 0) {
+      return [
+        'property_description',
+        'behavior_type',
+        'evidence',
+        'reason',
+        'model',
+        'question_id'
+      ];
+    }
     const allKeys = new Set<string>();
     enrichedRows.forEach(row => {
       Object.keys(row).forEach(key => allKeys.add(key));
@@ -647,6 +657,17 @@ export default function PropertiesTab({
                       const start = (currentPage - 1) * pageSize;
                       const end = Math.min(group.rows.length, start + pageSize);
                       const rowsSlice = group.rows.slice(start, end);
+                      if (rowsSlice.length === 0) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={availableColumns.length} sx={{ textAlign: 'center', py: 4 }}>
+                              <Typography variant="body1" color="text.secondary">
+                                No properties in this group yet.
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
                       return rowsSlice.map((p, i) => (
                         <TableRow key={i} hover>
                           {availableColumns.map((column) => {
@@ -712,7 +733,15 @@ export default function PropertiesTab({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {pageRows.map((p, i) => {
+                {pageRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={availableColumns.length} sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography variant="body1" color="text.secondary">
+                        No properties extracted yet. Click "Label Trace at Row 0" or "Label and Cluster All Traces" above to start.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : pageRows.map((p, i) => {
                   const row = (
                     <TableRow key={i} hover>
                       {availableColumns.map((column) => {

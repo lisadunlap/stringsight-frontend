@@ -1163,9 +1163,9 @@ export default function PropertyExtractionPanel({
             </Box>
           )}
 
-          <Typography variant="body2" sx={{ color: 'primary.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
+          {/* <Typography variant="body2" sx={{ color: 'primary.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
             Label interesting behaviors from your traces. Click 'Label Trace at Row 0' to see an example.
-          </Typography>
+          </Typography> */}
           <Box>
             <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
               Extraction Prompt

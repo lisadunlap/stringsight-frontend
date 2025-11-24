@@ -187,11 +187,6 @@ const DataTable = React.memo(function DataTable({
 
   return (
     <>
-      {rows.length > PAGE_SIZE && (
-        <Box sx={{ mb: 1, p: 1, background: '#FFFBEB', color: '#92400E', border: '1px solid #F59E0B', borderRadius: 1, fontSize: 14 }}>
-          Showing rows {String(startIdx + 1)}–{String(endIdx)} of {rows.length.toLocaleString()} rows.
-        </Box>
-      )}
       <TableContainer
         sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}
       >
