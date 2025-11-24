@@ -3875,7 +3875,7 @@ function App() {
                   src="/stringsight_ui.png" 
                   alt="StringSight UI" 
                   style={{ 
-                    maxWidth: '100%', 
+                    maxWidth: '75%', 
                     height: 'auto',
                     borderRadius: '8px',
                     border: '2px solid #e5e7eb',

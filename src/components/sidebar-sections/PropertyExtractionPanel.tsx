@@ -24,6 +24,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
+import JSZip from 'jszip';
 import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 
@@ -252,13 +253,15 @@ interface PropertyExtractionPanelProps {
   onScrollToProperties?: () => void;
 }
 
-// Helper to fetch and parse JSONL
-async function fetchJsonl(url: string): Promise<any[]> {
+// Helper to fetch and parse JSONL from zip file
+// Since the unzipped directories aren't committed to git (only the .zip files are in LFS),
+// we need to extract the files from the zip on-demand in the browser
+async function fetchJsonlFromZip(zipPath: string, filePath: string): Promise<any[]> {
   try {
-    console.log('[fetchJsonl] Fetching:', url);
+    console.log('[fetchJsonlFromZip] Fetching zip:', zipPath);
+    console.log('[fetchJsonlFromZip] Looking for file:', filePath);
 
-    // Add cache-busting to avoid stale 404 responses
-    const response = await fetch(url, {
+    const response = await fetch(zipPath, {
       cache: 'no-cache',
       headers: {
         'Cache-Control': 'no-cache',
@@ -266,30 +269,40 @@ async function fetchJsonl(url: string): Promise<any[]> {
       }
     });
 
-    console.log('[fetchJsonl] Response status:', response.status, response.statusText);
-    console.log('[fetchJsonl] Response headers:', Object.fromEntries(response.headers.entries()));
-
     if (!response.ok) {
-      throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch ${zipPath}: ${response.status} ${response.statusText}`);
     }
 
-    const contentType = response.headers.get('content-type');
-    console.log('[fetchJsonl] Content-Type:', contentType);
+    const arrayBuffer = await response.arrayBuffer();
+    const zip = new JSZip();
+    const zipContents = await zip.loadAsync(arrayBuffer);
 
-    const text = await response.text();
-    console.log('[fetchJsonl] Response text preview:', text.substring(0, 200));
+    console.log('[fetchJsonlFromZip] Zip contents:', Object.keys(zipContents.files));
 
-    // Check if we got HTML instead of JSONL
-    if (text.trim().startsWith('<!doctype') || text.trim().startsWith('<html')) {
-      throw new Error(`Received HTML instead of JSONL from ${url}. The file may not exist or the path is incorrect.`);
+    // Find the file in the zip (handle both with and without directory prefix)
+    let fileInZip = zipContents.files[filePath];
+    if (!fileInZip) {
+      // Try finding by filename only
+      const fileName = filePath.split('/').pop();
+      const found = Object.keys(zipContents.files).find(f => f.endsWith(fileName || ''));
+      if (found) {
+        fileInZip = zipContents.files[found];
+      }
     }
+
+    if (!fileInZip) {
+      throw new Error(`File ${filePath} not found in zip archive. Available files: ${Object.keys(zipContents.files).join(', ')}`);
+    }
+
+    const text = await fileInZip.async('text');
+    console.log('[fetchJsonlFromZip] File loaded, length:', text.length);
 
     return text
       .split('\n')
       .filter(line => line.trim())
       .map(line => JSON.parse(line));
   } catch (error) {
-    console.error(`Error loading ${url}:`, error);
+    console.error(`Error loading ${filePath} from ${zipPath}:`, error);
     throw error;
   }
 }
@@ -703,8 +716,8 @@ export default function PropertyExtractionPanel({
           await new Promise(r => setTimeout(r, 100));
         }
 
-        const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
-        const properties = await fetchJsonl(`/${dataFolder}/validated_properties.jsonl`);
+        const zipFileName = method === 'side_by_side' ? 'taubench_airline_data_sbs.zip' : 'taubench_airline_data.zip';
+        const properties = await fetchJsonlFromZip(`/${zipFileName}`, 'validated_properties.jsonl');
 
         if (onBatchLoaded) {
           onBatchLoaded(properties);
@@ -865,13 +878,13 @@ export default function PropertyExtractionPanel({
           await new Promise(r => setTimeout(r, 100));
         }
 
-        const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
+        const zipFileName = method === 'side_by_side' ? 'taubench_airline_data_sbs.zip' : 'taubench_airline_data.zip';
 
         const [clusters, modelClusterScores, clusterScores, modelScores] = await Promise.all([
-          fetchJsonl(`/${dataFolder}/clusters.jsonl`),
-          fetchJsonl(`/${dataFolder}/model_cluster_scores_df.jsonl`),
-          fetchJsonl(`/${dataFolder}/cluster_scores_df.jsonl`),
-          fetchJsonl(`/${dataFolder}/model_scores_df.jsonl`)
+          fetchJsonlFromZip(`/${zipFileName}`, 'clusters.jsonl'),
+          fetchJsonlFromZip(`/${zipFileName}`, 'model_cluster_scores_df.jsonl'),
+          fetchJsonlFromZip(`/${zipFileName}`, 'cluster_scores_df.jsonl'),
+          fetchJsonlFromZip(`/${zipFileName}`, 'model_scores_df.jsonl')
         ]);
 
         const res = {

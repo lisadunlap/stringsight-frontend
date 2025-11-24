@@ -425,7 +425,7 @@ export function MetricsInsightsOverview({
       { key: 'commonFailures', label: 'Common Failures' },
       { key: 'allClusters', label: 'All Clusters' },
       { key: 'modelComparison', label: 'Model Comparison' },
-      { key: 'uniqueBehaviors', label: 'Unique Stylistic Behaviors' },
+      // { key: 'uniqueBehaviors', label: 'Unique Stylistic Behaviors' }, // Temporarily removed
       { key: 'misalignedPatterns', label: 'Misaligned Patterns' }
     ];
   }, [hasBehaviorTypes]);
@@ -768,8 +768,8 @@ export function MetricsInsightsOverview({
         </Box>
       )}
 
-      {/* 3. UNIQUE STYLISTIC BEHAVIORS */}
-      {activeTab === 'uniqueBehaviors' && (
+      {/* 3. UNIQUE STYLISTIC BEHAVIORS - Temporarily removed */}
+      {/* {activeTab === 'uniqueBehaviors' && (
         <Box>
           <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', width: '100%', maxHeight: 'none', alignSelf: 'stretch' }}>
 
@@ -890,7 +890,7 @@ export function MetricsInsightsOverview({
           )}
           </Paper>
         </Box>
-      )}
+      )} */}
 
       {/* 4. MISALIGNED PATTERNS */}
       {activeTab === 'misalignedPatterns' && (
