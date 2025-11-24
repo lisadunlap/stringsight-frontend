@@ -977,64 +977,41 @@ function App() {
     }
   }, [tutorial, setActiveSection, setSidebarExpanded]);
 
-  // Load demo dataset from pre-computed results in zip file
+  // Load demo dataset from a bundled JSONL file and reuse the same flow as upload
   const onLoadDemoData = React.useCallback(async (selectedMode: 'single_model' | 'side_by_side') => {
     // Treat as a new source
-    resetUiStateForNewSource('results');
+    resetUiStateForNewSource('file');
     setIsLoadingResults(true);
-    setResultsLoadingMessage('Loading demo data with pre-computed results...');
+    setResultsLoadingMessage('Loading demo data...');
 
     try {
-      // Choose zip file based on selected mode
-      const zipFileName = selectedMode === 'side_by_side'
-        ? 'taubench_airline_data_sbs.zip'
-        : 'taubench_airline_data.zip';
+      // Choose file based on selected mode
+      const demoFileName = selectedMode === 'side_by_side'
+        ? 'taubench_airline_sbs.jsonl'
+        : 'taubench_airline.jsonl';
 
-      console.log('[Demo] Fetching zip file:', zipFileName);
-
-      // Fetch and extract the zip file
-      const res = await fetch(`/${zipFileName}`);
+      // Fetch from public root; ensure file exists at public/taubench_airline.jsonl or public/taubench_airline_sbs.jsonl
+      const res = await fetch(`/${demoFileName}`);
       if (!res.ok) {
-        throw new Error(`Failed to fetch demo data zip (HTTP ${res.status})`);
+        throw new Error(`Failed to fetch demo data (HTTP ${res.status})`);
       }
+      const text = await res.text();
+      const rows = text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => {
+          // Some demo lines may have a leading token like "can " before the JSON begins
+          const brace = l.indexOf('{');
+          const jsonStr = brace > 0 ? l.slice(brace) : l;
+          return JSON.parse(jsonStr);
+        });
 
-      const arrayBuffer = await res.arrayBuffer();
-      const zip = new JSZip();
-      const zipContents = await zip.loadAsync(arrayBuffer);
-
-      console.log('[Demo] Zip contents:', Object.keys(zipContents.files));
-
-      // Find and load full_dataset.json
-      const fullDatasetFile = Object.keys(zipContents.files).find(f => f.endsWith('full_dataset.json'));
-      if (!fullDatasetFile) {
-        throw new Error('full_dataset.json not found in demo data zip');
-      }
-
-      console.log('[Demo] Loading full_dataset.json from:', fullDatasetFile);
-      const fullDatasetText = await zipContents.files[fullDatasetFile].async('text');
-      const fullDataset = JSON.parse(fullDatasetText);
-
-      console.log('[Demo] Full dataset loaded:', {
-        conversations: fullDataset.conversations?.length || 0,
-        properties: fullDataset.properties?.length || 0,
-        clusters: fullDataset.clusters?.length || 0,
-        keys: Object.keys(fullDataset)
-      });
-
-      // Extract data from full_dataset.json
-      const conversations = fullDataset.conversations || [];
-      const properties = fullDataset.properties || [];
-      const clusters = fullDataset.clusters || [];
-
-      if (conversations.length === 0) {
-        throw new Error('No conversations found in demo data');
-      }
-
-      // Infer columns from conversations
-      const columns = inferColumns(conversations);
+      // Infer columns using same util as parseFile
+      const columns = inferColumns(rows);
 
       // Store raw data and columns
-      setOriginalRows(conversations);
+      setOriginalRows(rows);
       setAvailableColumns(columns);
       setFilterNotice(null);
 
@@ -1042,7 +1019,7 @@ function App() {
       const baseFileName = selectedMode === 'side_by_side' ? 'taubench_airline_sbs' : 'taubench_airline';
       setUploadedFileName(baseFileName);
       setResultsName(baseFileName);
-      setIsDemoSession(true);
+      setIsDemoSession(true); // Added
 
       // Create mapping based on user-selected mode
       const autoMapping: ColumnMapping = {
@@ -1064,51 +1041,23 @@ function App() {
       };
       setAutoDetectedMapping(autoMapping);
 
-      // Automatically apply the mapping and process data
-      processDataWithMapping(conversations, autoMapping);
+      // Automatically apply the mapping and process data (skip column selector for demo data)
+      processDataWithMapping(rows, autoMapping);
       setShowColumnSelector(false);
 
-      // Load properties and clusters
-      if (properties.length > 0) {
-        console.log('[Demo] Loading properties:', properties.length);
-        setPropertiesRows(properties);
-        setIsResultsMode(true);
-      }
-
-      if (clusters.length > 0) {
-        console.log('[Demo] Loading clusters:', clusters.length);
-        setClusters(clusters);
-        setIsResultsMode(true);
-
-        // Load metrics from full_dataset if available
-        if (fullDataset.model_stats) {
-          const metrics = {
-            model_cluster_scores: fullDataset.model_stats.model_cluster_scores || [],
-            cluster_scores: fullDataset.model_stats.cluster_scores || [],
-            model_scores: fullDataset.model_stats.model_scores || []
-          };
-          setResultsMetrics(metrics);
-          console.log('[Demo] Loaded metrics:', {
-            model_cluster_scores: metrics.model_cluster_scores.length,
-            cluster_scores: metrics.cluster_scores.length,
-            model_scores: metrics.model_scores.length
-          });
-        }
-      }
-
-      // Ensure the viewport is at the top
+      // Ensure the viewport is at the top of the main tab when demo data loads,
+      // so users see the table header and controls without needing to scroll.
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'auto' });
       }
 
-      // Start the demo tutorial
+      // Start (or restart) the demo-data tutorial once demo data has loaded.
+      // This ensures the guided walkthrough appears every time the user clicks "Start Demo",
+      // even if they previously completed or skipped it.
       if (tutorial) {
         tutorial.startTutorial('demo-data');
       }
-
-      console.log('[Demo] Demo data loaded successfully');
     } catch (e: any) {
-      console.error('[Demo] Error loading demo data:', e);
       setResultsError(String(e?.message || e));
     } finally {
       setIsLoadingResults(false);

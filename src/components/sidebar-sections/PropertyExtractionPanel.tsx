@@ -24,7 +24,6 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
-import JSZip from 'jszip';
 import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 
@@ -253,15 +252,12 @@ interface PropertyExtractionPanelProps {
   onScrollToProperties?: () => void;
 }
 
-// Helper to fetch and parse JSONL from zip file
-// Since the unzipped directories aren't committed to git (only the .zip files are in LFS),
-// we need to extract the files from the zip on-demand in the browser
-async function fetchJsonlFromZip(zipPath: string, filePath: string): Promise<any[]> {
+// Helper to fetch and parse JSONL file directly from public directory
+async function fetchJsonl(url: string): Promise<any[]> {
   try {
-    console.log('[fetchJsonlFromZip] Fetching zip:', zipPath);
-    console.log('[fetchJsonlFromZip] Looking for file:', filePath);
+    console.log('[fetchJsonl] Fetching:', url);
 
-    const response = await fetch(zipPath, {
+    const response = await fetch(url, {
       cache: 'no-cache',
       headers: {
         'Cache-Control': 'no-cache',
@@ -270,39 +266,21 @@ async function fetchJsonlFromZip(zipPath: string, filePath: string): Promise<any
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch ${zipPath}: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const zip = new JSZip();
-    const zipContents = await zip.loadAsync(arrayBuffer);
+    const text = await response.text();
+    console.log('[fetchJsonl] File loaded, length:', text.length);
 
-    console.log('[fetchJsonlFromZip] Zip contents:', Object.keys(zipContents.files));
-
-    // Find the file in the zip (handle both with and without directory prefix)
-    let fileInZip = zipContents.files[filePath];
-    if (!fileInZip) {
-      // Try finding by filename only
-      const fileName = filePath.split('/').pop();
-      const found = Object.keys(zipContents.files).find(f => f.endsWith(fileName || ''));
-      if (found) {
-        fileInZip = zipContents.files[found];
-      }
-    }
-
-    if (!fileInZip) {
-      throw new Error(`File ${filePath} not found in zip archive. Available files: ${Object.keys(zipContents.files).join(', ')}`);
-    }
-
-    const text = await fileInZip.async('text');
-    console.log('[fetchJsonlFromZip] File loaded, length:', text.length);
-
-    return text
+    const lines = text
       .split('\n')
       .filter(line => line.trim())
       .map(line => JSON.parse(line));
+
+    console.log('[fetchJsonl] Parsed', lines.length, 'lines');
+    return lines;
   } catch (error) {
-    console.error(`Error loading ${filePath} from ${zipPath}:`, error);
+    console.error(`Error loading ${url}:`, error);
     throw error;
   }
 }
@@ -504,13 +482,18 @@ export default function PropertyExtractionPanel({
     try {
       setErrorMsg(null);
 
-      // Simulate progress during extraction
-      progressInterval = setInterval(() => {
-        setExtractionProgress((prev) => {
-          if (prev >= 90) return prev; // Don't go to 100% until done
-          return prev + Math.random() * 15; // Increment by 0-15%
-        });
-      }, 300);
+      // Check if we're in demo mode early to avoid starting the interval unnecessarily
+      const isDemoRow = isDemoMode && (row.question_id === '0-0' || row.__index === 0);
+
+      // Simulate progress during extraction (skip for demo mode - we'll handle it separately)
+      if (!isDemoRow) {
+        progressInterval = setInterval(() => {
+          setExtractionProgress((prev) => {
+            if (prev >= 90) return prev; // Don't go to 100% until done
+            return prev + Math.random() * 15; // Increment by 0-15%
+          });
+        }, 300);
+      }
 
       // Debug logging
       console.log('[PropertyExtraction] Extracting from row:', {
@@ -581,8 +564,16 @@ export default function PropertyExtractionPanel({
       // DEMO MODE INTERCEPTION: Load cached properties for row 0
       if (isDemoMode && (sanitizedRow.question_id === '0-0' || sanitizedRow.__index === 0)) {
         console.log('[PropertyExtraction] Demo mode: Loading cached properties for row 0');
-        setExtracting(true);
+
+        // Clear the progress interval that was started earlier
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+
+        // Reset progress to 0 and wait a moment for state to update
         setExtractionProgress(0);
+        await new Promise(r => setTimeout(r, 50));
 
         try {
           // Simulate brief loading (1 second)
@@ -591,8 +582,8 @@ export default function PropertyExtractionPanel({
             await new Promise(r => setTimeout(r, 100));
           }
 
-          const zipFileName = method === 'side_by_side' ? 'taubench_airline_data_sbs.zip' : 'taubench_airline_data.zip';
-          const allProperties = await fetchJsonlFromZip(`/${zipFileName}`, 'validated_properties.jsonl');
+          const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
+          const allProperties = await fetchJsonl(`/${dataFolder}/validated_properties.jsonl`);
 
           // Find properties for this specific row (question_id 0-0)
           const rowProperties = allProperties.filter(p => p.question_id === '0-0');
@@ -603,6 +594,7 @@ export default function PropertyExtractionPanel({
 
           console.log(`[PropertyExtraction] Loaded ${rowProperties.length} cached properties for row 0`);
 
+          setExtractionProgress(100);
           onPropertiesMerged(rowProperties);
           setLastExtractProps(rowProperties);
 
@@ -622,13 +614,13 @@ export default function PropertyExtractionPanel({
             }
           }, 300);
 
-          setExtracting(false);
-          setExtractionProgress(0);
+          setBusy(false);
+          setTimeout(() => setExtractionProgress(0), 1000);
           return;
         } catch (e: any) {
           console.error('[PropertyExtraction] Failed to load cached properties:', e);
           setErrorMsg(`Failed to load cached demo properties: ${e?.message || String(e)}`);
-          setExtracting(false);
+          setBusy(false);
           setExtractionProgress(0);
           return;
         }
@@ -761,19 +753,19 @@ export default function PropertyExtractionPanel({
       setJobState('processing');
 
       try {
-        // Simulate progress (5 seconds)
-        // 50 steps * 100ms = 5000ms
-        // Simulate progress (5 seconds)
-        // 50 steps * 100ms = 5000ms
+        // Simulate progress (3 seconds)
+        // 50 steps * 60ms = 3000ms
+        // Simulate progress (3 seconds)
+        // 50 steps * 60ms = 3000ms
         for (let i = 0; i <= 100; i += 2) {
           const progress = i / 100;
           setJobProgress(progress);
           onBatchStatus?.(progress, 'processing', 'extraction', 'Extracting properties (Demo Mode)...');
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise(r => setTimeout(r, 60));
         }
 
-        const zipFileName = method === 'side_by_side' ? 'taubench_airline_data_sbs.zip' : 'taubench_airline_data.zip';
-        const properties = await fetchJsonlFromZip(`/${zipFileName}`, 'validated_properties.jsonl');
+        const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
+        const properties = await fetchJsonl(`/${dataFolder}/validated_properties.jsonl`);
 
         if (onBatchLoaded) {
           onBatchLoaded(properties);
@@ -924,23 +916,23 @@ export default function PropertyExtractionPanel({
       onBatchStatus?.(0, 'clustering', 'clustering', `Clustering ${properties.length} properties (Demo Mode)...`);
 
       try {
-        // Simulate progress (5 seconds)
-        // 50 steps * 100ms = 5000ms
-        // Simulate progress (5 seconds)
-        // 50 steps * 100ms = 5000ms
+        // Simulate progress (3 seconds)
+        // 50 steps * 60ms = 3000ms
+        // Simulate progress (3 seconds)
+        // 50 steps * 60ms = 3000ms
         for (let i = 0; i <= 100; i += 2) {
           const progress = i / 100;
           onBatchStatus?.(progress, 'clustering', 'clustering', `Clustering ${properties.length} properties (Demo Mode)...`);
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise(r => setTimeout(r, 60));
         }
 
-        const zipFileName = method === 'side_by_side' ? 'taubench_airline_data_sbs.zip' : 'taubench_airline_data.zip';
+        const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
 
         const [clusters, modelClusterScores, clusterScores, modelScores] = await Promise.all([
-          fetchJsonlFromZip(`/${zipFileName}`, 'clusters.jsonl'),
-          fetchJsonlFromZip(`/${zipFileName}`, 'model_cluster_scores_df.jsonl'),
-          fetchJsonlFromZip(`/${zipFileName}`, 'cluster_scores_df.jsonl'),
-          fetchJsonlFromZip(`/${zipFileName}`, 'model_scores_df.jsonl')
+          fetchJsonl(`/${dataFolder}/clusters.jsonl`),
+          fetchJsonl(`/${dataFolder}/model_cluster_scores_df.jsonl`),
+          fetchJsonl(`/${dataFolder}/cluster_scores_df.jsonl`),
+          fetchJsonl(`/${dataFolder}/model_scores_df.jsonl`)
         ]);
 
         const res = {
