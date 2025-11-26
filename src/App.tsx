@@ -1275,16 +1275,16 @@ function App() {
       // Load properties (no pre-enrichment needed - PropertiesTab handles at render time)
       // Don't add __index since property index doesn't match conversation index
       // Skip loading properties in demo mode to start with empty table
-      if (properties.length > 0 && !isDemoMode) {
+      if (properties.length > 0 && (!isDemoMode || isDemoSession)) {
         setPropertiesRows(properties);
         console.log(`✅ Loaded ${properties.length} properties`);
-      } else if (isDemoMode && properties.length > 0) {
+      } else if (isDemoMode && !isDemoSession && properties.length > 0) {
         console.log(`⚠️ Demo mode: Skipping ${properties.length} pre-loaded properties - table will start empty`);
       }
 
       // Load or compute metrics and enrich clusters
       // Skip loading clusters in demo mode to allow fresh clustering
-      if (clusters.length > 0 && !isDemoMode) {
+      if (clusters.length > 0 && (!isDemoMode || isDemoSession)) {
         if (Object.keys(metrics).length > 0) {
           // Use pre-computed metrics if available
           const normalizedMetrics = normalizeMetricsColumnNames(metrics);
@@ -1369,16 +1369,16 @@ function App() {
           setClusters(ensureExamplesArray(clusters));
           console.log(`✅ Loaded ${clusters.length} clusters (no metrics available)`);
         }
-      } else if (isDemoMode && clusters.length > 0) {
+      } else if (isDemoMode && !isDemoSession && clusters.length > 0) {
         console.log(`⚠️ Demo mode: Skipping ${clusters.length} pre-loaded clusters - will cluster from scratch`);
       }
 
       // Switch to appropriate view based on loaded data
       // In demo mode, stay on data tab to let user follow the tutorial
-      if (!isDemoMode && clusters.length > 0 && Object.keys(metrics).length > 0) {
+      if ((!isDemoMode || isDemoSession) && clusters.length > 0 && Object.keys(metrics).length > 0) {
         setActiveSection('metrics');
         console.log('📊 Switched to Metrics view');
-      } else if (!isDemoMode && clusters.length > 0) {
+      } else if ((!isDemoMode || isDemoSession) && clusters.length > 0) {
         setActiveSection('clusters');
         console.log('📊 Switched to Clusters view');
       } else if (properties.length > 0) {
@@ -3892,16 +3892,16 @@ function App() {
               </Box>
 
               <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-                <img 
-                  src="/stringsight_ui.png" 
-                  alt="StringSight UI" 
-                  style={{ 
-                    maxWidth: '75%', 
+                <img
+                  src="/stringsight_ui.png"
+                  alt="StringSight UI"
+                  style={{
+                    maxWidth: '75%',
                     height: 'auto',
                     borderRadius: '8px',
                     border: '2px solid #e5e7eb',
                     boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 4px 10px -2px rgba(0, 0, 0, 0.15)'
-                  }} 
+                  }}
                 />
               </Box>
 
