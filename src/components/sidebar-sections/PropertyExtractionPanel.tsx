@@ -24,7 +24,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth } from '../../lib/api';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
@@ -362,6 +362,7 @@ export default function PropertyExtractionPanel({
   const [matchingModel, setMatchingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : 'gpt-4.1-mini');
   const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
   const [currentStage, setCurrentStage] = React.useState<'extraction' | 'clustering' | null>(null);
+  const [email, setEmail] = React.useState<string>('');
 
   // Controls whether the main control panel is expanded or collapsed.
   // Initially expanded; will auto-collapse after "Run on all traces".
@@ -722,7 +723,13 @@ export default function PropertyExtractionPanel({
 
   async function runExtractBatch() {
     console.log('[PropertyExtraction] runExtractBatch called');
-    const rows = getOperationalRows();  // Use operational rows which have the original columns
+    // Use filtered rows from the UI, but map back to operational rows to get the full structure (nested scores, etc.)
+    const filteredRows = getAllRows();
+    const allOperationalRows = getOperationalRows();
+    const rows = filteredRows.map(r => {
+      const idx = r.__index;
+      return typeof idx === 'number' ? allOperationalRows[idx] : undefined;
+    }).filter(Boolean);
     console.log('[PropertyExtraction] Rows retrieved:', rows?.length);
 
     const methodValid = method === 'single_model' || method === 'side_by_side';
@@ -791,19 +798,17 @@ export default function PropertyExtractionPanel({
     setCurrentStage('extraction');
     onBatchStart?.();
 
-    let extractedProperties: any[] = [];
-
     try {
       setErrorMsg(null);
       setJobProgress(0);
       setJobState('queued');
 
-      // STAGE 1: Property Extraction
-      onBatchStatus?.(0, 'queued', 'extraction', 'Starting property extraction...');
+      // STAGE 1: Pipeline Job (Extraction + Clustering)
+      onBatchStatus?.(0, 'queued', 'extraction', 'Starting pipeline job...');
 
       const outputDir = generateOutputDir();
 
-      const extractBody = {
+      const pipelineBody = {
         rows,
         method,
         system_prompt: selectedPrompt,
@@ -815,44 +820,126 @@ export default function PropertyExtractionPanel({
         max_workers: maxWorkers,
         sample_size: demoSampleSize || sampleSize || undefined,
         output_dir: outputDir,
+        // Clustering params
+        min_cluster_size: minClusterSize,
+        embedding_model: isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : embeddingModel,
+        groupby_column: isDemoMode ? DEMO_MODE_SETTINGS.groupBy : groupBy,
+        summary_model: isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : summarizationModel,
+        cluster_assignment_model: isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : matchingModel,
+        email: email || undefined
       };
 
-      const startRes = await extractJobStart(extractBody);
+      const startRes = await pipelineJobStart(pipelineBody);
       setJobId(startRes.job_id);
 
       await new Promise<void>((resolve, reject) => {
+        console.error('[PropertyExtraction] 🚀 STARTING POLLING LOOP for job', startRes.job_id);
         const t = setInterval(async () => {
           try {
             const s = await extractJobStatus(startRes.job_id);
+            console.error(`[PropertyExtraction] 🔄 Polling job ${startRes.job_id}: ${s.status} (${Math.round((s.progress || 0) * 100)}%)`);
+
             // Map backend status to UI state if needed, or use directly
             // Backend returns: queued, processing, completed, failed
             setJobState(s.status);
             setJobProgress(s.progress || 0);
-            onBatchStatus?.(s.progress || 0, s.status, 'extraction', 'Extracting properties...');
 
+            // Update status message based on progress
+            let statusMsg = 'Processing pipeline...';
+            let stage: 'extraction' | 'clustering' = 'extraction';
+
+            if (s.progress < 0.2) {
+              statusMsg = 'Extracting properties...';
+              stage = 'extraction';
+            } else if (s.progress < 0.8) {
+              statusMsg = 'Clustering properties...';
+              stage = 'clustering';
+              setCurrentStage('clustering');
+            } else {
+              statusMsg = 'Finalizing results...';
+              stage = 'clustering';
+            }
+
+            onBatchStatus?.(s.progress || 0, s.status, stage, statusMsg);
+
+            // Backend uses 'running', legacy might use 'processing'
             if (s.status === 'completed') {
               clearInterval(t);
               console.log('[PropertyExtraction] Job completed! Fetching results...');
-              const r = await extractJobResult(startRes.job_id);
-              console.log('[PropertyExtraction] Results fetched:', r);
-              extractedProperties = r.properties || [];
-              console.log('[PropertyExtraction] Extracted properties count:', extractedProperties.length);
 
-              // Don't set lastExtractProps for batch - only show in Properties tab
-              if (onBatchLoaded) {
-                console.log('[PropertyExtraction] Calling onBatchLoaded...');
-                (onBatchLoaded as any)(extractedProperties);
+              // Load complete results from the pipeline job (properties + clusters)
+              console.error('[PropertyExtraction] Job completed! Fetching full results...');
+
+              const r = await extractJobResult(startRes.job_id);
+              console.error('[PropertyExtraction] 📊 Job result path:', r.result_path);
+
+              if (r.result_path) {
+                try {
+                  // Load full results
+                  console.error(`[PropertyExtraction] 🔄 Loading full results from: ${r.result_path}`);
+                  const fullResults = await resultsLoad(r.result_path);
+
+                  console.error('[PropertyExtraction] 📦 Full results loaded:', {
+                    properties: fullResults.properties?.length,
+                    clusters: fullResults.clusters?.length,
+                    metrics: !!fullResults.metrics
+                  });
+
+                  // Update properties
+                  if (onBatchLoaded && fullResults.properties) {
+                    console.log('[PropertyExtraction] 📋 Calling onBatchLoaded with', fullResults.properties.length, 'properties');
+                    onBatchLoaded(fullResults.properties);
+                  }
+
+                  // CRITICAL: Update clusters to trigger completion UI
+                  if (onClustersUpdated && fullResults.clusters && fullResults.clusters.length > 0) {
+                    console.log('[PropertyExtraction] 🎯 Calling onClustersUpdated with', fullResults.clusters.length, 'clusters');
+                    console.log('[PropertyExtraction] 🎯 Cluster data structure:', {
+                      first_cluster_keys: Object.keys(fullResults.clusters[0] || {}),
+                      has_label: !!fullResults.clusters[0]?.label,
+                      has_property_ids: !!fullResults.clusters[0]?.property_ids
+                    });
+
+                    onClustersUpdated({
+                      clusters: fullResults.clusters,
+                      metrics: {
+                        model_cluster_scores: fullResults.metrics?.model_cluster_scores || [],
+                        cluster_scores: fullResults.metrics?.cluster_scores || [],
+                        model_scores: fullResults.metrics?.model_scores || []
+                      }
+                    });
+
+                    console.log('[PropertyExtraction] ✅ onClustersUpdated called - banner should now appear!');
+                  } else {
+                    console.warn('[PropertyExtraction] ⚠️ NOT calling onClustersUpdated:', {
+                      has_callback: !!onClustersUpdated,
+                      has_clusters_array: !!fullResults.clusters,
+                      clusters_length: fullResults.clusters?.length || 0
+                    });
+                  }
+
+                  console.log('[PropertyExtraction] ✅ Full results loaded successfully');
+                } catch (e) {
+                  console.error('[PropertyExtraction] Failed to load full results:', e);
+                  // Fallback to just loading properties
+                  const extractedProperties = r.properties || [];
+                  if (onBatchLoaded) {
+                    onBatchLoaded(extractedProperties);
+                  }
+                }
               } else {
-                console.warn('[PropertyExtraction] onBatchLoaded callback is missing!');
+                // No result_path, just use properties from job result
+                const extractedProperties = r.properties || [];
+                console.log('[PropertyExtraction] No result_path, using properties from job result:', extractedProperties.length);
+                if (onBatchLoaded) {
+                  onBatchLoaded(extractedProperties);
+                }
               }
+
               resolve();
             } else if (s.status === 'cancelled') {
               clearInterval(t);
-              const r = await extractJobResult(startRes.job_id);
-              extractedProperties = r.properties || [];
-              // Don't set lastExtractProps for batch - only show in Properties tab
-              (onBatchLoaded as any)?.(extractedProperties);
-              setErrorMsg(`Job cancelled. Retrieved ${extractedProperties.length} partial results.`);
+              setErrorMsg(`Job cancelled.`);
               resolve();
             } else if (s.status === 'failed' || s.status === 'error') {
               clearInterval(t);
@@ -867,14 +954,6 @@ export default function PropertyExtractionPanel({
 
       setBusy(false);
       setCurrentStage(null);
-
-      // Small delay to let properties render in the UI
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // STAGE 2: Clustering (automatically run after extraction with the extracted properties)
-      if (extractedProperties.length > 0) {
-        await runClusteringWithProperties(extractedProperties);
-      }
 
       onBatchDone?.();
     } catch (error) {
@@ -1423,6 +1502,22 @@ export default function PropertyExtractionPanel({
                 </Stack>
               </AccordionDetails>
             </Accordion>
+          </Box>
+
+          {/* Email Notification */}
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              Notifications
+            </Typography>
+            <TextField
+              size="small"
+              label="Email (optional)"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter email for job completion notification"
+              fullWidth
+              helperText="Receive an email with results when the job completes"
+            />
           </Box>
 
           {/* Action Buttons */}

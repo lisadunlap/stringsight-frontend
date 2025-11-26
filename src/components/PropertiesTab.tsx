@@ -444,7 +444,7 @@ export default function PropertiesTab({
     <Box>
       {/* (Prompt/task description controls intentionally not included here) */}
       {/* Properties Overview Banner */}
-      <PropertiesOverviewBanner properties={rows} />
+      <PropertiesOverviewBanner properties={filtered} />
       
       {/* Grouped Bar Chart: Property Distribution by Model (collapsed by default) */}
       {propertyCountsByModel && propertyCountsByModel.size > 0 && (
@@ -454,14 +454,16 @@ export default function PropertiesTab({
             borderRadius: 1,
             '&:before': { display: 'none' },
             boxShadow: 'none',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E5E7EB',
           }}
         >
           <AccordionSummary
             expandIcon={<ExpandMoreIcon />}
             sx={{
-              backgroundColor: '#F9FAFB',
-              border: '1px solid #E5E7EB',
-              borderRadius: 1,
+              backgroundColor: '#FFFFFF',
+              borderBottom: '1px solid #E5E7EB',
+              borderRadius: 0,
               '& .MuiAccordionSummary-content': { my: 0.25 },
             }}
           >
@@ -602,7 +604,134 @@ export default function PropertiesTab({
         onGroupByChange={setGroupBy}
         onReset={resetAll}
       />
-      
+
+      {/* Active Filters Summary */}
+      {(query || filters.length > 0 || groupBy) && (
+        <Box sx={{
+          mb: 2,
+          pb: 1.5,
+          borderBottom: '2px solid',
+          borderColor: '#D1D5DB',
+        }}>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography variant="subtitle2" sx={{
+              color: '#6B7280',
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              mr: 1
+            }}>
+              Active Filters:
+            </Typography>
+
+            {query && (
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  fontSize: '0.875rem',
+                  color: '#92400E',
+                  pb: 0.5,
+                  borderBottom: '2px solid',
+                  borderColor: '#92400E',
+                }}
+              >
+                <Box component="span">
+                  Search: "{query}"
+                </Box>
+                <Button
+                  size="small"
+                  onClick={() => setQuery('')}
+                  sx={{
+                    minWidth: 'auto',
+                    p: 0,
+                    color: '#92400E',
+                    '&:hover': {
+                      color: 'error.main',
+                      bgcolor: 'transparent'
+                    }
+                  }}
+                >
+                  ✕
+                </Button>
+              </Box>
+            )}
+
+            {filters.map((filter, index) => (
+              <Box
+                key={index}
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  fontSize: '0.875rem',
+                  color: '#92400E',
+                  pb: 0.5,
+                  borderBottom: '2px solid',
+                  borderColor: '#92400E',
+                }}
+              >
+                <Box component="span">
+                  {filter.column}: {filter.negated ? 'NOT ' : ''}{filter.values.join(', ')}
+                  {filter.operator && index > 0 ? ` (${filter.operator})` : ''}
+                </Box>
+                <Button
+                  size="small"
+                  onClick={() => removeFilter(index)}
+                  sx={{
+                    minWidth: 'auto',
+                    p: 0,
+                    color: '#92400E',
+                    '&:hover': {
+                      color: 'error.main',
+                      bgcolor: 'transparent'
+                    }
+                  }}
+                >
+                  ✕
+                </Button>
+              </Box>
+            ))}
+
+            {groupBy && (
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  fontSize: '0.875rem',
+                  color: '#92400E',
+                  pb: 0.5,
+                  borderBottom: '2px solid',
+                  borderColor: '#92400E',
+                }}
+              >
+                <Box component="span">
+                  Group by: {groupBy}
+                </Box>
+                <Button
+                  size="small"
+                  onClick={() => setGroupBy(null)}
+                  sx={{
+                    minWidth: 'auto',
+                    p: 0,
+                    color: '#92400E',
+                    '&:hover': {
+                      color: 'error.main',
+                      bgcolor: 'transparent'
+                    }
+                  }}
+                >
+                  ✕
+                </Button>
+              </Box>
+            )}
+          </Stack>
+        </Box>
+      )}
+
       {/* Render grouped or ungrouped table */}
       {groupedData ? (
         // Grouped view

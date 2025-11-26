@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, TextField, Chip, Stack, Autocomplete, Button, FormControlLabel, Switch, Divider, Select, MenuItem } from '@mui/material';
+import { Box, TextField, Stack, Autocomplete, Button, FormControlLabel, Switch, Divider, Chip } from '@mui/material';
 
 interface Filter {
   column: string;
@@ -66,9 +66,9 @@ export default function FilterBar({
   onPendingValuesChange,
   onPendingNegatedChange,
   onAddFilter,
-  filters = [],
-  onRemoveFilter,
-  onChangeFilterOperator,
+  filters: _filters = [],
+  onRemoveFilter: _onRemoveFilter,
+  onChangeFilterOperator: _onChangeFilterOperator,
   uniqueValuesFor,
   fixedFilters = [],
   resultCount,
@@ -86,12 +86,11 @@ export default function FilterBar({
 }: FilterBarProps) {
   
   return (
-    <Box sx={{ 
-      p: 1.5, 
-      border: '1px solid #E5E7EB', 
-      borderRadius: 2, 
-      background: '#FFFFFF', 
-      mb: 1,
+    <Box sx={{
+      pb: 1.5,
+      mb: 2,
+      borderBottom: '2px solid',
+      borderColor: '#D1D5DB',
       width: '100%',
       maxWidth: '100vw',
       overflow: 'hidden'
@@ -150,35 +149,6 @@ export default function FilterBar({
               >
                 Add Filter
               </Button>
-              {filters.map((f, i) => (
-                <React.Fragment key={`${f.column}-${i}`}>
-                  {/* Show operator dropdown before each filter (except the first one) */}
-                  {i > 0 && onChangeFilterOperator && (
-                    <Select
-                      size="small"
-                      value={f.operator || 'AND'}
-                      onChange={(e) => onChangeFilterOperator(i, e.target.value as 'AND' | 'OR')}
-                      sx={{
-                        minWidth: 70,
-                        height: 32,
-                        '& .MuiSelect-select': {
-                          py: 0.5,
-                          px: 1,
-                          fontSize: '0.875rem',
-                          fontWeight: 600,
-                        }
-                      }}
-                    >
-                      <MenuItem value="AND">AND</MenuItem>
-                      <MenuItem value="OR">OR</MenuItem>
-                    </Select>
-                  )}
-                  <Chip
-                    label={`${f.column}: ${f.negated ? 'NOT ' : ''}${f.values.join(', ')}`}
-                    onDelete={() => onRemoveFilter?.(i)}
-                  />
-                </React.Fragment>
-              ))}
             </>
           )}
           

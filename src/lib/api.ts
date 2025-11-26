@@ -92,7 +92,7 @@ export async function resultsLoad(resultsDir: string): Promise<{
   const res = await fetch(`${API_BASE}/results/load`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ results_dir: resultsDir })
+    body: JSON.stringify({ path: resultsDir })
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -243,6 +243,8 @@ export async function extractJobStart(body: {
 export async function pipelineJobStart(body: {
   rows: Record<string, any>[];
   method?: 'single_model' | 'side_by_side';
+  system_prompt?: string;
+  task_description?: string | null;
   clusterer?: string;
   min_cluster_size?: number;
   embedding_model?: string;
@@ -256,6 +258,7 @@ export async function pipelineJobStart(body: {
   assign_outliers?: boolean;
   score_columns?: string[];
   output_dir?: string | null;
+  email?: string | null;
 }) {
   const res = await fetch(`${API_BASE}/api/v1/jobs/pipeline`, {
     method: 'POST',

@@ -684,7 +684,7 @@ export default function ClusterSidecard({
               <Box sx={{ mb: 1 }}>
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0 }}>
                   <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Delta vs Frequency</Typography>
-                  <Tooltip title="Each plot shows the relationship between quality delta and frequency for a specific metric. Each dot represents a model.">
+                  <Tooltip title="Each plot shows the change in performance per model when looking only at conversations that contain the behavior. Each dot represents a model.">
                     <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
                   </Tooltip>
                 </Stack>

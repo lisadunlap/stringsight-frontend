@@ -2680,6 +2680,12 @@ function App() {
                 }
               }}
             />
+
+            {/* Operation Chain Summary */}
+            <FilterSummary
+              operations={operationChain}
+              onRemoveOperation={removeOperation}
+            />
           </Box>
           <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
             <Box sx={{ backgroundColor: '#F3F4F6', p: 2, borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 1 }}>
@@ -2904,6 +2910,12 @@ function App() {
                 setGroupPreview([]);
               }
             }}
+          />
+
+          {/* Operation Chain Summary */}
+          <FilterSummary
+            operations={operationChain}
+            onRemoveOperation={removeOperation}
           />
         </Box>
         <DataTable
@@ -3659,13 +3671,13 @@ function App() {
         {clusters.length > 0 && !clusteringAlertDismissed && !isResultsMode && (
           <Box sx={{ px: 3, pb: 1.5 }}>
             <Alert
-              severity="info"
+              severity="success"
               sx={{
-                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                border: '1px solid rgba(37, 99, 235, 0.3)',
-                color: '#1e40af',
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                color: '#15803d',
                 '& .MuiAlert-icon': {
-                  color: '#2563eb'
+                  color: '#22c55e'
                 },
                 '& .MuiAlert-action': {
                   alignItems: 'flex-end',
@@ -3683,10 +3695,10 @@ function App() {
                         setSidebarExpanded(false);
                       }}
                       sx={{
-                        backgroundColor: '#2563eb',
+                        backgroundColor: '#22c55e',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#1d4ed8'
+                          backgroundColor: '#16a34a'
                         }
                       }}
                     >
@@ -3699,11 +3711,11 @@ function App() {
                     startIcon={<DownloadIcon />}
                     onClick={handleDownloadResults}
                     sx={{
-                      color: '#1e40af',
-                      borderColor: 'rgba(30, 64, 175, 0.5)',
+                      color: '#15803d',
+                      borderColor: 'rgba(21, 128, 61, 0.5)',
                       '&:hover': {
-                        borderColor: '#1e40af',
-                        backgroundColor: 'rgba(30, 64, 175, 0.1)'
+                        borderColor: '#15803d',
+                        backgroundColor: 'rgba(21, 128, 61, 0.1)'
                       }
                     }}
                   >
@@ -3713,10 +3725,10 @@ function App() {
                     size="small"
                     onClick={() => setClusteringAlertDismissed(true)}
                     sx={{
-                      color: '#1e40af',
+                      color: '#15803d',
                       ml: 1,
                       '&:hover': {
-                        backgroundColor: 'rgba(30, 64, 175, 0.1)'
+                        backgroundColor: 'rgba(21, 128, 61, 0.1)'
                       }
                     }}
                   >
@@ -3725,10 +3737,10 @@ function App() {
                 </Stack>
               }
             >
-              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#1e40af' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#15803d' }}>
                 Clustering complete!
               </Typography>
-              <Typography variant="body2" sx={{ color: '#1e3a8a' }}>
+              <Typography variant="body2" sx={{ color: '#166534' }}>
                 Your properties have been clustered and insights are ready. Click <strong>View Insights</strong> to explore the results.
               </Typography>
             </Alert>
@@ -4050,12 +4062,6 @@ function App() {
                 )}
               </Box>
             )}
-
-            {/* Operation Chain Summary */}
-            <FilterSummary
-              operations={operationChain}
-              onRemoveOperation={removeOperation}
-            />
 
             {/* Top action row: extraction hint and results download */}
             <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
