@@ -1,3 +1,4 @@
 *.zip filter=lfs diff=lfs merge=lfs -text
 public/taubench_airline_data/** filter=lfs diff=lfs merge=lfs -text
 public/taubench_airline_data_sbs/** filter=lfs diff=lfs merge=lfs -text
+public/taubench_airline.jsonl filter=lfs diff=lfs merge=lfs -text
