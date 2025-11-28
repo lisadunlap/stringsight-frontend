@@ -3866,6 +3866,18 @@ function App() {
               <Typography variant="body2" sx={{ color: 'text.primary' }}>3) Click Done to load your table and explore</Typography>
 
               <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                <img
+                  src="/stringsight_ui.png"
+                  alt="StringSight UI"
+                  style={{
+                    maxWidth: '75%',
+                    height: 'auto',
+                    borderRadius: '8px'
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
                 <Button
                   variant="contained"
                   size="large"
@@ -3889,20 +3901,6 @@ function App() {
                 >
                   Try Demo Data
                 </Button>
-              </Box>
-
-              <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-                <img
-                  src="/stringsight_ui.png"
-                  alt="StringSight UI"
-                  style={{
-                    maxWidth: '75%',
-                    height: 'auto',
-                    borderRadius: '8px',
-                    border: '2px solid #e5e7eb',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 4px 10px -2px rgba(0, 0, 0, 0.15)'
-                  }}
-                />
               </Box>
 
               <Box sx={{ mt: 2, mb: 1 }}>
