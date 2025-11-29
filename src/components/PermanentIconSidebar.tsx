@@ -44,7 +44,6 @@ interface IconButtonItemProps {
   highlight?: boolean;
   customColor?: string;
   showActiveBackground?: boolean;
-  forceBackgroundColor?: string;
 }
 
 function IconButtonItem({
@@ -57,23 +56,8 @@ function IconButtonItem({
   highlight = false,
   customColor,
   showActiveBackground = true,
-  forceBackgroundColor,
 }: IconButtonItemProps) {
   const shouldShowActiveBackground = active && showActiveBackground;
-  const hasForcedBackground = !!forceBackgroundColor;
-  const backgroundColor = hasForcedBackground 
-    ? forceBackgroundColor 
-    : (shouldShowActiveBackground ? 'primary.main' : 'transparent');
-  const iconColor = hasForcedBackground 
-    ? 'white' 
-    : (shouldShowActiveBackground ? 'primary.contrastText' : (customColor || (highlight ? 'warning.main' : 'text.secondary')));
-  const textColor = hasForcedBackground
-    ? 'white'
-    : (disabled
-        ? 'action.disabled'
-        : shouldShowActiveBackground
-          ? 'primary.main'
-          : 'text.primary');
   
   return (
     <Tooltip title={tooltip} placement="right">
@@ -87,9 +71,7 @@ function IconButtonItem({
           cursor: disabled ? 'default' : 'pointer',
           '&:hover': {
             '& .icon-button': {
-              backgroundColor: hasForcedBackground 
-                ? forceBackgroundColor 
-                : (shouldShowActiveBackground ? 'primary.dark' : 'action.hover'),
+              backgroundColor: shouldShowActiveBackground ? 'primary.dark' : 'action.hover',
             },
           },
         }}
@@ -101,8 +83,8 @@ function IconButtonItem({
             width: 48,
             height: 48,
             borderRadius: 2,
-            backgroundColor: backgroundColor,
-            color: iconColor,
+            backgroundColor: shouldShowActiveBackground ? 'primary.main' : 'transparent',
+            color: shouldShowActiveBackground ? 'primary.contrastText' : (customColor || (highlight ? 'warning.main' : 'text.secondary')),
             pointerEvents: 'none', // Disable IconButton's own click handling
             '&.Mui-disabled': {
               color: 'action.disabled',
@@ -115,10 +97,14 @@ function IconButtonItem({
         <Typography
           variant="body2"
           sx={{
-            color: textColor,
+            color: disabled
+              ? 'action.disabled'
+              : shouldShowActiveBackground
+                ? 'primary.main'
+                : 'text.primary',
             fontSize: '1rem',
             lineHeight: 1.2,
-            fontWeight: (shouldShowActiveBackground || hasForcedBackground) ? 600 : 400,
+            fontWeight: shouldShowActiveBackground ? 600 : 400,
             transition: 'all 0.2s ease-in-out',
           }}
         >
@@ -264,6 +250,20 @@ export default function PermanentIconSidebar({
         customColor={clustersDone ? '#10B981' : undefined}
       />
 
+      {/* Progress connector: Clusters → Insights */}
+      <Box
+        sx={{
+          mb: 1,
+          display: 'flex',
+          alignItems: 'center',
+          flexDirection: 'column',
+          ml: '48px', // Center between icon (48px) and label start (with reduced padding)
+          color: 'divider',
+        }}
+      >
+        <ArrowDownIcon sx={{ fontSize: 32 }} />
+      </Box>
+
       <IconButtonItem
         icon={<InsightsIcon />}
         tooltip={
@@ -280,7 +280,7 @@ export default function PermanentIconSidebar({
         active={activeSection === 'metrics'}
         onClick={() => onSectionChange('metrics')}
         disabled={!canGoToMetrics}
-        forceBackgroundColor={metricsDone ? '#10B981' : undefined}
+        customColor={metricsDone ? '#10B981' : undefined}
       />
 
       {/* Spacer to push download and docs icons to bottom */}

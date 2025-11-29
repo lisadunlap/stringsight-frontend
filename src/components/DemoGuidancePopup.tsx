@@ -37,7 +37,7 @@ export default function DemoGuidancePopup({
     switch (section) {
       case 'data':
         return {
-          title: 'This is your data, have a look around!',
+          title: 'This is the benchmark you will be analyzing, have a look around!',
           // message: 'See model performance, individual traces, and filter your dataframe to only show successes or failures.',
           highlights: [
             'The data table shows you the model responses and their rewards from our benchmark dataset. Each row is a conversation between an LLM customer service agent and a simulated user.',
