@@ -24,7 +24,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad } from '../../lib/api';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, sendDemoEmail } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
@@ -484,7 +484,7 @@ export default function PropertyExtractionPanel({
       setErrorMsg(null);
 
       // Check if we're in demo mode early to avoid starting the interval unnecessarily
-      const isDemoRow = isDemoMode && (row.question_id === '0-0' || row.__index === 0);
+      const isDemoRow = isDemoMode;
 
       // Simulate progress during extraction (skip for demo mode - we'll handle it separately)
       if (!isDemoRow) {
@@ -562,9 +562,11 @@ export default function PropertyExtractionPanel({
         row___index: body.row?.__index,
       });
 
-      // DEMO MODE INTERCEPTION: Load cached properties for row 0
-      if (isDemoMode && (sanitizedRow.question_id === '0-0' || sanitizedRow.__index === 0)) {
-        console.log('[PropertyExtraction] Demo mode: Loading cached properties for row 0');
+      // DEMO MODE INTERCEPTION: Load cached properties for the selected row
+      if (isDemoMode) {
+        const rowQuestionId = sanitizedRow.question_id;
+        const rowIndex = sanitizedRow.__index;
+        console.log('[PropertyExtraction] Demo mode: Loading cached properties for row', { question_id: rowQuestionId, __index: rowIndex });
 
         // Clear the progress interval that was started earlier
         if (progressInterval) {
@@ -586,21 +588,26 @@ export default function PropertyExtractionPanel({
           const dataFolder = method === 'side_by_side' ? 'taubench_airline_data_sbs' : 'taubench_airline_data';
           const allProperties = await fetchJsonl(`/${dataFolder}/validated_properties.jsonl`);
 
-          // Find properties for this specific row (question_id 0-0)
-          const rowProperties = allProperties.filter(p => p.question_id === '0-0');
+          // Find properties for this specific row using question_id
+          // Match by question_id string comparison (handles both string and number formats)
+          const rowProperties = allProperties.filter(p => {
+            const propQid = String(p.question_id || '');
+            const rowQid = String(rowQuestionId || '');
+            return propQid === rowQid;
+          });
 
           if (rowProperties.length === 0) {
-            throw new Error('No cached properties found for row 0');
+            throw new Error(`No cached properties found for row with question_id: ${rowQuestionId}`);
           }
 
-          console.log(`[PropertyExtraction] Loaded ${rowProperties.length} cached properties for row 0`);
+          console.log(`[PropertyExtraction] Loaded ${rowProperties.length} cached properties for row with question_id: ${rowQuestionId}`);
 
           setExtractionProgress(100);
           onPropertiesMerged(rowProperties);
           setLastExtractProps(rowProperties);
 
-          // Mark tutorial step as completed
-          if (tutorial && tutorial.activeTutorialId === 'demo-data' && tutorial.steps && tutorial.steps[tutorial.currentStepIndex]) {
+          // Mark tutorial step as completed (only for row 0, as the tutorial is specific to row 0)
+          if ((rowQuestionId === '0-0' || rowIndex === 0) && tutorial && tutorial.activeTutorialId === 'demo-data' && tutorial.steps && tutorial.steps[tutorial.currentStepIndex]) {
             tutorial.markActionCompleted('demo-data', 'demo-step-3-extract-row-0');
             const step = tutorial.steps[tutorial.currentStepIndex];
             if (step.id === 'demo-step-3-extract-row-0') {
@@ -1025,6 +1032,21 @@ export default function PropertyExtractionPanel({
 
         if (onClustersUpdated) {
           onClustersUpdated(res);
+        }
+
+        // Send email if provided
+        if (email) {
+          try {
+            onBatchStatus?.(0.9, 'clustering', 'clustering', `Sending email to ${email}...`);
+            await sendDemoEmail({
+              email: email,
+              method: method === 'side_by_side' ? 'side_by_side' : 'single_model'
+            });
+            console.log('Demo email sent successfully');
+          } catch (emailErr) {
+            console.error('Failed to send demo email:', emailErr);
+            // Don't fail the whole process if email fails
+          }
         }
 
         onBatchStatus?.(1, 'done', 'clustering', 'Clustering complete');

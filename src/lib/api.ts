@@ -276,7 +276,7 @@ export async function extractJobStatus(job_id: string) {
   const res = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}`, {
     headers: {
       ...getAuthHeaders()
-    }
+    },
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<{
@@ -305,6 +305,22 @@ export async function extractJobResult(job_id: string) {
 export async function extractJobCancel(job_id: string) {
   // Not yet implemented in backend
   throw new Error("Not implemented");
+}
+
+export async function sendDemoEmail(body: {
+  email: string;
+  method: 'single_model' | 'side_by_side';
+}) {
+  const res = await fetch(`${API_BASE}/api/v1/jobs/email-demo`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 }
 
 
@@ -368,4 +384,3 @@ export async function recomputeClusterMetrics(body: {
     total_unique_conversations?: number;
   }>;
 }
-

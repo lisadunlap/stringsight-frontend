@@ -40,6 +40,7 @@ export default function DemoGuidancePopup({
           title: 'This is your data, have a look around!',
           // message: 'See model performance, individual traces, and filter your dataframe to only show successes or failures.',
           highlights: [
+            'The data table shows you the model responses and their rewards from our benchmark dataset. Each row is a conversation between an LLM customer service agent and a simulated user.',
             'Click "View" in any row to see the full conversation trace',
             'Use the filter bar to narrow down to specific rows',
             'Check the performance metrics in the table header',
