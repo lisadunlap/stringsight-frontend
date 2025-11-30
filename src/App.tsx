@@ -712,7 +712,7 @@ function App() {
 
   // Demo mode: Check if demo mode is enabled (backend operations will be limited to 100 rows)
   const isDemoMode = import.meta.env.VITE_DEMO === 'true';
-  const demoSampleSize = 100;
+  const demoSampleSize = 50;
 
   // (demo banner removed)
 

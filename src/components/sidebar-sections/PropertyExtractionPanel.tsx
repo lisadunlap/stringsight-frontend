@@ -563,7 +563,7 @@ export default function PropertyExtractionPanel({
       });
 
       // DEMO MODE INTERCEPTION: Load cached properties for the selected row
-      if (isDemoMode) {
+      if (isDemoMode && (uploadedFileName === 'taubench_airline' || uploadedFileName === 'taubench_airline_sbs')) {
         const rowQuestionId = sanitizedRow.question_id;
         const rowIndex = sanitizedRow.__index;
         console.log('[PropertyExtraction] Demo mode: Loading cached properties for row', { question_id: rowQuestionId, __index: rowIndex });
@@ -758,7 +758,7 @@ export default function PropertyExtractionPanel({
     onCloseTrace?.();
 
     // DEMO MODE INTERCEPTION
-    if (isDemoMode) {
+    if (isDemoMode && (uploadedFileName === 'taubench_airline' || uploadedFileName === 'taubench_airline_sbs')) {
       setBusy(true);
       setCurrentStage('extraction');
       onBatchStart?.();
@@ -998,7 +998,7 @@ export default function PropertyExtractionPanel({
     setCurrentStage('clustering');
 
     // DEMO MODE INTERCEPTION
-    if (isDemoMode) {
+    if (isDemoMode && (uploadedFileName === 'taubench_airline' || uploadedFileName === 'taubench_airline_sbs')) {
       onBatchStatus?.(0, 'clustering', 'clustering', `Clustering ${properties.length} properties (Demo Mode)...`);
 
       try {

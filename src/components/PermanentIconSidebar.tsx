@@ -3,7 +3,6 @@ import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 import {
   TableView as DataViewIcon,
   FindInPage as PropertyExtractionIcon,
-  BubbleChart as ClustersIcon,
   Insights as InsightsIcon,
   ArrowDownward as ArrowDownIcon,
   MenuBook as DocsIcon,
@@ -209,7 +208,7 @@ export default function PermanentIconSidebar({
         customColor="#10B981"
       />
 
-      {/* Progress connector: Extraction → Clusters */}
+      {/* Progress connector: Extraction → Insights */}
       <Box
         sx={{
           mb: 1,
@@ -232,44 +231,11 @@ export default function PermanentIconSidebar({
       </Box>
 
       <IconButtonItem
-        icon={<ClustersIcon />}
-        tooltip={
-          canGoToClusters
-            ? 'Clusters - Common behavior patterns'
-            : 'Run Label Behaviors to discover clusters'
-        }
-        label={
-          <>
-            Cluster<br/>
-            Behaviors
-          </>
-        }
-        active={activeSection === 'clusters'}
-        onClick={() => onSectionChange('clusters')}
-        disabled={!canGoToClusters}
-        customColor={clustersDone ? '#10B981' : undefined}
-      />
-
-      {/* Progress connector: Clusters → Insights */}
-      <Box
-        sx={{
-          mb: 1,
-          display: 'flex',
-          alignItems: 'center',
-          flexDirection: 'column',
-          ml: '48px', // Center between icon (48px) and label start (with reduced padding)
-          color: 'divider',
-        }}
-      >
-        <ArrowDownIcon sx={{ fontSize: 32 }} />
-      </Box>
-
-      <IconButtonItem
         icon={<InsightsIcon />}
         tooltip={
           canGoToMetrics
             ? 'Failures, unique behaviors, and misaligned patterns'
-            : 'Run clustering to view insights'
+            : 'Run Label Behaviors to view insights'
         }
         label={
           <>
