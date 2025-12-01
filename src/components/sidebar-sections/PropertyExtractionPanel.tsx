@@ -538,6 +538,12 @@ export default function PropertyExtractionPanel({
         return;
       }
 
+      // Ensure question_id is set to __index if available, to avoid using prompt as ID
+      // This matches the behavior in transformRowsForBackend and prevents long prompts from becoming IDs
+      if (sanitizedRow.__index !== undefined) {
+        sanitizedRow.question_id = String(sanitizedRow.__index);
+      }
+
       const outputDir = generateOutputDir();
       const body: any = {
         row: sanitizedRow,
