@@ -225,26 +225,13 @@ export function MetricsMainContent({
   }, [modelClusterData.data, filters]);
 
 
-  // No data after filtering
-  if (filteredData.length === 0) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="info">
-          <strong>No data matches the current filters</strong>
-          <br />
-          Try adjusting your filter settings to see results.
-        </Alert>
-      </Box>
-    );
-  }
-
   return (
     <Box sx={{
       height: '100%',
       width: '100%',
       '& > *': { mb: 4 }
     }}>
-      {/* Insights Overview */}
+      {/* Insights Overview - Always render so filters are always visible */}
       <MetricsInsightsOverview
         data={baseFilteredData}
         filters={filters}
@@ -262,6 +249,17 @@ export function MetricsMainContent({
         hasConfidenceIntervals={hasConfidenceIntervals}
       />
       <Divider />
+
+      {/* No data message - show below filters if no data matches */}
+      {filteredData.length === 0 && (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="info">
+            <strong>No data matches the current filters</strong>
+            <br />
+            Try adjusting your filter settings to see results.
+          </Alert>
+        </Box>
+      )}
 
       {/* Model Cards Section */}
       {showModelCards && (

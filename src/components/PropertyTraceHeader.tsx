@@ -1,20 +1,34 @@
 import React from 'react';
-import { Box, Typography, Stack } from '@mui/material';
+import { Box, Typography, Stack, IconButton, Button } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DownloadIcon from '@mui/icons-material/Download';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface PropertyTraceHeaderProps {
   selectedRow: any;
   selectedProperty: any;
   method: 'single_model' | 'side_by_side' | 'unknown';
   evidenceTargetModel?: string;
+  onBack?: () => void;
+  onDownloadPDF?: () => void;
+  backLabel?: string;
 }
 
 export default function PropertyTraceHeader({
   selectedRow,
   selectedProperty,
   method,
-  evidenceTargetModel
-}: PropertyTraceHeaderProps) {
-  
+  evidenceTargetModel,
+  onBack,
+  onDownloadPDF,
+  backLabel = 'Back',
+  disableNegativeMargin = false
+}: PropertyTraceHeaderProps & { disableNegativeMargin?: boolean }) {
+
 
   // Get metadata fields for 3-column layout
   const getMetadataFields = () => {
@@ -86,12 +100,45 @@ export default function PropertyTraceHeader({
   const fullTextSections = getFullTextSections();
 
   return (
-    <Box sx={{ mb: 2 }}>
-      {/* Property Information */}
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle2" sx={{ color: '#1976d2', fontWeight: 600, mb: 1 }}>
-          Property Information
-        </Typography>
+    <>
+      {/* Sticky header and description - separate from scrollable content */}
+      <Box sx={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        backgroundColor: '#FFFFFF',
+        pb: 1,
+        pt: 1,
+        mx: disableNegativeMargin ? 0 : -2, // Extend to container edges (negative margin to offset container padding)
+        px: 2, // Restore padding for content
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+        mb: 2
+      }}>
+        {/* Back button and Download PDF button */}
+        {(onBack || onDownloadPDF) && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            {onBack && (
+              <>
+                <IconButton onClick={onBack} size="small">
+                  <ArrowBackIcon />
+                </IconButton>
+                <Typography variant="body2">{backLabel}</Typography>
+              </>
+            )}
+            {onDownloadPDF && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<DownloadIcon />}
+                onClick={onDownloadPDF}
+                sx={{ textTransform: 'none', ml: 'auto' }}
+              >
+                Download PDF
+              </Button>
+            )}
+          </Box>
+        )}
+
 
         {/* Property Description */}
         {selectedProperty?.property_description && (
@@ -99,13 +146,38 @@ export default function PropertyTraceHeader({
             backgroundColor: 'rgba(25, 118, 210, 0.1)',
             borderRadius: 1,
             p: 1,
-            mb: 1
+            mb: 1,
+            '& p': { margin: '4px 0' },
+            '& code': { backgroundColor: '#f5f5f5', padding: '2px 4px', borderRadius: '4px', fontSize: '0.9em' },
+            '& pre': { backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px', overflow: 'auto' },
+            '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600 },
+            '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
+            '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0' },
+            '& .katex': { fontSize: '1em' },
+            '& .katex-display': { margin: '8px 0' },
           }}>
-            <Typography variant="body2" sx={{ textAlign: 'center', color: '#1565C0' }}>
-              {selectedProperty.property_description}
+            <Typography variant="body2" component="div" sx={{ textAlign: 'center', color: '#1565C0' }}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                  a: ({ href, children, ...props }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                      {children}
+                    </a>
+                  ),
+                  p: ({ children }) => <span>{children}</span>,
+                }}
+              >
+                {selectedProperty.property_description}
+              </ReactMarkdown>
             </Typography>
           </Box>
         )}
+      </Box>
+
+      {/* Rest of property information - scrollable */}
+      <Box sx={{ mb: 2, px: disableNegativeMargin ? 2 : 0 }}>
 
         {/* Model Field - Show which model this property applies to (side-by-side only) */}
         {shouldShowModelField && (
@@ -129,10 +201,10 @@ export default function PropertyTraceHeader({
 
         {/* Metadata Fields in 3-column layout */}
         {metadataFields.length > 0 && (
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(3, 1fr)', 
-            gap: 2, 
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 2,
             mb: 1.5,
             mt: 1,
             p: 1.5,
@@ -143,10 +215,10 @@ export default function PropertyTraceHeader({
             {metadataFields.map(([key, value]) => formatMetadataField(key, value))}
           </Box>
         )}
-      </Box>
 
-      {/* Horizontal separator line */}
-      <Box sx={{ borderBottom: '1px solid #E5E7EB', mb: 2 }} />
-    </Box>
+        {/* Horizontal separator line */}
+        <Box sx={{ borderBottom: '1px solid #E5E7EB', mb: 2 }} />
+      </Box>
+    </>
   );
 }

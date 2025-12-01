@@ -9,6 +9,7 @@
 import { Box, Paper, Stack, Typography, Chip } from '@mui/material';
 import { useMemo } from 'react';
 import type { ModelClusterRow } from '../../types/metrics';
+import { retroColors } from '../../theme';
 
 interface MetricsOverviewBannerProps {
   data: ModelClusterRow[];
@@ -31,10 +32,10 @@ function normalizeGroup(group: string | undefined): string | null {
 
 function getGroupColor(group: string): string {
   switch (group) {
-    case 'positive': return '#16A34A'; // green
-    case 'negative_critical': return '#DC2626'; // red
-    case 'negative_non_critical': return '#CA8A04'; // yellow/amber
-    case 'style': return '#6366F1'; // blue/indigo
+    case 'positive': return retroColors.green;
+    case 'negative_critical': return retroColors.red;
+    case 'negative_non_critical': return retroColors.orange;
+    case 'style': return retroColors.blue;
     default: return '#6B7280'; // gray
   }
 }
@@ -51,13 +52,17 @@ function getGroupLabel(group: string): string {
 
 export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisalignedSection }: MetricsOverviewBannerProps) {
   const stats = useMemo(() => {
-    // Count unique clusters by group
+    // Count unique clusters (total and by group)
+    const allClusters = new Set<string>();
     const clustersByGroup = new Map<string, Set<string>>();
 
     // Track which metrics are misaligned (across all behaviors)
     const misalignedMetrics = new Set<string>();
 
     data.forEach(row => {
+      // Count total unique clusters
+      allClusters.add(row.cluster);
+
       const group = normalizeGroup(row.metadata?.group);
 
       // Count clusters by group
@@ -94,9 +99,8 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
       });
     });
 
-    // Convert group counts to sorted array (excluding positive)
+    // Convert group counts to sorted array (including positive)
     const groupCounts = Array.from(clustersByGroup.entries())
-      .filter(([group]) => group !== 'positive') // Exclude positive clusters
       .map(([group, clusters]) => ({
         group,
         count: clusters.size,
@@ -104,12 +108,13 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
         label: getGroupLabel(group)
       }))
       .sort((a, b) => {
-        // Sort order: negative_critical, negative_non_critical, style
-        const order = ['negative_critical', 'negative_non_critical', 'style'];
+        // Sort order: positive, negative_critical, negative_non_critical, style
+        const order = ['positive', 'negative_critical', 'negative_non_critical', 'style'];
         return order.indexOf(a.group) - order.indexOf(b.group);
       });
 
     return {
+      totalClusters: allClusters.size,
       groupCounts,
       misalignedMetrics: misalignedMetrics.size
     };
@@ -120,6 +125,7 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
       elevation={0}
       sx={{
         position: 'relative',
+        mt: 0,
         p: 2.5,
         mb: 1.5,
         bgcolor: '#ffffff',
@@ -128,8 +134,7 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
         backgroundImage: 'linear-gradient(white, white), linear-gradient(90deg, #2563eb, #10b981)',
         backgroundOrigin: 'border-box',
         backgroundClip: 'padding-box, border-box',
-        // Match Properties overview banner: no strong drop shadow on the metrics banner
-        boxShadow: 'none',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08)',
         display: 'flex',
         flexWrap: 'wrap',
         gap: 6,
@@ -137,12 +142,37 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
         justifyContent: 'space-between'
       }}
     >
-      {/* Cluster counts by group */}
+      {/* Total clusters and clusters by type */}
       <Box>
         <Typography variant="caption" sx={{ mb: 1, display: 'block', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
-          Clusters by Type
+          Clusters overview
         </Typography>
         <Stack direction="row" spacing={1.5} flexWrap="wrap">
+          {/* Total clusters */}
+          <Chip
+            label={
+              <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography component="span" sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#2563eb' }}>
+                  {stats.totalClusters}
+                </Typography>
+                <Typography component="span" sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#2563eb' }}>
+                  Total
+                </Typography>
+              </Box>
+            }
+            size="medium"
+            sx={{
+              bgcolor: '#2563eb15',
+              height: 'auto',
+              py: 0.75,
+              px: 1.25,
+              border: 'none',
+              '& .MuiChip-label': {
+                px: 0
+              }
+            }}
+          />
+          {/* Clusters by behavior type */}
           {stats.groupCounts.map(({ group, count, color, label }) => (
             <Chip
               key={group}

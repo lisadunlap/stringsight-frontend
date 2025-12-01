@@ -4,22 +4,23 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { FormControl, InputLabel, Select, MenuItem, TextField, Checkbox, ListItemText, OutlinedInput } from '@mui/material';
 import { ClusterLabel } from './ClusterLabel';
 import ClustersOverviewBanner from './ClustersOverviewBanner';
+import { retroColors } from '../theme';
 
-// Model color palette (matches FrequencyChartAlt and MetricsInsightsOverview)
-const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
+// Model color palette - using retro tech colors
+const MODEL_COLORS = [retroColors.blue, retroColors.orange, retroColors.green, retroColors.red, retroColors.purple];
 
 function getModelColor(model: string, allModels: string[]): string {
   const index = allModels.indexOf(model);
   return MODEL_COLORS[index % MODEL_COLORS.length];
 }
 
-// Get color for each category
+// Get color for each category using retro palette
 function getCategoryColor(category: string): string {
   const categoryLower = category.toLowerCase();
-  if (categoryLower === 'positive') return '#16A34A';
-  if (categoryLower === 'negative (critical)') return '#DC2626';
-  if (categoryLower === 'negative (non-critical)') return '#CA8A04';
-  if (categoryLower === 'style') return '#9C27B0';
+  if (categoryLower === 'positive') return retroColors.green;
+  if (categoryLower === 'negative (critical)') return retroColors.red;
+  if (categoryLower === 'negative (non-critical)') return retroColors.orange;
+  if (categoryLower === 'style') return retroColors.purple;
   return '#9E9E9E';
 }
 
@@ -665,24 +666,6 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                       return `${clusterSize.toLocaleString()} properties`;
                     })()}
                   </Typography>
-                  {(() => {
-                    const overallQualityDeltaObj: Record<string, number> = (meta as any).quality_delta || {};
-                    const deltaVals = Object.values(overallQualityDeltaObj).filter(v => typeof v === 'number' && isFinite(v)) as number[];
-                    if (deltaVals.length === 0) return null;
-                    const avgDelta = deltaVals.reduce((a, b) => a + b, 0) / deltaVals.length;
-                    return (
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontSize: 12,
-                          color: avgDelta > 0 ? 'success.main' : (avgDelta < 0 ? 'error.main' : 'text.secondary'),
-                          fontWeight: 500
-                        }}
-                      >
-                        Δ quality: {avgDelta > 0 ? '+' : ''}{avgDelta.toFixed(2)}
-                      </Typography>
-                    );
-                  })()}
                 </Stack>
               </Box>
 

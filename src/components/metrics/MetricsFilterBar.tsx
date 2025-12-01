@@ -17,6 +17,9 @@ import {
   MenuItem,
   FormControlLabel,
   Switch,
+  Checkbox,
+  ListItemText,
+  OutlinedInput,
 } from '@mui/material';
 import type { 
   MetricsFilters, 
@@ -97,7 +100,7 @@ export function MetricsFilterBar({
         pt: variant === 'menu' ? 1 : 0,
       }}
     >
-      {/* Controls Row */}
+      {/* First Row: Model, Metric, Behavior Type Selection */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         {/* Model Selection */}
         <Box sx={{ minWidth: 200, flex: '0 0 auto' }}>
@@ -106,19 +109,21 @@ export function MetricsFilterBar({
             <Select
               multiple
               value={filters.selectedModels}
-              onChange={(e) => updateFilters({ selectedModels: e.target.value as string[] })}
-              label="Models"
-              renderValue={(selected) => {
-                if ((selected as string[]).length === 0) return 'All models';
-                if ((selected as string[]).length === 1) {
-                  return ((selected as string[])[0] || '').split('/').pop() || (selected as string[])[0];
-                }
-                return `${(selected as string[]).length} selected`;
+              onChange={(e) => {
+                const value = typeof e.target.value === 'string' ? e.target.value.split(',') : (e.target.value as string[]);
+                updateFilters({ selectedModels: value });
               }}
+              input={<OutlinedInput label="Models" />}
+              renderValue={(selected) => {
+                const count = (selected as string[]).length;
+                return count > 0 ? `${count} selected` : 'All';
+              }}
+              MenuProps={{ PaperProps: { style: { maxHeight: 320 } } }}
             >
               {availableModels.map((model) => (
                 <MenuItem key={model} value={model}>
-                  {model.split('/').pop() || model}
+                  <Checkbox checked={filters.selectedModels.indexOf(model) > -1} />
+                  <ListItemText primary={model.split('/').pop() || model} />
                 </MenuItem>
               ))}
             </Select>
@@ -132,19 +137,21 @@ export function MetricsFilterBar({
             <Select
               multiple
               value={filters.selectedMetrics}
-              onChange={(e) => updateFilters({ selectedMetrics: e.target.value as string[] })}
-              label="Metrics"
-              renderValue={(selected) => {
-                if ((selected as string[]).length === 0) return 'All metrics';
-                if ((selected as string[]).length === 1) {
-                  return getDisplayName((selected as string[])[0]);
-                }
-                return `${(selected as string[]).length} selected`;
+              onChange={(e) => {
+                const value = typeof e.target.value === 'string' ? e.target.value.split(',') : (e.target.value as string[]);
+                updateFilters({ selectedMetrics: value });
               }}
+              input={<OutlinedInput label="Metrics" />}
+              renderValue={(selected) => {
+                const count = (selected as string[]).length;
+                return count > 0 ? `${count} selected` : 'All';
+              }}
+              MenuProps={{ PaperProps: { style: { maxHeight: 320 } } }}
             >
               {availableQualityMetrics.map((metric) => (
                 <MenuItem key={metric} value={metric}>
-                  {getDisplayName(metric)}
+                  <Checkbox checked={filters.selectedMetrics.indexOf(metric) > -1} />
+                  <ListItemText primary={getDisplayName(metric)} />
                 </MenuItem>
               ))}
             </Select>
@@ -159,74 +166,76 @@ export function MetricsFilterBar({
               <Select
                 multiple
                 value={filters.selectedBehaviorTypes || []}
-                onChange={(e) => updateFilters({ selectedBehaviorTypes: e.target.value as string[] })}
-                label="Behavior Types"
-                renderValue={(selected) => {
-                  if ((selected as string[]).length === 0) return 'All types';
-                  if ((selected as string[]).length === 1) {
-                    return getBehaviorTypeLabel((selected as string[])[0]);
-                  }
-                  return `${(selected as string[]).length} selected`;
+                onChange={(e) => {
+                  const value = typeof e.target.value === 'string' ? e.target.value.split(',') : (e.target.value as string[]);
+                  updateFilters({ selectedBehaviorTypes: value });
                 }}
+                input={<OutlinedInput label="Behavior Types" />}
+                renderValue={(selected) => {
+                  const count = (selected as string[]).length;
+                  return count > 0 ? `${count} selected` : 'All';
+                }}
+                MenuProps={{ PaperProps: { style: { maxHeight: 320 } } }}
               >
                 {availableBehaviorTypes.map((behaviorType) => (
                   <MenuItem key={behaviorType} value={behaviorType}>
-                    {getBehaviorTypeLabel(behaviorType)}
+                    <Checkbox checked={(filters.selectedBehaviorTypes || []).indexOf(behaviorType) > -1} />
+                    <ListItemText primary={getBehaviorTypeLabel(behaviorType)} />
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
           </Box>
         )}
+      </Box>
 
-        {/* Right-aligned controls */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 'auto', flexWrap: 'wrap' }}>
-          {/* Show CI Toggle */}
-          <FormControlLabel
-            control={
-              <Switch
-                checked={filters.showCI}
-                onChange={(e) => updateFilters({ showCI: e.target.checked })}
-                size="small"
-                color="primary"
-                disabled={!hasConfidenceIntervals}
-              />
-            }
-            label="Show CI's"
-            sx={{ flex: '0 0 auto' }}
-          />
+      {/* Second Row: Toggles and Sort By */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        {/* Show CI Toggle */}
+        <FormControlLabel
+          control={
+            <Switch
+              checked={filters.showCI}
+              onChange={(e) => updateFilters({ showCI: e.target.checked })}
+              size="small"
+              color="primary"
+              disabled={!hasConfidenceIntervals}
+            />
+          }
+          label="Show CI's"
+          sx={{ flex: '0 0 auto' }}
+        />
 
-          {/* Significant Only Toggle */}
-          <FormControlLabel
-            control={
-              <Switch
-                checked={filters.significanceOnly}
-                onChange={(e) => updateFilters({ significanceOnly: e.target.checked })}
-                size="small"
-                color="primary"
-              />
-            }
-            label="Only show significant"
-            sx={{ flex: '0 0 auto' }}
-          />
+        {/* Significant Only Toggle */}
+        <FormControlLabel
+          control={
+            <Switch
+              checked={filters.significanceOnly}
+              onChange={(e) => updateFilters({ significanceOnly: e.target.checked })}
+              size="small"
+              color="primary"
+            />
+          }
+          label="Only show significant"
+          sx={{ flex: '0 0 auto' }}
+        />
 
-          {/* Sort By */}
-          <Box sx={{ minWidth: 160, flex: '0 0 auto' }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Sort by</InputLabel>
-              <Select
-                value={filters.sortBy}
-                label="Sort by"
-                onChange={(e) => updateFilters({ sortBy: e.target.value as MetricsSortOption })}
-              >
-                {sortOptions.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
+        {/* Sort By */}
+        <Box sx={{ minWidth: 160, flex: '0 0 auto' }}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Sort by</InputLabel>
+            <Select
+              value={filters.sortBy}
+              label="Sort by"
+              onChange={(e) => updateFilters({ sortBy: e.target.value as MetricsSortOption })}
+            >
+              {sortOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Box>
       </Box>
     </Box>

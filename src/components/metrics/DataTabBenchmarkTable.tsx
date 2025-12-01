@@ -17,16 +17,28 @@
 
 import React, { useMemo } from 'react';
 import BenchmarkTable from './BenchmarkTable';
-import type { ModelBenchmarkRow } from '../../types/metrics';
+import { BenchmarkChart } from './charts/BenchmarkChart';
+import type { ModelBenchmarkRow, MetricsFilters } from '../../types/metrics';
 
 interface DataTabBenchmarkTableProps {
   operationalRows: Array<Record<string, unknown>>;
   method: 'single_model' | 'side_by_side' | 'unknown';
   propertiesRows?: Array<Record<string, unknown>>;
   modelScores?: Array<Record<string, unknown>>;
+  viewMode?: 'table' | 'graph';
+  filters?: MetricsFilters;
+  onQualityMetricsChange?: (metrics: string[]) => void;
 }
 
-export default function DataTabBenchmarkTable({ operationalRows, method, propertiesRows, modelScores }: DataTabBenchmarkTableProps) {
+export default function DataTabBenchmarkTable({ 
+  operationalRows, 
+  method, 
+  propertiesRows, 
+  modelScores,
+  viewMode = 'table',
+  filters,
+  onQualityMetricsChange
+}: DataTabBenchmarkTableProps) {
   const { rows, qualityMetrics } = useMemo(() => {
     // If backend-computed model_scores are available, use them directly
     if (modelScores && modelScores.length > 0) {
@@ -168,11 +180,38 @@ export default function DataTabBenchmarkTable({ operationalRows, method, propert
     return { rows, qualityMetrics: Array.from(metricSet).sort() };
   }, [operationalRows, method, propertiesRows, modelScores]);
 
+  // Notify parent of available quality metrics
+  React.useEffect(() => {
+    if (onQualityMetricsChange && qualityMetrics.length > 0) {
+      onQualityMetricsChange(qualityMetrics);
+    }
+  }, [qualityMetrics, onQualityMetricsChange]);
+
   // Don't render anything if there are no quality metrics
   if (qualityMetrics.length === 0) {
     return null;
   }
 
+  // If graph view and filters are provided, show chart
+  if (viewMode === 'graph' && filters) {
+    // Ensure a quality metric is selected, default to first one
+    const effectiveFilters: MetricsFilters = {
+      ...filters,
+      qualityMetric: filters.qualityMetric || qualityMetrics[0]
+    };
+    
+    return (
+      <BenchmarkChart
+        data={rows}
+        filters={effectiveFilters}
+        qualityMetrics={qualityMetrics}
+        showCI={true}
+        height={300}
+      />
+    );
+  }
+
+  // Default to table view
   return (
     <BenchmarkTable data={rows} qualityMetrics={qualityMetrics} showCI={true} />
   );

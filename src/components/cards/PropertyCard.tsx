@@ -1,5 +1,10 @@
 import React from 'react';
 import { Card, CardHeader, CardContent, Typography, Chip, Stack, Box, Button } from '@mui/material';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import ModelResponseCard from './ModelResponseCard';
 import { evidenceToHighlightRanges } from './ResponseContent';
 
@@ -53,9 +58,36 @@ export default function PropertyCard({ property, conversation, method, onOpenCon
                 {clusterLabel}
               </Typography>
             )}
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-              {description}
-            </Typography>
+            <Box
+              sx={{
+                '& p': { margin: '4px 0' },
+                '& code': { backgroundColor: '#f5f5f5', padding: '2px 4px', borderRadius: '4px', fontSize: '0.9em' },
+                '& pre': { backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px', overflow: 'auto' },
+                '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600 },
+                '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
+                '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0' },
+                '& .katex': { fontSize: '1em' },
+                '& .katex-display': { margin: '8px 0' },
+                mb: 1,
+              }}
+            >
+              <Typography variant="subtitle1" component="div" sx={{ fontWeight: 700 }}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={{
+                    a: ({ href, children, ...props }) => (
+                      <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                        {children}
+                      </a>
+                    ),
+                    p: ({ children }) => <span>{children}</span>,
+                  }}
+                >
+                  {description}
+                </ReactMarkdown>
+              </Typography>
+            </Box>
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
               {property.category && (
                 <Chip label={property.category} size="small" variant="outlined" />

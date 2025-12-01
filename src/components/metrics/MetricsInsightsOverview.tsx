@@ -392,38 +392,43 @@ export function MetricsInsightsOverview({
     });
   }, [data, filters]);
 
+  // Check if behavior types are present in the data
+  const hasBehaviorTypes = useMemo(() => {
+    if (!data.length) return false;
+    
+    // Check if any row has a metadata.group that normalizes to a known behavior type
+    const hasBehaviorType = data.some(row => {
+      const group = normalizeGroup(row.metadata?.group);
+      return group === 'negative_critical' || 
+             group === 'negative_non_critical' || 
+             group === 'style' || 
+             group === 'positive';
+    });
+    
+    // Also check if availableBehaviorTypes prop has values
+    const hasAvailableTypes = availableBehaviorTypes && availableBehaviorTypes.length > 0;
+    
+    return hasBehaviorType || hasAvailableTypes;
+  }, [data, availableBehaviorTypes]);
+
   const availableTabs: { key: InsightsTabKey; label: string }[] = useMemo(() => {
-    const tabs: { key: InsightsTabKey; label: string }[] = [];
-
-    if (insights.commonFailures.length > 0) {
-      tabs.push({ key: 'commonFailures', label: 'Common Failures' });
+    // If behavior types are not present, only show All Clusters and Model Comparison
+    if (!hasBehaviorTypes) {
+      return [
+        { key: 'allClusters', label: 'All Clusters' },
+        { key: 'modelComparison', label: 'Model Comparison' }
+      ];
     }
-
-    if (data.length > 0) {
-      tabs.push({ key: 'allClusters', label: 'All Clusters' });
-    }
-
-    if (hasModelComparisonData) {
-      tabs.push({ key: 'modelComparison', label: 'Model Comparison' });
-    }
-
-    if (insights.uniqueBehaviors.length > 0) {
-      tabs.push({ key: 'uniqueBehaviors', label: 'Unique Stylistic Behaviors' });
-    }
-
-    if (qualityMetrics.length > 0 && insights.misalignedPatterns.length > 0) {
-      tabs.push({ key: 'misalignedPatterns', label: 'Misaligned Patterns' });
-    }
-
-    return tabs;
-  }, [
-    data.length,
-    hasModelComparisonData,
-    insights.commonFailures.length,
-    insights.misalignedPatterns.length,
-    insights.uniqueBehaviors.length,
-    qualityMetrics.length
-  ]);
+    
+    // Otherwise show all tabs
+    return [
+      { key: 'commonFailures', label: 'Common Failures' },
+      { key: 'allClusters', label: 'All Clusters' },
+      { key: 'modelComparison', label: 'Model Comparison' },
+      // { key: 'uniqueBehaviors', label: 'Unique Stylistic Behaviors' }, // Temporarily removed
+      { key: 'misalignedPatterns', label: 'Misaligned Patterns' }
+    ];
+  }, [hasBehaviorTypes]);
 
   const [activeTab, setActiveTab] = useState<InsightsTabKey | null>(
     availableTabs.length > 0 ? availableTabs[0].key : null
@@ -466,13 +471,7 @@ export function MetricsInsightsOverview({
     }
   }, [activeTab, availableTabs]);
 
-  // Only return null if there's no data at all
-  // We can still show Common Failures and Unique Behaviors without quality metrics
-  if (!data.length) {
-    console.log('[MetricsInsightsOverview] Component returning null - no data');
-    return null;
-  }
-
+  // Always show tabs, even if there's no data (tabs will show empty states)
   if (!activeTab) {
     return null;
   }
@@ -483,26 +482,26 @@ export function MetricsInsightsOverview({
       <Box
         sx={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           justifyContent: 'space-between',
           mb: 1,
+          borderBottom: '2px solid',
+          borderColor: 'divider',
+          position: 'relative',
         }}
       >
-        {/* Segmented control for view selection */}
+        {/* Folder-style tabs */}
         <Box
           sx={{
             display: 'flex',
-            borderRadius: 2,
-            border: '1px solid',
-            borderColor: 'divider',
-            backgroundColor: '#FFFFFF',
-            p: 0.5,
+            position: 'relative',
             gap: 0.5,
             flexWrap: 'wrap',
             maxWidth: '100%',
+            pb: 0,
           }}
         >
-          {availableTabs.map(tab => {
+          {availableTabs.map((tab, index) => {
             const isActive = activeTab === tab.key;
             return (
               <Button
@@ -511,17 +510,27 @@ export function MetricsInsightsOverview({
                 onClick={() => setActiveTab(tab.key)}
                 sx={{
                   textTransform: 'none',
-                  borderRadius: 1,
-                  px: 2.25,
-                  py: 0.75,
-                  minHeight: 34,
+                  borderRadius: 0,
+                  borderTopLeftRadius: '8px',
+                  borderTopRightRadius: '8px',
+                  px: 2.5,
+                  py: 1,
+                  minHeight: 40,
                   fontSize: '0.95rem',
                   fontWeight: isActive ? 600 : 500,
-                  color: isActive ? 'primary.contrastText' : 'text.secondary',
-                  backgroundColor: isActive ? 'primary.main' : 'transparent',
-                  boxShadow: isActive ? '0 1px 2px rgba(15, 23, 42, 0.18)' : 'none',
+                  color: '#000000',
+                  backgroundColor: isActive ? '#E3F2FD' : '#FFFFFF',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderBottom: isActive ? '2px solid #FFFFFF' : '2px solid transparent',
+                  boxShadow: isActive ? '0 -2px 4px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.08)' : 'none',
+                  position: 'relative',
+                  zIndex: isActive ? 2 : 1,
+                  marginBottom: isActive ? '-2px' : 0,
+                  opacity: isActive ? 1 : 0.6,
                   '&:hover': {
-                    backgroundColor: isActive ? 'primary.dark' : 'rgba(148, 163, 184, 0.16)',
+                    backgroundColor: isActive ? '#E3F2FD' : '#FFFFFF',
+                    opacity: 1,
                   },
                   whiteSpace: 'nowrap',
                 }}
@@ -541,6 +550,11 @@ export function MetricsInsightsOverview({
               textTransform: 'none',
               fontWeight: 500,
               color: 'text.primary',
+              mb: 0.5,
+              fontSize: '1rem',
+              '&:hover': {
+                backgroundColor: 'action.hover',
+              },
             }}
           >
             {activeFiltersCount > 0
@@ -550,14 +564,8 @@ export function MetricsInsightsOverview({
         )}
       </Box>
 
-      {/* Divider line under header */}
-      <Box
-        sx={{
-          borderBottom: 1,
-          borderColor: 'divider',
-          mb: 1.5,
-        }}
-      />
+      {/* Spacing after tabs */}
+      <Box sx={{ mb: 2 }} />
 
       {/* Filters dropdown menu */}
       {onFiltersChange && availableModels && availableQualityMetrics && (
@@ -584,7 +592,7 @@ export function MetricsInsightsOverview({
       )}
 
       {/* 1. COMMON FAILURES */}
-      {activeTab === 'commonFailures' && insights.commonFailures.length > 0 && (
+      {activeTab === 'commonFailures' && (
         <Box>
           {insights.commonFailures.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
@@ -713,18 +721,6 @@ export function MetricsInsightsOverview({
                             return `${failure.totalSize.toLocaleString()} conversations${suffix}`;
                           })()}
                         </Typography>
-                        {typeof failure.globalQualityDelta === 'number' && isFinite(failure.globalQualityDelta) && (
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontSize: 12,
-                              color: failure.globalQualityDelta > 0 ? 'success.main' : (failure.globalQualityDelta < 0 ? 'error.main' : 'text.secondary'),
-                              fontWeight: 500
-                            }}
-                          >
-                            Δ quality: {failure.globalQualityDelta > 0 ? '+' : ''}{failure.globalQualityDelta.toFixed(2)}
-                          </Typography>
-                        )}
                       </Stack>
                     </Box>
 
@@ -762,7 +758,7 @@ export function MetricsInsightsOverview({
       )}
 
       {/* 2. MODEL COMPARISON */}
-      {activeTab === 'modelComparison' && hasModelComparisonData && (
+      {activeTab === 'modelComparison' && (
         <Box>
           <ModelComparisonTab
             data={data}
@@ -772,8 +768,8 @@ export function MetricsInsightsOverview({
         </Box>
       )}
 
-      {/* 3. UNIQUE STYLISTIC BEHAVIORS */}
-      {activeTab === 'uniqueBehaviors' && insights.uniqueBehaviors.length > 0 && (
+      {/* 3. UNIQUE STYLISTIC BEHAVIORS - Temporarily removed */}
+      {/* {activeTab === 'uniqueBehaviors' && (
         <Box>
           <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', width: '100%', maxHeight: 'none', alignSelf: 'stretch' }}>
 
@@ -894,10 +890,10 @@ export function MetricsInsightsOverview({
           )}
           </Paper>
         </Box>
-      )}
+      )} */}
 
-      {/* 4. MISALIGNED PATTERNS - Only show if quality metrics are available */}
-      {activeTab === 'misalignedPatterns' && qualityMetrics.length > 0 && insights.misalignedPatterns.length > 0 && (
+      {/* 4. MISALIGNED PATTERNS */}
+      {activeTab === 'misalignedPatterns' && (
         <Box>
           <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '800px' }}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2, flexShrink: 0 }}>
@@ -911,7 +907,11 @@ export function MetricsInsightsOverview({
               Negative behaviors that improve metrics, and style behaviors with quality impact. Only shows patterns that are statistically significant.
             </Typography>
 
-          {insights.misalignedPatterns.length === 0 ? (
+          {qualityMetrics.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No quality metrics available. Misaligned patterns require quality metrics to be computed.
+            </Typography>
+          ) : insights.misalignedPatterns.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
               No misaligned patterns detected
               {filters.significanceOnly && ' (try disabling "Significant Only" filter)'}

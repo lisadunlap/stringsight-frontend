@@ -33,93 +33,109 @@ export function BenchmarkChart({
 }: BenchmarkChartProps) {
   
   const plotData = useMemo(() => {
-    if (!data.length || !filters.qualityMetric) {
+    if (!data.length || !qualityMetrics.length) {
       return [];
     }
 
-    // Try both original and sanitized metric names
-    const originalKey = `quality_${filters.qualityMetric}`;
-    const sanitizedKey = `quality_${sanitizeMetricName(filters.qualityMetric)}`;
-    
-    // Determine which key exists in the data  
-    const sampleRow = data[0];
-    const qualityKey = sampleRow && originalKey in sampleRow ? originalKey : sanitizedKey;
-    const ciLowerKey = `${qualityKey}_ci_lower`;
-    const ciUpperKey = `${qualityKey}_ci_upper`;
-    
-    // Filter and sort models by the selected metric (descending)
-    const modelsWithScores = data
-      .map(row => ({
-        model: row.model,
-        score: row[qualityKey as keyof ModelBenchmarkRow] as number,
-        ciLower: showCI ? (row[ciLowerKey as keyof ModelBenchmarkRow] as number) : undefined,
-        ciUpper: showCI ? (row[ciUpperKey as keyof ModelBenchmarkRow] as number) : undefined,
-        size: row.size
-      }))
-      .filter(item => typeof item.score === 'number' && isFinite(item.score))
-      .sort((a, b) => b.score - a.score); // Descending order
-
-    if (!modelsWithScores.length) {
-      return [];
-    }
-
-    const models = modelsWithScores.map(item => item.model);
-    const scores = modelsWithScores.map(item => item.score);
-    const modelLabels = models.map(model => {
-      // Truncate long model names for display
+    // Get all unique models
+    const allModels = [...new Set(data.map(row => row.model))].sort();
+    const modelLabels = allModels.map(model => {
       const shortName = model.split('/').pop() || model;
       return shortName.length > 25 ? shortName.substring(0, 22) + '...' : shortName;
     });
 
-    // Create horizontal bar chart data
-    const barData: any = {
-      type: 'bar',
-      orientation: 'h',
-      x: scores,
-      y: modelLabels,
-      marker: {
-        color: models.map(model => getModelColor(model, models)),
-        opacity: 0.8
-      },
-      // Values shown in hover only
-      hovertemplate: models.map((model, i) => 
-        `<b>${model}</b><br>` +
-        `${getDisplayName(filters.qualityMetric)}: ${scores[i].toFixed(3)}<br>` +
-        `Conversations: ${modelsWithScores[i].size}<extra></extra>`
-      ),
-      name: filters.qualityMetric
-    };
+    // Create a trace for each metric
+    const traces: any[] = [];
+    const metricColors = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA', '#FF6B9D', '#C44569', '#F8B500', '#6C5CE7', '#00D2D3'];
 
-    // Add confidence interval error bars if available and requested
-    if (showCI && modelsWithScores.some(item => 
-      item.ciLower !== undefined && item.ciUpper !== undefined
-    )) {
-      // For horizontal bar chart, use error_x for horizontal error bars
-      const arrayminus = scores.map((score, i) => 
-        modelsWithScores[i].ciLower !== undefined 
-          ? Math.max(0, score - modelsWithScores[i].ciLower!) 
-          : 0
-      );
-      const arrayplus = scores.map((score, i) => 
-        modelsWithScores[i].ciUpper !== undefined 
-          ? Math.max(0, modelsWithScores[i].ciUpper! - score)
-          : 0
-      );
+    qualityMetrics.forEach((metric, metricIndex) => {
+      // Try both original and sanitized metric names
+      const originalKey = `quality_${metric}`;
+      const sanitizedKey = `quality_${sanitizeMetricName(metric)}`;
+      
+      // Determine which key exists in the data  
+      const sampleRow = data[0];
+      const qualityKey = sampleRow && originalKey in sampleRow ? originalKey : sanitizedKey;
+      const ciLowerKey = `${qualityKey}_ci_lower`;
+      const ciUpperKey = `${qualityKey}_ci_upper`;
 
-      barData.error_x = {
-        type: 'data',
-        symmetric: false,
-        array: arrayplus,
-        arrayminus: arrayminus,
-        visible: true,
-        thickness: 2,
-        width: 5,
-        color: '#1976d2' // Material UI primary color
+      // Get scores for this metric for each model
+      const scores: number[] = [];
+      const ciLowers: (number | undefined)[] = [];
+      const ciUppers: (number | undefined)[] = [];
+      const sizes: number[] = [];
+
+      allModels.forEach(model => {
+        const row = data.find(r => r.model === model);
+        if (row) {
+          const score = row[qualityKey as keyof ModelBenchmarkRow] as number | undefined;
+          scores.push(typeof score === 'number' && isFinite(score) ? score : 0);
+          
+          if (showCI) {
+            ciLowers.push(row[ciLowerKey as keyof ModelBenchmarkRow] as number | undefined);
+            ciUppers.push(row[ciUpperKey as keyof ModelBenchmarkRow] as number | undefined);
+          } else {
+            ciLowers.push(undefined);
+            ciUppers.push(undefined);
+          }
+          
+          sizes.push(row.size || 0);
+        } else {
+          scores.push(0);
+          ciLowers.push(undefined);
+          ciUppers.push(undefined);
+          sizes.push(0);
+        }
+      });
+
+      // Create bar trace for this metric
+      const barData: any = {
+        type: 'bar',
+        orientation: 'v',
+        x: modelLabels,
+        y: scores,
+        name: getDisplayName(metric),
+        marker: {
+          color: metricColors[metricIndex % metricColors.length],
+          opacity: 0.8
+        },
+        hovertemplate: allModels.map((model, i) => 
+          `<b>${model}</b><br>` +
+          `${getDisplayName(metric)}: ${scores[i].toFixed(3)}<br>` +
+          `Conversations: ${sizes[i]}<extra></extra>`
+        )
       };
-    }
 
-    return [barData];
-  }, [data, filters.qualityMetric, showCI]);
+      // Add confidence interval error bars if available
+      if (showCI && ciLowers.some(l => l !== undefined) && ciUppers.some(u => u !== undefined)) {
+        const arrayminus = scores.map((score, i) => 
+          ciLowers[i] !== undefined 
+            ? Math.max(0, score - ciLowers[i]!) 
+            : 0
+        );
+        const arrayplus = scores.map((score, i) => 
+          ciUppers[i] !== undefined 
+            ? Math.max(0, ciUppers[i]! - score)
+            : 0
+        );
+
+        barData.error_y = {
+          type: 'data',
+          symmetric: false,
+          array: arrayplus,
+          arrayminus: arrayminus,
+          visible: true,
+          thickness: 2,
+          width: 5,
+          color: metricColors[metricIndex % metricColors.length] // Match bar color
+        };
+      }
+
+      traces.push(barData);
+    });
+
+    return traces;
+  }, [data, qualityMetrics, showCI]);
 
   // Show error state if no data available
   if (!data.length) {
@@ -132,24 +148,13 @@ export function BenchmarkChart({
     );
   }
 
-  // Show error if no quality metric selected
-  if (!filters.qualityMetric || !qualityMetrics.includes(filters.qualityMetric)) {
-    return (
-      <Box sx={{ height }}>
-        <Alert severity="warning">
-          Please select a quality metric. Available metrics: {qualityMetrics.join(', ')}
-        </Alert>
-      </Box>
-    );
-  }
-
-  // Show error if no data for selected metric
+  // Show error if no data available
   if (!plotData.length) {
     return (
       <Box sx={{ height }}>
         <Alert severity="warning">
-          No data available for quality metric "{getDisplayName(filters.qualityMetric)}". 
-          Try selecting a different metric.
+          No data available for quality metrics. 
+          {qualityMetrics.length === 0 && ' No quality metrics found in the data.'}
         </Alert>
       </Box>
     );
@@ -158,11 +163,8 @@ export function BenchmarkChart({
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-        <Typography variant="h6" component="h3">
-          Model Benchmark
-        </Typography>
         <Typography variant="body2" color="text.secondary">
-          {getDisplayName(filters.qualityMetric)} scores across all clusters
+          Quality scores across all clusters
           {showCI && ' (with 95% confidence intervals)'}
         </Typography>
       </Box>
@@ -170,17 +172,22 @@ export function BenchmarkChart({
       <PlotlyChartBase
         data={plotData}
         height={height}
-        xAxisLabel={`${getDisplayName(filters.qualityMetric)}`}
-        // yAxisLabel="Models"
+        yAxisLabel="Quality Score"
         layout={{
-          margin: { t: 30, r: 60, b: 60, l: 120 }, // More left margin for model names
-          showlegend: false, // Single metric, no legend needed
+          margin: { t: 30, r: 60, b: 60, l: 80 },
+          barmode: 'group', // Group bars by model
+          showlegend: true, // Show legend for metrics
+          legend: {
+            orientation: 'h',
+            y: -0.15,
+            x: 0.5,
+            xanchor: 'center'
+          },
           xaxis: {
-            side: 'bottom',
-            tickformat: '.3f'
+            side: 'bottom'
           },
           yaxis: {
-            autorange: 'reversed' // Highest scores at top
+            tickformat: '.3f'
           }
         }}
       />

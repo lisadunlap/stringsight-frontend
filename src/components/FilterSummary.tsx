@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Chip, Typography, Stack } from '@mui/material';
+import { Box, Button, Typography, Stack } from '@mui/material';
 import type { DataOperation } from '../types/operations';
 import { getOperationDescription } from '../types/operations';
 
@@ -17,12 +17,8 @@ const FilterSummary: React.FC<FilterSummaryProps> = ({
   }
 
   const getOperationColor = (type: string) => {
-    switch (type) {
-      case 'filter': return { bg: '#DBEAFE', text: '#1E40AF' };
-      case 'custom': return { bg: '#FEF3C7', text: '#92400E' };
-      case 'sort': return { bg: '#D1FAE5', text: '#065F46' };
-      default: return { bg: '#F3F4F6', text: '#374151' };
-    }
+    // All operations use dark yellow color
+    return { text: '#92400E' };
   };
 
   const getOperationTypeLabel = (type: string) => {
@@ -37,53 +33,65 @@ const FilterSummary: React.FC<FilterSummaryProps> = ({
   return (
     <Box sx={{
       mb: 2,
-      p: 2,
-      backgroundColor: '#EBF5FF',
-      border: '1px solid #3B82F6',
-      borderRadius: 2,
-      fontSize: 14
+      pb: 1.5,
+      borderBottom: '2px solid',
+      borderColor: '#D1D5DB',
     }}>
-      <Stack spacing={1.5}>
-        <Typography variant="subtitle2" sx={{ 
-          color: '#1E40AF', 
-          fontWeight: 600, 
-          fontSize: 13, 
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Typography variant="subtitle2" sx={{
+          color: '#6B7280',
+          fontWeight: 600,
+          fontSize: '0.75rem',
           textTransform: 'uppercase',
-          letterSpacing: 0.5
+          letterSpacing: 0.5,
+          mr: 1
         }}>
-          Operation Chain ({operations.length})
+          Operations ({operations.length}):
         </Typography>
 
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {operations.map((operation, index) => {
-            const colors = getOperationColor(operation.type);
-            // Calculate filter-specific index for operator display
-            const filterOperations = operations.filter(op => op.type === 'filter');
-            const filterIndex = operation.type === 'filter'
-              ? filterOperations.findIndex(op => op.id === operation.id)
-              : undefined;
+        {operations.map((operation, index) => {
+          const colors = getOperationColor(operation.type);
+          // Calculate filter-specific index for operator display
+          const filterOperations = operations.filter(op => op.type === 'filter');
+          const filterIndex = operation.type === 'filter'
+            ? filterOperations.findIndex(op => op.id === operation.id)
+            : undefined;
 
-            return (
-              <Chip
-                key={operation.id}
-                label={`${index + 1}. ${getOperationTypeLabel(operation.type)}: ${getOperationDescription(operation, filterIndex)}`}
-                onDelete={() => onRemoveOperation(operation.id)}
+          return (
+            <Box
+              key={operation.id}
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.5,
+                fontSize: '0.875rem',
+                color: colors.text,
+                pb: 0.5,
+                borderBottom: '2px solid',
+                borderColor: colors.text,
+              }}
+            >
+              <Box component="span" sx={{ fontFamily: operation.type === 'custom' ? 'monospace' : 'inherit' }}>
+                {index + 1}. {getOperationTypeLabel(operation.type)}: {getOperationDescription(operation, filterIndex)}
+              </Box>
+              <Button
                 size="small"
+                onClick={() => onRemoveOperation(operation.id)}
                 sx={{
-                  backgroundColor: colors.bg,
+                  minWidth: 'auto',
+                  p: 0,
                   color: colors.text,
-                  fontFamily: operation.type === 'custom' ? 'monospace' : 'inherit',
-                  '& .MuiChip-deleteIcon': {
-                    color: colors.text,
-                    '&:hover': {
-                      opacity: 0.8
-                    }
+                  '&:hover': {
+                    color: 'error.main',
+                    bgcolor: 'transparent'
                   }
                 }}
-              />
-            );
-          })}
-        </Stack>
+              >
+                ✕
+              </Button>
+            </Box>
+          );
+        })}
       </Stack>
     </Box>
   );

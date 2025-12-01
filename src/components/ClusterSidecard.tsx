@@ -16,12 +16,18 @@ import DownloadIcon from '@mui/icons-material/Download';
 import Plotly from 'plotly.js-dist-min';
 import createPlotlyComponent from 'react-plotly.js/factory';
 const Plot = createPlotlyComponent(Plotly);
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import ConversationTrace from './ConversationTrace';
 import SideBySideTrace from './SideBySideTrace';
 import PropertyTraceHeader from './PropertyTraceHeader';
 import { ensureOpenAIFormat } from '../lib/traces';
 import html2pdf from 'html2pdf.js';
 import { generatePdfFilename } from '../lib/utils';
+import { retroColors } from '../theme';
 
 interface ClusterSidecardProps {
   open: boolean;
@@ -29,18 +35,18 @@ interface ClusterSidecardProps {
   cluster: any | null;
   method: 'single_model' | 'side_by_side' | 'unknown';
   decimals?: number;
-  
+
   // Data access functions
   getPropertiesRows?: () => any[];
   getOperationalRows?: () => any[];
-  
+
   // Model cluster scores for enrichment
   modelClusterScores?: any[];
   totalUniqueConversations?: number | null;
-  
+
   // Show confidence intervals
   showCI?: boolean;
-  
+
   // Show significance tags
   showSignificance?: boolean;
 }
@@ -158,7 +164,7 @@ export default function ClusterSidecard({
               qualityDeltaSignificant[metricNameClean] = m[key];
             } else if (!key.includes('_ci_') && !key.includes('_significant')) {
               qualityDeltas[metricName] = m[key];
-              
+
               // Check for CI bounds
               const ciLowerKey = `quality_delta_${metricName}_ci_lower`;
               const ciUpperKey = `quality_delta_${metricName}_ci_upper`;
@@ -231,17 +237,17 @@ export default function ClusterSidecard({
   // Create consistent model color mapping - must be before any conditional returns
   const modelColors = useMemo(() => {
     if (!enrichedCluster || !enrichedCluster.meta) return {};
-    
+
     const meta = enrichedCluster.meta || {};
     const perModelProps = meta.proportion_by_model || {};
     const qualityDeltaByModel = meta.quality_delta_by_model || {};
-    
+
     const palette = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6'];
     const models = Array.from(new Set([
       ...Object.keys(perModelProps),
       ...Object.keys(qualityDeltaByModel)
     ])).sort();
-    
+
     const colorMap: Record<string, string> = {};
     models.forEach((model, idx) => {
       colorMap[model] = palette[idx % palette.length];
@@ -266,7 +272,7 @@ export default function ClusterSidecard({
 
   // Compute overall significance flags
   const isSignificantInFrequency = Object.values(proportionDeltaSignificantByModel).some(v => v === true);
-  const isSignificantInQuality = Object.values(qualityDeltaSignificantByModel).some(metrics => 
+  const isSignificantInQuality = Object.values(qualityDeltaSignificantByModel).some(metrics =>
     Object.values(metrics).some(v => v === true)
   );
 
@@ -274,8 +280,8 @@ export default function ClusterSidecard({
   console.log('[ClusterSidecard] qualityDeltaByModel:', qualityDeltaByModel);
   console.log('[ClusterSidecard] qualityDeltaByModel keys:', Object.keys(qualityDeltaByModel));
   console.log('[ClusterSidecard] qualityDeltaCIByModel:', qualityDeltaCIByModel);
-  console.log('[ClusterSidecard] Significance flags:', { 
-    isSignificantInFrequency, 
+  console.log('[ClusterSidecard] Significance flags:', {
+    isSignificantInFrequency,
     isSignificantInQuality,
     proportionDeltaSignificantByModel,
     qualityDeltaSignificantByModel
@@ -305,7 +311,7 @@ export default function ClusterSidecard({
         const rq = r?.question_id;
         const qidMatch = String(rq) === String(qid) || Number(rq) === Number(qid);
         if (!qidMatch) return false;
-        
+
         if (method === 'single_model') {
           const rModel = String(r?.model || '').trim();
           return rModel === modelName;
@@ -380,68 +386,61 @@ export default function ClusterSidecard({
         }}
       >
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          {/* Header */}
-          <Box sx={{ p: 2, borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <IconButton onClick={() => {
-              setViewMode('cluster-details');
-              setSelectedPropertyId(null);
-            }} size="small">
-              <ArrowBackIcon />
-            </IconButton>
-            <Typography variant="body2">Back to Cluster</Typography>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<DownloadIcon />}
-              onClick={handlePropertyTracePrint}
-              sx={{ textTransform: 'none' }}
-            >
-              Download PDF
-            </Button>
-            <Box sx={{ flex: 1 }} />
+          {/* Header - only close button */}
+          <Box sx={{ p: 2, borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
             <IconButton onClick={onClose} size="small">
               <CloseIcon />
             </IconButton>
           </Box>
 
           {/* Content */}
-          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <Box sx={{ flex: 1, overflow: 'auto', p: 0 }}>
             <Box ref={propertyTracePrintRef}>
               <PropertyTraceHeader
                 selectedRow={row}
                 selectedProperty={prop}
                 method={method}
                 evidenceTargetModel={(prop as any).model}
+                onBack={() => {
+                  setViewMode('cluster-details');
+                  setSelectedPropertyId(null);
+                }}
+                onDownloadPDF={handlePropertyTracePrint}
+                backLabel="Back to Cluster"
+                disableNegativeMargin={true}
               />
-              {isSideBySide && messagesA.length > 0 && messagesB.length > 0 ? (
-                <SideBySideTrace
-                  messagesA={messagesA}
-                  messagesB={messagesB}
-                  modelA={modelA || "Model A"}
-                  modelB={modelB || "Model B"}
-                  highlights={ev}
-                  targetModel={(prop as any).model}
-                  rawResponseA={row?.["model_a_response"]}
-                  rawResponseB={row?.["model_b_response"]}
-                  scoreA={scoreA}
-                  scoreB={scoreB}
-                />
-              ) : messages.length > 0 ? (
-                <ConversationTrace
-                  messages={messages}
-                  highlights={ev}
-                  modelName={modelName}
-                  score={score}
-                  promptText={promptText}
-                  hideDownloadButton={true}
-                />
-              ) : (
-                <Box sx={{ p: 3, border: '1px dashed #E5E7EB', borderRadius: 1, background: '#FAFAFA' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Conversation not available for this property.
-                  </Typography>
-                </Box>
-              )}
+              <Box sx={{ p: 2 }}>
+
+                {isSideBySide && messagesA.length > 0 && messagesB.length > 0 ? (
+                  <SideBySideTrace
+                    messagesA={messagesA}
+                    messagesB={messagesB}
+                    modelA={modelA || "Model A"}
+                    modelB={modelB || "Model B"}
+                    highlights={ev}
+                    targetModel={(prop as any).model}
+                    rawResponseA={row?.["model_a_response"]}
+                    rawResponseB={row?.["model_b_response"]}
+                    scoreA={scoreA}
+                    scoreB={scoreB}
+                  />
+                ) : messages.length > 0 ? (
+                  <ConversationTrace
+                    messages={messages}
+                    highlights={ev}
+                    modelName={modelName}
+                    score={score}
+                    promptText={promptText}
+                    hideDownloadButton={true}
+                  />
+                ) : (
+                  <Box sx={{ p: 3, border: '1px dashed #E5E7EB', borderRadius: 1, background: '#FAFAFA' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Conversation not available for this property.
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
             </Box>
           </Box>
         </Box>
@@ -458,20 +457,20 @@ export default function ClusterSidecard({
   // Build property list with model names
   const propertyList = hasItems
     ? items.map((item: any) => ({
-        id: item.property_id,
-        description: item.property_description || '',
-        model: item.model || '',
-      }))
+      id: item.property_id,
+      description: item.property_description || '',
+      model: item.model || '',
+    }))
     : descriptions.map((pd, i) => {
-        const pid = ids[i] != null ? String(ids[i]) : undefined;
-        const prop = pid ? propertiesById.get(String(pid)) : null;
-        const modelName = prop?.model != null ? String(prop.model) : null;
-        return {
-          id: pid,
-          description: pd,
-          model: modelName,
-        };
-      });
+      const pid = ids[i] != null ? String(ids[i]) : undefined;
+      const prop = pid ? propertiesById.get(String(pid)) : null;
+      const modelName = prop?.model != null ? String(prop.model) : null;
+      return {
+        id: pid,
+        description: pd,
+        model: modelName,
+      };
+    });
 
   return (
     <Drawer
@@ -493,7 +492,7 @@ export default function ClusterSidecard({
             // Determine bubble color based on group
             let bgColor = 'rgba(233, 213, 255, 0.1)'; // default light purple
             let textColor = '#581C87'; // darker purple
-            
+
             if (group) {
               const groupLower = group.toLowerCase();
               if (groupLower === 'positive') {
@@ -510,7 +509,7 @@ export default function ClusterSidecard({
                 textColor = '#6B21A8'; // darker purple
               }
             }
-            
+
             return (
               <Box
                 sx={{
@@ -519,10 +518,33 @@ export default function ClusterSidecard({
                   borderRadius: 2,
                   backgroundColor: bgColor,
                   color: textColor,
-                  fontSize: '0.875rem',
+                  fontSize: '0.75rem',
+                  '& p': { margin: '4px 0' },
+                  '& code': { backgroundColor: 'rgba(0, 0, 0, 0.1)', padding: '2px 4px', borderRadius: '4px', fontSize: '0.9em' },
+                  '& pre': { backgroundColor: 'rgba(0, 0, 0, 0.1)', padding: '8px', borderRadius: '4px', overflow: 'auto' },
+                  '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600 },
+                  '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
+                  '& blockquote': { borderLeft: '3px solid rgba(0, 0, 0, 0.2)', paddingLeft: '12px', margin: '4px 0' },
+                  '& .katex': { fontSize: '1em' },
+                  '& .katex-display': { margin: '8px 0' },
                 }}
               >
-                {String(enrichedCluster.label || '')}
+                <Typography component="div" sx={{ color: textColor, fontSize: '0.9rem' }}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={{
+                      a: ({ href, children, ...props }) => (
+                        <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: textColor }} {...props}>
+                          {children}
+                        </a>
+                      ),
+                      p: ({ children }) => <span>{children}</span>,
+                    }}
+                  >
+                    {String(enrichedCluster.label || '')}
+                  </ReactMarkdown>
+                </Typography>
               </Box>
             );
           })()}
@@ -549,25 +571,25 @@ export default function ClusterSidecard({
                 </Box>
               </Tooltip>
               {group && (() => {
-                // Determine chip color based on group name
-                let bgColor = '#E0F2FE';
-                let textColor = '#0369A1';
-                
+                // Determine chip color based on group name using retro palette
+                let bgColor = `${retroColors.blue}15`;
+                let textColor = retroColors.blue;
+
                 const groupLower = group.toLowerCase();
                 if (groupLower === 'positive') {
-                  bgColor = '#DCFCE7'; // green-100
-                  textColor = '#15803D'; // green-700
+                  bgColor = `${retroColors.green}15`;
+                  textColor = retroColors.green;
                 } else if (groupLower === 'negative (critical)') {
-                  bgColor = '#FEE2E2'; // red-100
-                  textColor = '#B91C1C'; // red-700
+                  bgColor = `${retroColors.red}15`;
+                  textColor = retroColors.red;
                 } else if (groupLower === 'negative (non-critical)') {
-                  bgColor = '#FED7AA'; // orange-200
-                  textColor = '#C2410C'; // orange-700
+                  bgColor = `${retroColors.orange}15`;
+                  textColor = retroColors.orange;
                 } else if (groupLower === 'style') {
-                  bgColor = '#F3E8FF'; // purple-100
-                  textColor = '#7B1FA2'; // purple-700
+                  bgColor = `${retroColors.purple}15`;
+                  textColor = retroColors.purple;
                 }
-                
+
                 return (
                   <Typography
                     variant="caption"
@@ -584,7 +606,7 @@ export default function ClusterSidecard({
                   </Typography>
                 );
               })()}
-              
+
               {/* Significance tags */}
               {showSignificance && (
                 <>
@@ -628,15 +650,14 @@ export default function ClusterSidecard({
 
             {/* Overall quality metrics */}
             {overallQuality && Object.keys(overallQuality).length > 0 && (
-              <Box sx={{ mt: 2, p: 2, backgroundColor: '#F9FAFB', borderRadius: 1, border: '1px solid #E5E7EB' }}>
-                <Typography variant="subtitle2" sx={{ mb: 1, color: '#334155' }}>Overall Quality</Typography>
+              <Box sx={{ mt: 2 }}>
                 <Stack direction="column" spacing={0.5}>
                   {Object.entries(overallQuality).map(([k, v]) => {
                     const d = overallQualityDelta && typeof overallQualityDelta[k] === 'number' ? overallQualityDelta[k] : undefined;
                     let deltaColor = '#6B7280';
                     if (typeof d === 'number') {
-                      if (d > 0.02) deltaColor = '#16A34A';
-                      else if (d < -0.02) deltaColor = '#DC2626';
+                      if (d > 0.02) deltaColor = retroColors.green;
+                      else if (d < -0.02) deltaColor = retroColors.red;
                     }
                     return (
                       <Typography key={k} variant="body2" sx={{ color: '#334155' }}>
@@ -663,7 +684,7 @@ export default function ClusterSidecard({
               <Box sx={{ mb: 1 }}>
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0 }}>
                   <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Delta vs Frequency</Typography>
-                  <Tooltip title="Each plot shows the relationship between quality delta and frequency for a specific metric. Each dot represents a model.">
+                  <Tooltip title="Each plot shows the change in performance per model when looking only at conversations that contain the behavior. Each dot represents a model.">
                     <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
                   </Tooltip>
                 </Stack>
@@ -726,6 +747,10 @@ export default function ClusterSidecard({
                             marker: {
                               color: modelColors[model] || '#6B7280',
                               size: 10,
+                              line: {
+                                color: '#FFFFFF',
+                                width: 1.5,
+                              },
                             },
                             hovertemplate: `${model}<br>Quality Δ: %{x:.${decimals}f}<br>Frequency: %{y:.${decimals}f}<extra></extra>`,
                             error_x: errorX,
@@ -734,16 +759,43 @@ export default function ClusterSidecard({
                           };
                         });
 
+                        // Calculate x-axis range to center the 0 line
+                        let xMin = 0;
+                        let xMax = 0;
+                        scatterData.forEach(trace => {
+                          const xVal = trace.x[0] as number;
+                          // Include error bars in range calculation if present
+                          let minX = xVal;
+                          let maxX = xVal;
+                          if (trace.error_x) {
+                            const errorX = trace.error_x as any;
+                            if (errorX.array && errorX.array.length > 0) {
+                              maxX = xVal + errorX.array[0];
+                            }
+                            if (errorX.arrayminus && errorX.arrayminus.length > 0) {
+                              minX = xVal - errorX.arrayminus[0];
+                            }
+                          }
+                          xMin = Math.min(xMin, minX);
+                          xMax = Math.max(xMax, maxX);
+                        });
+
+                        // Make range symmetric around 0
+                        const maxAbs = Math.max(Math.abs(xMin), Math.abs(xMax));
+                        // Add a small padding (10% of range, or 0.1 if range is 0)
+                        const padding = maxAbs > 0 ? maxAbs * 0.1 : 0.1;
+                        const symmetricRange = maxAbs > 0 ? maxAbs + padding : 0.1;
+
                         return (
                           <Box key={metric} sx={{ flex: 1, minWidth: 0 }}>
                             <Typography variant="caption" sx={{ color: '#6B7280', display: 'block', mb: 0.5, textAlign: 'center' }}>
                               {metric}
                             </Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0, px: 1, width: '100%' }}>
-                              <Typography variant="caption" sx={{ color: '#DC2626', fontSize: '9px', display: 'block' }}>
+                              <Typography variant="caption" sx={{ color: '#DC2626', fontSize: '11px', fontWeight: 500, display: 'block' }}>
                                 behavior is bad
                               </Typography>
-                              <Typography variant="caption" sx={{ color: '#059669', fontSize: '9px', display: 'block' }}>
+                              <Typography variant="caption" sx={{ color: '#059669', fontSize: '11px', fontWeight: 500, display: 'block' }}>
                                 behavior is good
                               </Typography>
                             </Box>
@@ -755,50 +807,17 @@ export default function ClusterSidecard({
                                 xaxis: {
                                   title: { text: 'Quality Δ', standoff: 15 },
                                   tickformat: `.${decimals}f`,
-                                  zeroline: false, // Disable default zeroline, we'll draw custom one
+                                  zeroline: true, // Use built-in zeroline for clean rendering
+                                  zerolinecolor: '#374151',
+                                  zerolinewidth: 2,
+                                  range: [-symmetricRange, symmetricRange], // Center 0 line
                                 },
                                 yaxis: {
                                   title: { text: 'Frequency', standoff: 15 },
                                   rangemode: 'tozero',
                                   tickformat: `.${decimals}f`
                                 },
-                                shapes: [
-                                  // Vertical line at x=0
-                                  {
-                                    type: 'line',
-                                    x0: 0,
-                                    x1: 0,
-                                    y0: 0,
-                                    y1: 1,
-                                    yref: 'paper',
-                                    line: {
-                                      color: '#374151',
-                                      width: 2,
-                                    },
-                                  },
-                                  // Diagonal band: top-left to bottom-right (behavior is bad)
-                                  {
-                                    type: 'path',
-                                    path: 'M 0,0.85 L 0,1 L 0.15,1 L 1,0.15 L 1,0 L 0.85,0 Z',
-                                    xref: 'paper',
-                                    yref: 'paper',
-                                    fillcolor: '#EF4444',
-                                    opacity: 0.15,
-                                    line: { width: 0 },
-                                    layer: 'below',
-                                  },
-                                  // Diagonal band: bottom-left to top-right (behavior is good)
-                                  {
-                                    type: 'path',
-                                    path: 'M 0,0 L 0,0.15 L 0.85,1 L 1,1 L 1,0.85 L 0.15,0 Z',
-                                    xref: 'paper',
-                                    yref: 'paper',
-                                    fillcolor: '#10B981',
-                                    opacity: 0.15,
-                                    line: { width: 0 },
-                                    layer: 'below',
-                                  },
-                                ],
+                                shapes: [],
                                 paper_bgcolor: '#FFFFFF',
                                 plot_bgcolor: '#FFFFFF',
                                 showlegend: i === 0,
@@ -848,7 +867,35 @@ export default function ClusterSidecard({
                       }}
                     >
                       <Box sx={{ mr: 2, flex: 1 }}>
-                        <Typography variant="body2">{prop.description}</Typography>
+                        <Box
+                          sx={{
+                            '& p': { margin: '4px 0' },
+                            '& code': { backgroundColor: '#f5f5f5', padding: '2px 4px', borderRadius: '4px', fontSize: '0.9em' },
+                            '& pre': { backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px', overflow: 'auto' },
+                            '& h1, & h2, & h3, & h4, & h5, & h6': { margin: '8px 0 4px 0', fontWeight: 600 },
+                            '& ul, & ol': { margin: '4px 0', paddingLeft: '20px' },
+                            '& blockquote': { borderLeft: '3px solid #ddd', paddingLeft: '12px', margin: '4px 0' },
+                            '& .katex': { fontSize: '1em' },
+                            '& .katex-display': { margin: '8px 0' },
+                          }}
+                        >
+                          <Typography variant="body2" component="div">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[rehypeKatex]}
+                              components={{
+                                a: ({ href, children, ...props }) => (
+                                  <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                                    {children}
+                                  </a>
+                                ),
+                                p: ({ children }) => <span>{children}</span>,
+                              }}
+                            >
+                              {prop.description}
+                            </ReactMarkdown>
+                          </Typography>
+                        </Box>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
                         {prop.model && (() => {

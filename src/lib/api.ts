@@ -10,9 +10,9 @@ export interface DetectResponse {
 }
 
 // Prefer same-origin proxy in dev to avoid CORS/ad-blockers: use /api unless explicitly overridden
-const API_BASE = (import.meta as any).env?.VITE_BACKEND || (globalThis as any)?.VITE_BACKEND || "/api";
+export const API_BASE = (import.meta as any).env?.VITE_BACKEND || (globalThis as any)?.VITE_BACKEND || "/api";
 // Debug print once (won't throw in production)
-try { console.debug("[stringsight] API_BASE:", API_BASE); } catch {}
+try { console.debug("[stringsight] API_BASE:", API_BASE); } catch { }
 
 /**
  * Check backend health endpoint. Returns true if reachable and ok.
@@ -58,10 +58,10 @@ export async function readPath(path: string): Promise<{ data: any[]; method: Met
 /**
  * List directory contents on the server
  */
-export async function listPath(path: string): Promise<{ 
-  files: string[]; 
-  dirs: string[]; 
-  parent: string | null; 
+export async function listPath(path: string): Promise<{
+  files: string[];
+  dirs: string[];
+  parent: string | null;
   current: string;
   error?: string;
 }> {
@@ -92,7 +92,7 @@ export async function resultsLoad(resultsDir: string): Promise<{
   const res = await fetch(`${API_BASE}/results/load`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ results_dir: resultsDir })
+    body: JSON.stringify({ path: resultsDir })
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -109,21 +109,21 @@ export async function dfGroupPreview(body: { rows: any[]; by: string; numeric_co
   const url = `${API_BASE}/df/groupby/preview`;
   console.log('🔴 dfGroupPreview: Making request to:', url);
   console.log('🔴 dfGroupPreview: Request body:', { by: body.by, rows_count: body.rows.length, numeric_cols: body.numeric_cols });
-  
-  const res = await fetch(url, { 
-    method: 'POST', 
-    headers: { 'Content-Type': 'application/json' }, 
-    body: JSON.stringify(body) 
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
   });
-  
+
   console.log('🔴 dfGroupPreview: Response status:', res.status, res.statusText);
-  
+
   if (!res.ok) {
     const errorText = await res.text();
     console.log('🔴 dfGroupPreview: Error response:', errorText);
     throw new Error(errorText);
   }
-  
+
   const result = await res.json();
   console.log('🔴 dfGroupPreview: Success response:', result);
   return result;
@@ -206,6 +206,12 @@ export async function extractBatch(body: {
 // Async batch job endpoints
 // ----------------------------
 
+import { getAuthHeaders } from './auth';
+
+// ----------------------------
+// Async batch job endpoints
+// ----------------------------
+
 export async function extractJobStart(body: {
   rows: Record<string, any>[];
   method?: 'single_model' | 'side_by_side';
@@ -222,33 +228,99 @@ export async function extractJobStart(body: {
   output_dir?: string | null;
   sample_size?: number;
 }) {
-  const res = await fetch(`${API_BASE}/extract/jobs/start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const res = await fetch(`${API_BASE}/api/v1/jobs/extract`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ job_id: string }>;
+}
+
+export async function pipelineJobStart(body: {
+  rows: Record<string, any>[];
+  method?: 'single_model' | 'side_by_side';
+  system_prompt?: string;
+  task_description?: string | null;
+  clusterer?: string;
+  min_cluster_size?: number;
+  embedding_model?: string;
+  extraction_model?: string;
+  summary_model?: string;
+  cluster_assignment_model?: string;
+  max_workers?: number;
+  use_wandb?: boolean;
+  sample_size?: number;
+  groupby_column?: string;
+  assign_outliers?: boolean;
+  score_columns?: string[];
+  output_dir?: string | null;
+  email?: string | null;
+}) {
+  const res = await fetch(`${API_BASE}/api/v1/jobs/pipeline`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify(body)
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<{ job_id: string }>;
 }
 
 export async function extractJobStatus(job_id: string) {
-  const u = `${API_BASE}/extract/jobs/status?job_id=${encodeURIComponent(job_id)}`;
-  const res = await fetch(u);
+  const res = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}`, {
+    headers: {
+      ...getAuthHeaders()
+    },
+  });
   if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ job_id: string; state: string; progress: number; count_done: number; count_total: number; error?: string }>;
+  return res.json() as Promise<{
+    id: string;
+    status: string;
+    progress: number;
+    error_message?: string;
+    result_path?: string;
+  }>;
 }
 
+// Legacy/Unused endpoints for now (or mapped to new ones if needed)
 export async function extractJobResult(job_id: string) {
-  const u = `${API_BASE}/extract/jobs/result?job_id=${encodeURIComponent(job_id)}`;
-  const res = await fetch(u);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ properties: any[]; count: number; cancelled?: boolean }>;
+  const res = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}/results`, {
+    headers: {
+      ...getAuthHeaders()
+    }
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to fetch results: ${errorText}`);
+  }
+  return res.json() as Promise<{ properties: any[]; result_path: string; count: number }>;
 }
 
 export async function extractJobCancel(job_id: string) {
-  const res = await fetch(`${API_BASE}/extract/jobs/cancel`, {
+  // Not yet implemented in backend
+  throw new Error("Not implemented");
+}
+
+export async function sendDemoEmail(body: {
+  email: string;
+  method: 'single_model' | 'side_by_side';
+}) {
+  const res = await fetch(`${API_BASE}/api/v1/jobs/email-demo`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ job_id })
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{ job_id: string; state: string; message: string; properties_count: number }>;
+  return res.json();
 }
 
 
@@ -312,4 +384,3 @@ export async function recomputeClusterMetrics(body: {
     total_unique_conversations?: number;
   }>;
 }
-

@@ -1,7 +1,6 @@
 /**
- * ModelComparisonTab - Displays model comparison cards showing behaviors
- * (as constrained by the global behavior filters) with positive, significant
- * frequency delta (>15%) for each model.
+ * ModelComparisonTab - Displays model comparison cards showing all behaviors
+ * (ignoring behavior-type filters) with positive frequency delta (>5%) for each model.
  */
 
 import React, { useMemo } from 'react';
@@ -16,7 +15,7 @@ import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
 import { ClusterLabel } from '../ClusterLabel';
 
 // Threshold for model cards (only show behaviors with frequency delta > this)
-const MODEL_CARD_MIN_DELTA = 0.15; // 15%
+const MODEL_CARD_MIN_DELTA = 0.05; // 5%
 
 // Model color palette (matches FrequencyChartAlt)
 const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
@@ -62,8 +61,13 @@ export function ModelComparisonTab({
   onNavigateToCluster
 }: ModelComparisonTabProps) {
   const modelCards = useMemo(() => {
+    // Get all unique models from the data (before filtering)
+    const allModels = data.length > 0 
+      ? [...new Set(data.map(row => row.model))].sort()
+      : [];
+
     if (!data.length) {
-      return [];
+      return { cards: [], allModels };
     }
 
     // Apply model filter
@@ -71,30 +75,21 @@ export function ModelComparisonTab({
       ? data.filter(row => filters.selectedModels.includes(row.model))
       : data;
 
-    // Get all unique models from the filtered data
-    const allModels = [...new Set(filteredData.map(row => row.model))].sort();
-
-    // MODEL CARDS - Behaviors (respecting global behavior filters) with positive, significant frequency delta per model
+    // MODEL CARDS - Show all behaviors (ignore behavior-type filter) with positive frequency delta per model
     const modelCardsMap = new Map<string, ModelCardBehavior[]>();
     
     filteredData.forEach(row => {
       const group = normalizeGroup(row.metadata?.group);
-      const selectedBehaviorTypes = Array.isArray(filters.selectedBehaviorTypes) ? filters.selectedBehaviorTypes : [];
-
-      // Respect behavior-type filter if present (include all if no selection)
-      if (selectedBehaviorTypes.length > 0 && !selectedBehaviorTypes.includes(group)) {
-        return;
-      }
       
       // Must have positive frequency delta
       const proportionDelta = row.proportion_delta || 0;
       if (proportionDelta <= 0) return;
       
-      // Must exceed threshold (>15%)
+      // Must exceed threshold (>5%)
       if (proportionDelta <= MODEL_CARD_MIN_DELTA) return;
       
-      // Must be significant
-      if (row.proportion_delta_significant !== true) return;
+      // // Must be significant
+      // if (row.proportion_delta_significant !== true) return;
       
       if (!modelCardsMap.has(row.model)) {
         modelCardsMap.set(row.model, []);
@@ -137,7 +132,7 @@ export function ModelComparisonTab({
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="body2" color="text.secondary">
-          No model comparison data found. Behaviors matching the selected types with positive, significant frequency delta (&gt;15%) will appear here.
+          No model comparison data found. Behaviors matching the selected types with positive, significant frequency delta (&gt;5%) will appear here.
         </Typography>
       </Box>
     );
@@ -157,7 +152,7 @@ export function ModelComparisonTab({
         Model Comparison
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Behaviors (per global filter) with positive, significant frequency delta (&gt;15%) for each model
+        All behaviors with positive frequency delta (&gt;5%) for each model
       </Typography>
 
       <Box

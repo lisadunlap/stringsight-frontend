@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, Component } from "react";
-import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton, Tooltip, Alert } from "@mui/material";
+import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton, Tooltip, Alert, FormControl, InputLabel, Select, MenuItem, Switch, Menu } from "@mui/material";
 import DownloadIcon from '@mui/icons-material/Download';
 import CloseIcon from '@mui/icons-material/Close';
 import JSZip from 'jszip';
@@ -8,10 +8,13 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import FindInPageIcon from '@mui/icons-material/FindInPage';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CodeIcon from '@mui/icons-material/Code';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
 import { flattenScores, normalizeMetricsColumnNames, enrichModelClusterScoresWithMetadata } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
@@ -42,10 +45,18 @@ import ClusterSidecard from "./components/ClusterSidecard";
 import type { MetricsFilters, MetricsSummary } from "./types/metrics";
 import { ColumnSelector, type ColumnMapping } from "./components/ColumnSelector";
 import { MetricsTab } from "./components/metrics/MetricsTab";
+import { getDisplayName } from "./components/metrics/utils/metricUtils";
 import type { DataOperation } from "./types/operations";
 import { TutorialProvider, useTutorial } from "./context/TutorialContext";
 import { createFilterOperation, createCustomCodeOperation, createSortOperation } from "./types/operations";
 import { EXTERNAL_LINKS } from "./config";
+import { Login } from "./components/Login";
+import { LoginDialog } from "./components/LoginDialog";
+import { getToken, removeToken } from "./lib/auth";
+import LogoutIcon from '@mui/icons-material/Logout';
+import { retroColors } from "./theme";
+import DemoModeSelector from "./components/DemoModeSelector";
+import DemoGuidancePopup from "./components/DemoGuidancePopup";
 
 
 
@@ -180,9 +191,9 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
     if (!modelMap.has(model)) {
       modelMap.set(model, {});
     }
-    
+
     const metrics = modelMap.get(model)!;
-    
+
     // Extract quality metrics (both absolute and delta)
     // 1) Flat columns: quality_<metric>, quality_delta_<metric>
     Object.keys(row).forEach(key => {
@@ -194,7 +205,7 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
           metrics[metric] = row[key];
         }
       }
-      
+
       // quality_delta_{metric} pattern
       const deltaMatch = key.match(/^quality_delta_(.+)$/);
       if (deltaMatch && !key.includes('_ci_') && !key.includes('_significant')) {
@@ -306,8 +317,8 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
   return enrichedClusters;
 }
 
-class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error?: Error}> {
-  constructor(props: {children: React.ReactNode}) {
+class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, error?: Error }> {
+  constructor(props: { children: React.ReactNode }) {
     super(props);
     this.state = { hasError: false };
   }
@@ -451,7 +462,7 @@ function ExampleFormatTabs() {
               <span style={{ color: '#16A34A', fontWeight: 600 }}>"trace_id"</span>
               {': "chatdev_0",\n    '}
               <span style={{ color: '#2563EB', fontWeight: 600 }}>"llm_name"</span>
-              {': "GPT-4o",\n    '}
+              {': "gpt-4.1",\n    '}
               <span style={{ color: '#9333EA', fontWeight: 600 }}>"trajectory"</span>
               {': "[2025-31-03 19:09:41 INFO] **[Preprocessing]**\\n\\n**ChatDev Starts** (20250331190941)\\n\\n**Timestamp**: 20250331190941\\n\\n**config_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/ChatChainConfig.json\\n\\n**config_phase_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/PhaseConfig.json\\n\\n**config_role_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/RoleConfig.json\\n\\n**task_prompt**: Develop a Checkers (Draughts) game. Use an 8x8 board, alternate turns between two players, and apply standard capture and kinging rules [rest of trajectory]",\n    '}
               <span style={{ color: '#EA580C', fontWeight: 600 }}>"reward"</span>
@@ -461,7 +472,7 @@ function ExampleFormatTabs() {
               <span style={{ color: '#16A34A', fontWeight: 600 }}>"trace_id"</span>
               {': "chatdev_0",\n    '}
               <span style={{ color: '#2563EB', fontWeight: 600 }}>"llm_name"</span>
-              {': "GPT-4o w/ ICL prompts",\n    '}
+              {': "gpt-4.1 w/ ICL prompts",\n    '}
               <span style={{ color: '#9333EA', fontWeight: 600 }}>"trajectory"</span>
               {': "[2025-31-03 19:30:18 INFO] **[Preprocessing]**\\n\\n**ChatDev Starts** (20250331193018)\\n\\n**Timestamp**: 20250331193018\\n\\n**config_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/ChatChainConfig.json\\n\\n**config_phase_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/PhaseConfig.json\\n\\n**config_role_path**: /home/mert/mlsys/ChatDev/CompanyConfig/Prompted/RoleConfig.json\\n\\n**task_prompt**: Develop a Checkers (Draughts) game. Use an 8x8 board, alternate turns between two players, and apply standard capture and kinging rules [rest of trajectory]",\n    '}
               <span style={{ color: '#EA580C', fontWeight: 600 }}>"reward"</span>
@@ -548,7 +559,10 @@ function ExampleFormatTabs() {
   );
 }
 
+
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getToken());
+
   // Data management layers as suggested
   const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]); // Raw uploaded data
   const [uploadedFileName, setUploadedFileName] = useState<string>(''); // Original file name without extension
@@ -557,21 +571,48 @@ function App() {
   const [currentRows, setCurrentRows] = useState<Record<string, any>[]>([]); // With filters applied
 
   const [method, setMethod] = useState<"single_model" | "side_by_side" | "unknown">("unknown");
+
+  const handleLogout = () => {
+    removeToken();
+    setIsAuthenticated(false);
+    // Reset state
+    setOriginalRows([]);
+    setOperationalRows([]);
+    setCurrentRows([]);
+    setPropertiesRows([]);
+    setClusters([]);
+    setIsDemoSession(false); // Added
+  };
+  // Login dialog state
+  const [loginOpen, setLoginOpen] = useState(false);
+
+  // Demo mode selector dialog state
+  const [demoModeSelectorOpen, setDemoModeSelectorOpen] = useState(false);
+  const [isDemoSession, setIsDemoSession] = useState(false); // Added
+
+  // Demo guidance popup state - tracks which section popups have been dismissed
+  const [dismissedDemoPopups, setDismissedDemoPopups] = useState<Set<string>>(new Set());
+
+  // Results load menu state
+  const [resultsMenuAnchor, setResultsMenuAnchor] = useState<null | HTMLElement>(null);
+
+  // ... rest of the component ...
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const traceContentRef = useRef<HTMLDivElement>(null);
   const appBarRef = useRef<HTMLDivElement>(null);
+  const propertiesSectionRef = useRef<HTMLDivElement>(null);
   const [appBarHeight, setAppBarHeight] = useState<number>(64); // Default toolbar height
-  
+
   // Use refs for values that callbacks need to read but shouldn't trigger recreation
   const operationalRowsRef = useRef<Record<string, any>[]>([]);
   const methodRef = useRef<"single_model" | "side_by_side" | "unknown">("unknown");
-  
+
   // Update refs when state changes
   React.useEffect(() => {
     operationalRowsRef.current = operationalRows;
   }, [operationalRows]);
-  
+
   React.useEffect(() => {
     methodRef.current = method;
   }, [method]);
@@ -588,14 +629,14 @@ function App() {
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
   const [clusterSearchQuery, setClusterSearchQuery] = useState<string>('');
-  
+
   // Cluster sidecard state
   const [clusterSidecardOpen, setClusterSidecardOpen] = useState<boolean>(false);
   const [selectedCluster, setSelectedCluster] = useState<any | null>(null);
-  
+
   // Highlight extraction icon when data is loaded but no properties exist
   const [highlightExtractionIcon, setHighlightExtractionIcon] = useState<boolean>(false);
-  
+
   // Results loading indicator
   const [isLoadingResults, setIsLoadingResults] = useState<boolean>(false);
   const [resultsLoadingMessage, setResultsLoadingMessage] = useState<string>('');
@@ -605,6 +646,7 @@ function App() {
   const [totalConversationsByModel, setTotalConversationsByModel] = useState<Record<string, number> | null>(null);
   const [totalUniqueConversations, setTotalUniqueConversations] = useState<number | null>(null);
   const [clusteringAlertDismissed, setClusteringAlertDismissed] = useState<boolean>(false);
+  const [clusteringJustCompleted, setClusteringJustCompleted] = useState<boolean>(false);
   // Results mode (when loading full_dataset.json)
   const [isResultsMode, setIsResultsMode] = useState<boolean>(false);
   const [resultsMetrics, setResultsMetrics] = useState<{ model_cluster_scores?: any; cluster_scores?: any; model_scores?: any } | null>(null);
@@ -624,8 +666,12 @@ function App() {
     sortBy: 'proportion_delta_desc',
     topN: 5,
     significanceOnly: false,
-    showCI: true,
+    showCI: false,
   });
+
+  // Benchmark view mode for data tab
+  const [benchmarkViewMode, setBenchmarkViewMode] = useState<'table' | 'graph'>('table');
+  const [availableQualityMetrics, setAvailableQualityMetrics] = useState<string[]>([]);
 
   // Metrics data for sidebar
   const [metricsAvailableModels, setMetricsAvailableModels] = useState<string[]>([]);
@@ -647,7 +693,7 @@ function App() {
         sortBy: 'proportion_delta_desc',
         topN: 5,
         significanceOnly: false,
-        showCI: true,
+        showCI: false,
       });
       // Clear previous metrics metadata
       setMetricsAvailableModels([]);
@@ -657,9 +703,16 @@ function App() {
     }
   }, [resultsMetrics]);
 
+  // Auto-dismiss clustering alert when user navigates to metrics tab
+  React.useEffect(() => {
+    if (activeSection === 'metrics' && !clusteringAlertDismissed) {
+      setClusteringAlertDismissed(true);
+    }
+  }, [activeSection, clusteringAlertDismissed]);
+
   // Demo mode: Check if demo mode is enabled (backend operations will be limited to 100 rows)
   const isDemoMode = import.meta.env.VITE_DEMO === 'true';
-  const demoSampleSize = 100;
+  const demoSampleSize = 50;
 
   // (demo banner removed)
 
@@ -686,7 +739,7 @@ function App() {
   const [batchState, setBatchState] = useState<string | null>(null);
   type PipelineStage = 'idle' | 'extraction' | 'clustering';
   const [pipelineStage, setPipelineStage] = useState<PipelineStage>('idle');
-  
+
   // Flexible column mapping state
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
@@ -695,10 +748,11 @@ function App() {
   const [mappingValid, setMappingValid] = useState(false);
   const [mappingErrors, setMappingErrors] = useState<string[]>([]); // reserved for future validation UI
   const [filterNotice, setFilterNotice] = useState<string | null>(null);
-  
+
   // Refs for file inputs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resultsInputRef = useRef<HTMLInputElement>(null);
+  const resultsZipInputRef = useRef<HTMLInputElement>(null);
 
   // Backend availability check on mount
   React.useEffect(() => {
@@ -806,6 +860,12 @@ function App() {
     setMethod('unknown');
     setIsResultsMode(mode === 'results');
     setResultsMetrics(null);
+    setHasViewedClusters(false); // Added
+    setIsDemoSession(false); // Added
+    setUploadedFileName(''); // Added
+    setResultsName(''); // Added
+    setResultsError(null); // Added
+    setDismissedDemoPopups(new Set()); // Reset demo guidance popups
     // Hide column selector when loading results (results are already in correct format)
     if (mode === 'results') {
       setShowColumnSelector(false);
@@ -856,7 +916,7 @@ function App() {
     // Create auto-detected mapping based on legacy detection and available columns
     const autoMapping: ColumnMapping = {
       promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
-      responseCols: legacyDetected === 'side_by_side' 
+      responseCols: legacyDetected === 'side_by_side'
         ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
         : columns.filter(c => c.includes('model_response')),
       modelCols: legacyDetected === 'side_by_side'
@@ -902,7 +962,7 @@ function App() {
 
       try {
         await detectAndValidate(file); // optional backend validation
-      } catch (_) {}
+      } catch (_) { }
     } catch (e: any) {
       console.error('❌ Failed to parse file:', e);
       setResultsError(String(e?.message || e));
@@ -918,6 +978,11 @@ function App() {
 
   const tutorial = useTutorial();
 
+  // Handler for dismissing demo guidance popups
+  const handleDismissDemoPopup = React.useCallback((section: string) => {
+    setDismissedDemoPopups(prev => new Set(prev).add(section));
+  }, []);
+
   // When the demo-data tutorial reaches the "extract trace" step, automatically
   // switch to the Extraction section so users see where to run property extraction.
   React.useEffect(() => {
@@ -930,15 +995,20 @@ function App() {
   }, [tutorial, setActiveSection, setSidebarExpanded]);
 
   // Load demo dataset from a bundled JSONL file and reuse the same flow as upload
-  const onLoadDemoData = React.useCallback(async () => {
+  const onLoadDemoData = React.useCallback(async (selectedMode: 'single_model' | 'side_by_side') => {
     // Treat as a new source
     resetUiStateForNewSource('file');
     setIsLoadingResults(true);
     setResultsLoadingMessage('Loading demo data...');
 
     try {
-      // Fetch from public root; ensure file exists at public/taubench_airline.jsonl
-      const res = await fetch('/taubench_airline.jsonl');
+      // Choose file based on selected mode
+      const demoFileName = selectedMode === 'side_by_side'
+        ? 'taubench_airline_sbs.jsonl'
+        : 'taubench_airline.jsonl';
+
+      // Fetch from public root; ensure file exists at public/taubench_airline.jsonl or public/taubench_airline_sbs.jsonl
+      const res = await fetch(`/${demoFileName}`);
       if (!res.ok) {
         throw new Error(`Failed to fetch demo data (HTTP ${res.status})`);
       }
@@ -963,24 +1033,31 @@ function App() {
       setFilterNotice(null);
 
       // Set filename for demo data
-      setUploadedFileName('taubench_airline');
-      setResultsName('taubench_airline');
+      const baseFileName = selectedMode === 'side_by_side' ? 'taubench_airline_sbs' : 'taubench_airline';
+      setUploadedFileName(baseFileName);
+      setResultsName(baseFileName);
+      setIsDemoSession(true); // Added
 
-      // Auto-detect mapping using legacy detection
-      const legacyDetected = detectMethodFromColumns(columns);
+      // Create mapping based on user-selected mode
       const autoMapping: ColumnMapping = {
         promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
-        responseCols: legacyDetected === 'side_by_side'
-          ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
-          : columns.filter(c => c.includes('model_response')),
-        modelCols: legacyDetected === 'side_by_side'
-          ? columns.filter(c => (c.includes('model_a') || c.includes('model_b')) && !c.includes('response'))
+        responseCols: selectedMode === 'side_by_side'
+          ? [
+            columns.find(c => c.includes('model_a_response')) || '',
+            columns.find(c => c.includes('model_b_response')) || ''
+          ].filter(Boolean)
+          : columns.filter(c => c === 'model_response'),
+        modelCols: selectedMode === 'side_by_side'
+          ? [
+            columns.find(c => c.includes('model_a') && !c.includes('response')) || '',
+            columns.find(c => c.includes('model_b') && !c.includes('response')) || ''
+          ].filter(Boolean)
           : columns.filter(c => c.toLowerCase() === 'model'),
         scoreCols: columns.filter(c => c.toLowerCase().includes('score')),
-        method: legacyDetected === 'unknown' ? 'single_model' : legacyDetected
+        method: selectedMode
       };
       setAutoDetectedMapping(autoMapping);
-      
+
       // Automatically apply the mapping and process data (skip column selector for demo data)
       processDataWithMapping(rows, autoMapping);
       setShowColumnSelector(false);
@@ -1003,7 +1080,7 @@ function App() {
       setIsLoadingResults(false);
       setResultsLoadingMessage('');
     }
-  }, [resetUiStateForNewSource, applyAutoMappingFromColumns, tutorial]);
+  }, [resetUiStateForNewSource, processDataWithMapping, tutorial]);
 
   // Load results from local folder
   const onLoadResultsLocal = React.useCallback(async (files: FileList) => {
@@ -1015,7 +1092,7 @@ function App() {
       // Parse all JSON/JSONL files from the folder
       const fileArray = Array.from(files);
       const jsonFiles = fileArray.filter(f => f.name.endsWith('.json') || f.name.endsWith('.jsonl'));
-      
+
       console.log('📁 All files in folder:', fileArray.map(f => f.name));
       console.log('📄 JSON/JSONL files found:', jsonFiles.map(f => f.name));
 
@@ -1068,7 +1145,7 @@ function App() {
                 // If it's a single object, wrap it in an array
                 conversations = [data];
               }
-              
+
               // Also extract properties and clusters from full_dataset.json
               if (Array.isArray(data.properties) && properties.length === 0) {
                 properties = data.properties;
@@ -1079,7 +1156,7 @@ function App() {
                 console.log(`✅ Loaded ${clusters.length} clusters from ${file.name}`);
               }
             }
-            
+
             console.log(`✅ Loaded ${conversations.length} conversations from ${file.name}`);
             console.log(`📊 Sample conversation:`, conversations[0]);
             console.log(`📊 Sample conversation keys:`, Object.keys(conversations[0] || {}));
@@ -1197,13 +1274,17 @@ function App() {
 
       // Load properties (no pre-enrichment needed - PropertiesTab handles at render time)
       // Don't add __index since property index doesn't match conversation index
-      if (properties.length > 0) {
+      // Skip loading properties in demo mode to start with empty table
+      if (properties.length > 0 && (!isDemoMode || isDemoSession)) {
         setPropertiesRows(properties);
         console.log(`✅ Loaded ${properties.length} properties`);
+      } else if (isDemoMode && !isDemoSession && properties.length > 0) {
+        console.log(`⚠️ Demo mode: Skipping ${properties.length} pre-loaded properties - table will start empty`);
       }
 
       // Load or compute metrics and enrich clusters
-      if (clusters.length > 0) {
+      // Skip loading clusters in demo mode to allow fresh clustering
+      if (clusters.length > 0 && (!isDemoMode || isDemoSession)) {
         if (Object.keys(metrics).length > 0) {
           // Use pre-computed metrics if available
           const normalizedMetrics = normalizeMetricsColumnNames(metrics);
@@ -1288,13 +1369,16 @@ function App() {
           setClusters(ensureExamplesArray(clusters));
           console.log(`✅ Loaded ${clusters.length} clusters (no metrics available)`);
         }
+      } else if (isDemoMode && !isDemoSession && clusters.length > 0) {
+        console.log(`⚠️ Demo mode: Skipping ${clusters.length} pre-loaded clusters - will cluster from scratch`);
       }
 
       // Switch to appropriate view based on loaded data
-      if (clusters.length > 0 && Object.keys(metrics).length > 0) {
+      // In demo mode, stay on data tab to let user follow the tutorial
+      if ((!isDemoMode || isDemoSession) && clusters.length > 0 && Object.keys(metrics).length > 0) {
         setActiveSection('metrics');
         console.log('📊 Switched to Metrics view');
-      } else if (clusters.length > 0) {
+      } else if ((!isDemoMode || isDemoSession) && clusters.length > 0) {
         setActiveSection('clusters');
         console.log('📊 Switched to Clusters view');
       } else if (properties.length > 0) {
@@ -1325,6 +1409,352 @@ function App() {
     }
   }, [resetUiStateForNewSource, processDataWithMapping]);
 
+  // Load results from zip file
+  const onLoadResultsZip = React.useCallback(async (file: File) => {
+    resetUiStateForNewSource('results');
+    setIsLoadingResults(true);
+    setResultsLoadingMessage('Extracting and loading results from zip file...');
+
+    // Helper to ensure examples is always an array
+    const ensureExamples = (cs: any[]) => (cs || []).map((c: any) => ({ ...c, examples: c.examples || [] }));
+
+    try {
+      // Extract zip file
+      let zip: JSZip;
+      let zipContents: JSZip;
+      try {
+        zip = new JSZip();
+        zipContents = await zip.loadAsync(file);
+      } catch (e: any) {
+        throw new Error(`Invalid zip file. Please ensure you're uploading a valid .zip file. Error: ${e?.message || 'Unknown error'}`);
+      }
+
+      console.log('📦 Zip file contents:', Object.keys(zipContents.files));
+
+      // Convert zip files to File-like objects for processing
+      const fileArray: File[] = [];
+      for (const [filename, zipEntry] of Object.entries(zipContents.files)) {
+        // Skip directories
+        if (zipEntry.dir) continue;
+
+        // Get file content as blob
+        const blob = await zipEntry.async('blob');
+        // Create a File-like object with the original filename
+        const file = new File([blob], filename.split('/').pop() || filename, { type: 'application/json' });
+        fileArray.push(file);
+      }
+
+      // Filter JSON/JSONL files
+      const jsonFiles = fileArray.filter(f => f.name.endsWith('.json') || f.name.endsWith('.jsonl'));
+
+      console.log('📄 JSON/JSONL files found in zip:', jsonFiles.map(f => f.name));
+
+      if (jsonFiles.length === 0) {
+        const allFiles = Object.keys(zipContents.files).filter(f => !zipContents.files[f].dir);
+        throw new Error(
+          `No JSON or JSONL files found in zip file.\n\n` +
+          `Found files: ${allFiles.length > 0 ? allFiles.join(', ') : 'none'}\n\n` +
+          `Expected files:\n` +
+          `- conversation.jsonl or conversations.jsonl (required)\n` +
+          `- properties.jsonl (optional)\n` +
+          `- clusters.jsonl (optional)\n` +
+          `- model_cluster_scores_df.jsonl (optional)\n` +
+          `- cluster_scores_df.jsonl (optional)\n` +
+          `- model_scores_df.jsonl (optional)`
+        );
+      }
+
+      let conversations: any[] = [];
+      let properties: any[] = [];
+      let clusters: any[] = [];
+      let metrics: any = null;
+
+      // Load each file based on name (same logic as onLoadResultsLocal)
+      for (const file of jsonFiles) {
+        const text = await file.text();
+        const name = file.name.toLowerCase();
+
+        console.log(`🔍 Processing file: ${file.name} (${text.length} bytes)`);
+
+        try {
+          if (name === 'conversation.jsonl' || name === 'conversations.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            conversations = lines.map(line => JSON.parse(line));
+            console.log(`✅ Loaded ${conversations.length} conversations from ${file.name}`);
+            console.log(`📊 Sample conversation:`, conversations[0]);
+          } else if (name === 'full_dataset.json' || name === 'conversations.json') {
+            if (conversations.length > 0) {
+              console.log(`⏭️ Skipping ${file.name} - already loaded conversations from .jsonl file`);
+              continue;
+            }
+
+            const data = JSON.parse(text);
+
+            if (Array.isArray(data)) {
+              conversations = data;
+            } else if (data && typeof data === 'object') {
+              if (Array.isArray(data.conversations)) {
+                conversations = data.conversations;
+              } else if (Array.isArray(data.data)) {
+                conversations = data.data;
+              } else if (Array.isArray(data.rows)) {
+                conversations = data.rows;
+              } else if (Array.isArray(data.results)) {
+                conversations = data.results;
+              } else {
+                conversations = [data];
+              }
+
+              if (Array.isArray(data.properties) && properties.length === 0) {
+                properties = data.properties;
+                console.log(`✅ Loaded ${properties.length} properties from ${file.name}`);
+              }
+              if (Array.isArray(data.clusters) && clusters.length === 0) {
+                clusters = data.clusters;
+                console.log(`✅ Loaded ${clusters.length} clusters from ${file.name}`);
+              }
+            }
+
+            console.log(`✅ Loaded ${conversations.length} conversations from ${file.name}`);
+            console.log(`📊 Sample conversation:`, conversations[0]);
+            console.log(`📊 Sample conversation keys:`, Object.keys(conversations[0] || {}));
+          } else if (name === 'properties.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            properties = lines.map(line => JSON.parse(line));
+            console.log(`✅ Loaded ${properties.length} properties from ${file.name}`);
+          } else if (name === 'parsed_properties.jsonl') {
+            if (properties.length === 0) {
+              const lines = text.split('\n').filter(l => l.trim());
+              properties = lines.map(line => JSON.parse(line));
+              console.log(`✅ Loaded ${properties.length} properties from ${file.name} (legacy format)`);
+            }
+          } else if (name === 'clusters.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            clusters = lines.map(line => JSON.parse(line));
+            console.log(`✅ Loaded ${clusters.length} clusters from ${file.name}`);
+          } else if (name === 'model_cluster_scores_df.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            const scores = lines.map(line => JSON.parse(line));
+            if (!metrics) metrics = {};
+            metrics.model_cluster_scores = scores;
+            console.log(`✅ Loaded ${scores.length} model_cluster_scores from ${file.name}`);
+          } else if (name === 'cluster_scores_df.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            const scores = lines.map(line => JSON.parse(line));
+            if (!metrics) metrics = {};
+            metrics.cluster_scores = scores;
+            console.log(`✅ Loaded ${scores.length} cluster_scores from ${file.name}`);
+          } else if (name === 'model_scores_df.jsonl') {
+            const lines = text.split('\n').filter(l => l.trim());
+            const scores = lines.map(line => JSON.parse(line));
+            if (!metrics) metrics = {};
+            metrics.model_scores = scores;
+            console.log(`✅ Loaded ${scores.length} model_scores from ${file.name}`);
+          } else {
+            console.log(`⚠️ Skipping unrecognized file: ${file.name}`);
+          }
+        } catch (e: any) {
+          console.error(`❌ Failed to parse ${file.name}:`, e);
+          const errorMsg = e?.message || String(e);
+          throw new Error(
+            `Failed to parse file "${file.name}" in zip.\n\n` +
+            `Error: ${errorMsg}\n\n` +
+            `Please ensure the file is valid JSON or JSONL format.`
+          );
+        }
+      }
+
+      if (conversations.length === 0) {
+        const foundFiles = jsonFiles.map(f => f.name).join(', ');
+        throw new Error(
+          `No conversation data found in zip file.\n\n` +
+          `Found files: ${foundFiles || 'none'}\n\n` +
+          `Required: One of the following files with conversation data:\n` +
+          `- conversation.jsonl\n` +
+          `- conversations.jsonl\n` +
+          `- full_dataset.json\n` +
+          `- conversations.json\n\n` +
+          `The zip file should contain at least one of these files with your conversation/response data.`
+        );
+      }
+
+      // Process conversations (same as onLoadResultsLocal)
+      console.log('🔧 Processing conversations...');
+      const columns = inferColumns(conversations);
+      console.log('📋 Detected columns:', columns);
+
+      const detectedMethod = detectMethodFromColumns(columns);
+      console.log('🎯 Detected method:', detectedMethod);
+      setMethod(detectedMethod);
+
+      setOriginalRows(conversations);
+      setAvailableColumns(columns);
+
+      const operational = conversations.map((conv, idx) => ({
+        __index: idx,
+        question_id: conv.question_id,
+        prompt: conv.prompt,
+
+        ...(conv.model && {
+          model: conv.model,
+          model_response: conv.model_response,
+          score: conv.score
+        }),
+
+        ...(conv.model_a && {
+          model_a: conv.model_a,
+          model_b: conv.model_b,
+          model_a_response: conv.model_a_response,
+          model_b_response: conv.model_b_response,
+          score_a: conv.score_a,
+          score_b: conv.score_b
+        })
+      }));
+
+      console.log('🔧 DEBUG: Setting operationalRows:', {
+        count: operational.length,
+        sampleRow: operational[0],
+        method: detectedMethod,
+        hasScores: operational[0]?.score || operational[0]?.score_a || operational[0]?.score_b
+      });
+      setOperationalRows(operational);
+
+      const modelNames = detectedMethod === 'side_by_side' && operational.length > 0
+        ? { modelA: operational[0]?.model_a, modelB: operational[0]?.model_b }
+        : undefined;
+
+      const { rows: flattened, columns: flattenedColumns } = flattenScores(operational, detectedMethod, modelNames);
+      console.log('📊 DEBUG: After flattening:', {
+        outputRows: flattened.length,
+        sampleOutputRow: flattened[0],
+        columns: flattenedColumns,
+        scoreColumns: flattenedColumns.filter(c => c.startsWith('score_'))
+      });
+      setCurrentRows(flattened);
+
+      setShowColumnSelector(false);
+
+      if (properties.length > 0) {
+        setPropertiesRows(properties);
+        console.log(`✅ Loaded ${properties.length} properties`);
+      }
+
+      if (clusters.length > 0) {
+        if (Object.keys(metrics || {}).length > 0) {
+          const normalizedMetrics = normalizeMetricsColumnNames(metrics);
+          console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
+
+          if (normalizedMetrics.model_cluster_scores) {
+            normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+              normalizedMetrics.model_cluster_scores,
+              clusters
+            );
+          }
+
+          setResultsMetrics(normalizedMetrics);
+
+          if (normalizedMetrics.model_cluster_scores) {
+            const enrichedClusters = enrichClustersWithQualityData(
+              clusters,
+              normalizedMetrics.model_cluster_scores
+            );
+            setClusters(ensureExamples(enrichedClusters));
+            console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with pre-computed metrics)`);
+          }
+        } else if (conversations.length > 0 && properties.length > 0) {
+          console.log('🔢 Computing metrics on-the-fly from conversations + properties + clusters');
+          console.log('🔢 Data available:', {
+            conversations: conversations.length,
+            operational: operational.length,
+            properties: properties.length,
+            clusters: clusters.length
+          });
+
+          try {
+            const { computeClusterMetrics } = await import('./lib/clusterMetrics');
+
+            const clusterMetrics = computeClusterMetrics(
+              operational,
+              properties,
+              clusters
+            );
+
+            console.log('🔢 Computed metrics for clusters:', clusterMetrics.length);
+            console.log('🔢 Sample cluster metrics:', clusterMetrics[0]);
+
+            const enrichedClusters = clusters.map(cluster => {
+              const metrics = clusterMetrics.find(m => String(m.cluster_id) === String(cluster.id));
+              if (!metrics) {
+                console.warn('⚠️ No metrics found for cluster:', cluster.id);
+                return cluster;
+              }
+
+              console.log(`📊 Enriching cluster ${cluster.label} with:`, {
+                quality_delta_by_model: metrics.quality_delta_by_model,
+                total_unique_conversations: metrics.total_unique_conversations
+              });
+
+              return {
+                ...cluster,
+                meta: {
+                  ...cluster.meta,
+                  proportion_overall: metrics.proportion_overall,
+                  proportion_by_model: metrics.proportion_by_model,
+                  quality_by_model: metrics.quality_by_model,
+                  quality_delta_by_model: metrics.quality_delta_by_model,
+                  total_unique_conversations: metrics.total_unique_conversations
+                }
+              };
+            });
+
+            setClusters(ensureExamples(enrichedClusters));
+            console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with computed metrics)`);
+            console.log('✅ Sample enriched cluster meta:', enrichedClusters[0]?.meta);
+          } catch (error) {
+            console.error('❌ Error computing cluster metrics:', error);
+            setClusters(ensureExamples(clusters));
+            console.log(`⚠️ Loaded ${clusters.length} clusters without metrics due to error`);
+          }
+        } else {
+          setClusters(ensureExamples(clusters));
+          console.log(`✅ Loaded ${clusters.length} clusters (no metrics available)`);
+        }
+      }
+
+      if (clusters.length > 0 && Object.keys(metrics || {}).length > 0) {
+        setActiveSection('metrics');
+        console.log('📊 Switched to Metrics view');
+      } else if (clusters.length > 0) {
+        setActiveSection('clusters');
+        console.log('📊 Switched to Clusters view');
+      } else if (properties.length > 0) {
+        setActiveSection('extraction');
+        console.log('📊 Switched to Properties view');
+      } else {
+        setActiveSection('data');
+        console.log('📊 Staying on Data view');
+      }
+
+      console.log('✅ Results loaded successfully from zip:', {
+        conversations: conversations.length,
+        properties: properties.length,
+        clusters: clusters.length,
+        hasMetrics: !!metrics
+      });
+
+    } catch (e: any) {
+      console.error('❌ Failed to load results from zip:', e);
+      setResultsError(String(e?.message || e));
+    } finally {
+      setIsLoadingResults(false);
+      setResultsLoadingMessage('');
+      // Reset file input so the same zip can be uploaded again
+      if (resultsInputRef.current) {
+        resultsInputRef.current.value = '';
+      }
+    }
+  }, [resetUiStateForNewSource]);
+
   // Removed local results folder loader (unused)
 
   // Removed server file loader
@@ -1336,31 +1766,31 @@ function App() {
     const modelColumn = mapping.selectedModels!.column;
     const modelA = mapping.selectedModels!.modelA;
     const modelB = mapping.selectedModels!.modelB;
-    
+
     // Filter to only rows with modelA or modelB
     const filteredRows = rows.filter(r => {
       const m = String(r[modelColumn] || '');
       return m === modelA || m === modelB;
     });
-    
+
     // Group by question_id (or prompt if missing)
     const groups = new Map<string, Record<string, any>[]>();
     filteredRows.forEach(row => {
-      const qid = row['question_id'] != null && row['question_id'] !== '' 
-        ? String(row['question_id']) 
+      const qid = row['question_id'] != null && row['question_id'] !== ''
+        ? String(row['question_id'])
         : String(row[mapping.promptCol] || '');
       if (!groups.has(qid)) groups.set(qid, []);
       groups.get(qid)!.push(row);
     });
-    
+
     // Build side-by-side rows: keep only groups with exactly 2 rows (one per model)
     const pairedRows: Record<string, any>[] = [];
     let pairIndex = 0;
-    
+
     groups.forEach((groupRows, qid) => {
       const rowA = groupRows.find(r => String(r[modelColumn]) === modelA);
       const rowB = groupRows.find(r => String(r[modelColumn]) === modelB);
-      
+
       if (rowA && rowB) {
         const sbsRow: Record<string, any> = {
           __index: pairIndex++,
@@ -1371,7 +1801,7 @@ function App() {
           model_a_response: rowA[mapping.responseCols[0]] || '',
           model_b_response: rowB[mapping.responseCols[0]] || '',
         };
-        
+
         // Build score_a and score_b from selected score columns
         if (mapping.scoreCols.length > 0) {
           const toNumber = (v: any): number | undefined => {
@@ -1420,11 +1850,11 @@ function App() {
           if (scoreA) sbsRow.score_a = scoreA;
           if (scoreB) sbsRow.score_b = scoreB;
         }
-        
+
         pairedRows.push(sbsRow);
       }
     });
-    
+
     return pairedRows;
   }
 
@@ -1443,12 +1873,12 @@ function App() {
       // Prefer existing question_id if present; otherwise fallback to row index
       const existingQid = row['question_id'];
       opRow.question_id = existingQid != null && existingQid !== '' ? String(existingQid) : String(index);
-      
+
       // Map prompt column
       if (mapping.promptCol && row[mapping.promptCol] !== undefined) {
         opRow.prompt = row[mapping.promptCol];
       }
-      
+
       // Map response columns
       if (mapping.method === 'single_model' && mapping.responseCols[0]) {
         opRow.model_response = row[mapping.responseCols[0]];
@@ -1456,7 +1886,7 @@ function App() {
         if (mapping.responseCols[0]) opRow.model_a_response = row[mapping.responseCols[0]];
         if (mapping.responseCols[1]) opRow.model_b_response = row[mapping.responseCols[1]];
       }
-      
+
       // Map model columns (with defaults if not mapped)
       if (mapping.method === 'single_model') {
         if (mapping.modelCols[0]) {
@@ -1479,7 +1909,7 @@ function App() {
           opRow.model_b = 'model_b';
         }
       }
-      
+
       // Build score dictionaries per selected columns (backend contract)
       if (mapping.scoreCols.length > 0) {
         const toNumber = (v: any): number | undefined => {
@@ -1490,7 +1920,7 @@ function App() {
           }
           return undefined;
         };
-        
+
         const parseMaybeJsonDict = (v: any): Record<string, any> | null => {
           if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, any>;
           if (typeof v === 'string') {
@@ -1526,8 +1956,8 @@ function App() {
             const raw = row[col];
             const asDict = parseMaybeJsonDict(raw);
             const target = col.toLowerCase().includes('_b') ? scoreBDict
-                          : col.toLowerCase().includes('_a') ? scoreADict
-                          : null; // apply to both if null
+              : col.toLowerCase().includes('_a') ? scoreADict
+                : null; // apply to both if null
             if (asDict) {
               for (const [k, v] of Object.entries(asDict)) {
                 const num = toNumber(v);
@@ -1579,11 +2009,11 @@ function App() {
       method: mapping.method,
       scoreObject: rowsAfterFilter[0]?.score || rowsAfterFilter[0]?.score_a,
       scoreKeys: rowsAfterFilter[0]?.score ? Object.keys(rowsAfterFilter[0].score) :
-                 rowsAfterFilter[0]?.score_a ? Object.keys(rowsAfterFilter[0].score_a) : [],
+        rowsAfterFilter[0]?.score_a ? Object.keys(rowsAfterFilter[0].score_a) : [],
       hasScores: !!(rowsAfterFilter[0]?.score || rowsAfterFilter[0]?.score_a || rowsAfterFilter[0]?.score_b)
     });
     setOperationalRows(rowsAfterFilter);
-    
+
     // Create display rows with flattened scores for UI table
     console.log('📊 DEBUG: Before flattening:', {
       inputRows: rowsAfterFilter.length,
@@ -1594,7 +2024,7 @@ function App() {
     const modelNames = mapping.method === 'side_by_side' && rowsAfterFilter.length > 0
       ? { modelA: rowsAfterFilter[0]?.model_a, modelB: rowsAfterFilter[0]?.model_b }
       : undefined;
-    
+
     const { rows: flattenedRows, columns: flattenedColumns } = flattenScores(rowsAfterFilter, mapping.method, modelNames);
     console.log('📊 DEBUG: After flattening:', {
       outputRows: flattenedRows.length,
@@ -1614,31 +2044,31 @@ function App() {
       // If user selected two models under side_by_side (tidy path), pair client-side
       if (mapping.method === 'side_by_side' && mapping.selectedModels && mapping.selectedModels.modelA && mapping.selectedModels.modelB && mapping.selectedModels.modelA !== mapping.selectedModels.modelB) {
         const pairedRows = pairTidyToSideBySide(originalRows, mapping);
-        
-        console.log('[handleMappingChange] Paired tidy to side-by-side:', { 
-          pairs: pairedRows.length, 
+
+        console.log('[handleMappingChange] Paired tidy to side-by-side:', {
+          pairs: pairedRows.length,
           sample: pairedRows[0],
           modelA: mapping.selectedModels.modelA,
-          modelB: mapping.selectedModels.modelB 
+          modelB: mapping.selectedModels.modelB
         });
-        
+
         if (pairedRows.length === 0) {
           setResultsError(`No matching pairs found for models "${mapping.selectedModels.modelA}" and "${mapping.selectedModels.modelB}". Ensure both models answered the same prompts.`);
           return;
         }
-        
+
         // Set method and operational rows to the paired side-by-side data
         setMethod('side_by_side');
         setColumnMapping(mapping);
         setOperationalRows(pairedRows);
-        
+
         // Flatten for display with actual model names
         const { rows: flattened } = flattenScores(pairedRows, 'side_by_side', {
           modelA: mapping.selectedModels.modelA,
           modelB: mapping.selectedModels.modelB
         });
         setCurrentRows(flattened);
-        
+
         setShowColumnSelector(false);
         setSidebarExpanded(false);
       } else {
@@ -1693,14 +2123,6 @@ function App() {
     } else {
       console.log('[App] onView - Preserving evidence (preserveEvidence=true)');
     }
-
-    // If the demo-data tutorial is on the "data table" step, auto-advance when a model response is opened
-    if (tutorial && tutorial.activeTutorialId === 'demo-data' && tutorial.steps && tutorial.steps[tutorial.currentStepIndex]) {
-      const step = tutorial.steps[tutorial.currentStepIndex];
-      if (step.id === 'demo-step-1-data-table') {
-        tutorial.nextStep();
-      }
-    }
   }, [method, operationalRows, tutorial]);
 
   const responseKeys = useMemo(() =>
@@ -1729,20 +2151,20 @@ function App() {
   const allowedColumns = useMemo(() => {
     if (currentRows.length === 0) return [];
     const allColumns = Object.keys(currentRows[0]);
-    
+
     // For side-by-side, hide model names and model_b_response (we only show one View button via model_a_response)
     const hiddenSbsColumns = method === 'side_by_side'
       ? ['model_a', 'model_b', 'model_b_response']
       : [];
-    
+
     const visibleColumns = allColumns.filter(c => !hiddenSbsColumns.includes(c));
-    
+
     // Order: index → prompt → response columns → remaining
     const indexCol = visibleColumns.filter((c) => c === '__index');
     const promptFirst = visibleColumns.filter((c) => c === 'prompt');
     const resp = visibleColumns.filter((c) => responseKeys.includes(c));
     const remaining = visibleColumns.filter((c) => c !== '__index' && c !== 'prompt' && !responseKeys.includes(c));
-    
+
     const result = [...indexCol, ...promptFirst, ...resp, ...remaining];
     console.log('🔗 DEBUG allowedColumns (from currentRows - FIXED):', {
       currentRowsCount: currentRows.length,
@@ -1762,7 +2184,7 @@ function App() {
   const [pendingValues, setPendingValues] = useState<string[]>([]);
   const [pendingNegated, setPendingNegated] = useState<boolean>(false);
   const [dataSearchQuery, setDataSearchQuery] = useState<string>('');
-  
+
   // Legacy filter interface for compatibility
   type Filter = { column: string; values: string[]; negated: boolean; operator?: 'AND' | 'OR' };
   const filters: Filter[] = operationChain
@@ -1908,7 +2330,7 @@ function App() {
 
     console.log(`Final result (flattened): ${displayData.length} rows`);
     setCurrentRows(displayData);
-  }, [operationalRows, method]);
+  }, [operationalRows, method, isDemoMode, demoSampleSize]);
 
   // Legacy wrapper for backward compatibility
   const applyFilters = useCallback(async (newFilters: Filter[]) => {
@@ -1951,7 +2373,7 @@ function App() {
   // Sort function
   const handleSort = useCallback((column: string) => {
     let newDirection: 'asc' | 'desc' | null = 'asc';
-    
+
     if (sortColumn === column) {
       if (sortDirection === 'asc') {
         newDirection = 'desc';
@@ -1959,16 +2381,16 @@ function App() {
         newDirection = null;
       }
     }
-    
+
     setSortColumn(newDirection ? column : null);
     setSortDirection(newDirection);
-    
+
     // Update operation chain
     const nonSortOps = operationChain.filter(op => op.type !== 'sort');
-    const newChain = newDirection 
+    const newChain = newDirection
       ? [...nonSortOps, createSortOperation(column, newDirection)]
       : nonSortOps;
-    
+
     setOperationChain(newChain);
     void applyOperationChain(newChain);
   }, [sortColumn, sortDirection, operationChain, applyOperationChain]);
@@ -1988,7 +2410,7 @@ function App() {
       currentRowKeys: currentRows[0] ? Object.keys(currentRows[0]) : [],
       scoreColumns: currentRows[0] ? Object.keys(currentRows[0]).filter(k => k.startsWith('score_')) : []
     });
-    
+
     // Apply search filter first
     let filteredRows = currentRows;
     if (dataSearchQuery.trim()) {
@@ -2001,7 +2423,7 @@ function App() {
         });
       });
     }
-    
+
     if (!sortColumn || !sortDirection) {
       console.log('📊 DEBUG sortedRows result (no sorting):', {
         resultCount: filteredRows.length,
@@ -2009,27 +2431,27 @@ function App() {
       });
       return filteredRows;
     }
-    
+
     // Use faster array copy and optimize comparison
     const result = filteredRows.length > 5000 ? filteredRows : filteredRows.slice();
-    
+
     // Pre-determine if column is numeric for better performance
-    const isNumericColumn = filteredRows.length > 0 && 
+    const isNumericColumn = filteredRows.length > 0 &&
       filteredRows.slice(0, 10).every(row => {
         const val = row[sortColumn];
         return val == null || !isNaN(Number(val));
       });
-    
+
     // For very large datasets, use localeCompare only for short strings to reduce CPU
     result.sort((a, b) => {
       let aVal = a[sortColumn];
       let bVal = b[sortColumn];
-      
+
       // Handle null/undefined values
       if (aVal == null && bVal == null) return 0;
       if (aVal == null) return sortDirection === 'asc' ? 1 : -1;
       if (bVal == null) return sortDirection === 'asc' ? -1 : 1;
-      
+
       if (isNumericColumn) {
         // Numeric comparison
         aVal = Number(aVal);
@@ -2047,7 +2469,7 @@ function App() {
         return sortDirection === 'asc' ? comp : -comp;
       }
     });
-    
+
     return result;
   }, [currentRows, sortColumn, sortDirection, dataSearchQuery, allowedColumns]);
 
@@ -2097,14 +2519,14 @@ function App() {
   // -------- Custom Code ---------
   const [customCode, setCustomCode] = useState<string>("");
   const [customError, setCustomError] = useState<string | null>(null);
-  
+
   const handleCustomCodeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setCustomCode(e.target.value);
   }, []);
-  
+
   const runCustom = useCallback(async () => {
     if (!customCode.trim()) return;
-    
+
     try {
       // Add custom operation to chain
       const customOp = createCustomCodeOperation(customCode);
@@ -2123,14 +2545,14 @@ function App() {
   const removeOperation = useCallback((operationId: string) => {
     const newChain = operationChain.filter(op => op.id !== operationId);
     setOperationChain(newChain);
-    
+
     // Update UI state for removed operations
     const removedOp = operationChain.find(op => op.id === operationId);
     if (removedOp?.type === 'sort') {
       setSortColumn(null);
       setSortDirection(null);
     }
-    
+
     void applyOperationChain(newChain);
   }, [operationChain, applyOperationChain]);
 
@@ -2145,7 +2567,7 @@ function App() {
   const refreshGroupPreview = useCallback(async (by: string) => {
     console.log('🟡 refreshGroupPreview called with:', by);
     console.log('🟡 current rows length:', currentRows.length, 'numericCols:', numericCols);
-    
+
     // Local-first groupby (like filters)
     const grouped = new Map<any, any[]>();
     currentRows.forEach(row => {
@@ -2153,7 +2575,7 @@ function App() {
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key)!.push(row);
     });
-    
+
     const localGroups = Array.from(grouped.entries()).map(([value, rows]) => {
       const count = rows.length;
       const means: Record<string, number> = {};
@@ -2165,10 +2587,10 @@ function App() {
       });
       return { value, count, means };
     });
-    
+
     console.log('🟡 Local groupby result:', localGroups);
     setGroupPreview(localGroups);
-    
+
     // Optional backend validation (fire-and-forget). We intentionally do NOT overwrite the local
     // preview to avoid flicker when backend lacks flattened numeric columns. Keep for logging only.
     try {
@@ -2198,190 +2620,196 @@ function App() {
       });
       return (
         <>
-        {/* Benchmark Metrics Table (same style as Metrics tab) */}
-        <DataTabBenchmarkTable
-          operationalRows={operationalRows}
-          method={method}
-          propertiesRows={propertiesRows}
-          modelScores={resultsMetrics?.model_scores}
-        />
-        
-        {/* Keep FilterBar visible in grouped mode */}
-        <Box sx={{ mt: 2 }}>
-        <FilterBar
-          searchValue={dataSearchQuery}
-          onSearchChange={setDataSearchQuery}
-          searchPlaceholder="Search data..."
-          categoricalColumns={categoricalColumns}
-          pendingColumn={pendingColumn}
-          pendingValues={pendingValues}
-          pendingNegated={pendingNegated}
-          onPendingColumnChange={(column) => { 
-            setPendingColumn(column); 
-            setPendingValues([]); 
-            setPendingNegated(false); 
-          }}
-          onPendingValuesChange={setPendingValues}
-          onPendingNegatedChange={setPendingNegated}
-          onAddFilter={() => {
-            if (!pendingColumn || pendingValues.length === 0) return;
-            const operator: Filter['operator'] = filters.length > 0 ? 'AND' : undefined;
-            const next: Filter[] = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
-            setPendingColumn(null);
-            setPendingValues([]);
-            setPendingNegated(false);
-            void applyFilters(next);
-          }}
-          filters={filters}
-          onRemoveFilter={removeFilter}
-          onChangeFilterOperator={(index, operator) => {
-            const next: Filter[] = filters.map((f, i) => i === index ? { ...f, operator } : f);
-            void applyFilters(next);
-          }}
-          uniqueValuesFor={uniqueValuesFor}
-          resultCount={sortedRows.length}
-          resultLabel="rows"
-          showGroupBy={true}
-          groupByOptions={allowedColumns}
-          groupByValue={groupBy}
-          onGroupByChange={(v) => { 
-            console.log('🔵 GroupBy onChange triggered with value:', v);
-            setGroupBy(v); 
-            setExpandedGroup(null); 
-            setGroupRows([]); 
-            if (v) {
-              console.log('🔵 Calling refreshGroupPreview with:', v);
-              refreshGroupPreview(v);
-            } else {
-              console.log('🔵 Clearing group preview');
-              setGroupPreview([]);
-            }
-          }}
-        />
-        </Box>
-        <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
-          <Box sx={{ backgroundColor: '#F3F4F6', p: 2, borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 1 }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: `auto 2fr 1fr 1fr repeat(${Math.max(allowedColumns.length - 3, 0)}, 1fr)`, gap: 2, alignItems: 'center', minWidth: 960 }}>
-              <Box sx={{ width: 24 }} />
-              {allowedColumns.map((col, index) => (
-                <Box key={col} sx={{ gridColumn: index === 0 ? 'span 1' : undefined, display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer' }} onClick={() => handleSort(col)}>
-                  <Typography variant="subtitle2" sx={{ color: '#374151', fontWeight: 700, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' }}>
-                    {col === '__index' ? 'INDEX' :
-                     col === 'prompt' ? 'PROMPT' :
-                     col === 'model' ? 'MODEL' :
-                     col === 'model_response' ? 'RESPONSE' :
-                     col === 'model_responses' ? 'MODEL RESPONSES' :
-                     col === 'model_a' ? 'MODEL A' :
-                     col === 'model_b' ? 'MODEL B' :
-                     col === 'model_a_response' ? 'RESPONSE' :
-                     col === 'model_b_response' ? 'RESPONSE' :
-                     col.toUpperCase()}
-                  </Typography>
-                  {sortColumn === col && sortDirection === 'asc' && <ArrowUpwardIcon sx={{ fontSize: 12, color: '#374151' }} />}
-                  {sortColumn === col && sortDirection === 'desc' && <ArrowDownwardIcon sx={{ fontSize: 12, color: '#374151' }} />}
-                </Box>
-              ))}
-            </Box>
-          </Box>
+          {/* Benchmark Metrics Table (same style as Metrics tab) */}
+          <DataTabBenchmarkTable
+            operationalRows={operationalRows}
+            method={method}
+            propertiesRows={propertiesRows}
+            modelScores={resultsMetrics?.model_scores}
+          />
 
-          {Array.from(groupedRowsMap.entries()).map(([groupValue, rows]) => {
-            const groupKey = String(groupValue);
-            const currentPage = groupPagination.get(groupKey) || 1;
-            const pageSize = 10;
-            const paginatedRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-            const totalPages = Math.ceil(rows.length / pageSize);
-            const handlePageChange = (page: number) => {
-              setGroupPagination(prev => new Map(prev).set(groupKey, page));
-            };
-            return (
-              <Accordion key={groupKey} sx={{ '&:before': { display: 'none' }, boxShadow: 'none', border: 'none' }}>
-                <AccordionSummary expandIcon={null} sx={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB', minHeight: 48, '&.Mui-expanded': { minHeight: 48 }, '& .MuiAccordionSummary-content': { margin: '12px 0' }, cursor: 'pointer', '&:hover': { backgroundColor: '#F3F4F6' } }}>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: `auto 2fr 1fr 1fr repeat(${Math.max(allowedColumns.length - 3, 0)}, 1fr)`, gap: 2, alignItems: 'center', width: '100%', minWidth: 960 }}>
-                    <ExpandMoreIcon sx={{ fontSize: 20, color: '#6B7280' }} />
-                    {/* Group label spans first three columns */}
-                    <Box sx={{ gridColumn: '2 / span 3', display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                        {String(groupValue).length > 50 ? String(groupValue).slice(0, 50) + '...' : String(groupValue)}
-                      </Typography>
-                      <Typography variant="body2" sx={{ backgroundColor: '#E0E7FF', color: '#3730A3', px: 1.5, py: 0.25, borderRadius: 9999, fontSize: 11, fontWeight: 500, textAlign: 'center', minWidth: 20 }}>
-                        {rows.length}
-                      </Typography>
+          {/* Keep FilterBar visible in grouped mode */}
+          <Box sx={{ mt: 2 }}>
+            <FilterBar
+              searchValue={dataSearchQuery}
+              onSearchChange={setDataSearchQuery}
+              searchPlaceholder="Search data..."
+              categoricalColumns={categoricalColumns}
+              pendingColumn={pendingColumn}
+              pendingValues={pendingValues}
+              pendingNegated={pendingNegated}
+              onPendingColumnChange={(column) => {
+                setPendingColumn(column);
+                setPendingValues([]);
+                setPendingNegated(false);
+              }}
+              onPendingValuesChange={setPendingValues}
+              onPendingNegatedChange={setPendingNegated}
+              onAddFilter={() => {
+                if (!pendingColumn || pendingValues.length === 0) return;
+                const operator: Filter['operator'] = filters.length > 0 ? 'AND' : undefined;
+                const next: Filter[] = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
+                setPendingColumn(null);
+                setPendingValues([]);
+                setPendingNegated(false);
+                void applyFilters(next);
+              }}
+              filters={filters}
+              onRemoveFilter={removeFilter}
+              onChangeFilterOperator={(index, operator) => {
+                const next: Filter[] = filters.map((f, i) => i === index ? { ...f, operator } : f);
+                void applyFilters(next);
+              }}
+              uniqueValuesFor={uniqueValuesFor}
+              resultCount={sortedRows.length}
+              resultLabel="rows"
+              showGroupBy={true}
+              groupByOptions={allowedColumns}
+              groupByValue={groupBy}
+              onGroupByChange={(v) => {
+                console.log('🔵 GroupBy onChange triggered with value:', v);
+                setGroupBy(v);
+                setExpandedGroup(null);
+                setGroupRows([]);
+                if (v) {
+                  console.log('🔵 Calling refreshGroupPreview with:', v);
+                  refreshGroupPreview(v);
+                } else {
+                  console.log('🔵 Clearing group preview');
+                  setGroupPreview([]);
+                }
+              }}
+            />
+
+            {/* Operation Chain Summary */}
+            <FilterSummary
+              operations={operationChain}
+              onRemoveOperation={removeOperation}
+            />
+          </Box>
+          <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
+            <Box sx={{ backgroundColor: '#F3F4F6', p: 2, borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 1 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: `auto 2fr 1fr 1fr repeat(${Math.max(allowedColumns.length - 3, 0)}, 1fr)`, gap: 2, alignItems: 'center', minWidth: 960 }}>
+                <Box sx={{ width: 24 }} />
+                {allowedColumns.map((col, index) => (
+                  <Box key={col} sx={{ gridColumn: index === 0 ? 'span 1' : undefined, display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer' }} onClick={() => handleSort(col)}>
+                    <Typography variant="subtitle2" sx={{ color: '#374151', fontWeight: 700, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                      {col === '__index' ? 'INDEX' :
+                        col === 'prompt' ? 'PROMPT' :
+                          col === 'model' ? 'MODEL' :
+                            col === 'model_response' ? 'RESPONSE' :
+                              col === 'model_responses' ? 'MODEL RESPONSES' :
+                                col === 'model_a' ? 'MODEL A' :
+                                  col === 'model_b' ? 'MODEL B' :
+                                    col === 'model_a_response' ? 'RESPONSE' :
+                                      col === 'model_b_response' ? 'RESPONSE' :
+                                        col.toUpperCase()}
+                    </Typography>
+                    {sortColumn === col && sortDirection === 'asc' && <ArrowUpwardIcon sx={{ fontSize: 12, color: '#374151' }} />}
+                    {sortColumn === col && sortDirection === 'desc' && <ArrowDownwardIcon sx={{ fontSize: 12, color: '#374151' }} />}
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+
+            {Array.from(groupedRowsMap.entries()).map(([groupValue, rows]) => {
+              const groupKey = String(groupValue);
+              const currentPage = groupPagination.get(groupKey) || 1;
+              const pageSize = 10;
+              const paginatedRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+              const totalPages = Math.ceil(rows.length / pageSize);
+              const handlePageChange = (page: number) => {
+                setGroupPagination(prev => new Map(prev).set(groupKey, page));
+              };
+              return (
+                <Accordion key={groupKey} sx={{ '&:before': { display: 'none' }, boxShadow: 'none', border: 'none' }}>
+                  <AccordionSummary expandIcon={null} sx={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB', minHeight: 48, '&.Mui-expanded': { minHeight: 48 }, '& .MuiAccordionSummary-content': { margin: '12px 0' }, cursor: 'pointer', '&:hover': { backgroundColor: '#F3F4F6' } }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: `auto 2fr 1fr 1fr repeat(${Math.max(allowedColumns.length - 3, 0)}, 1fr)`, gap: 2, alignItems: 'center', width: '100%', minWidth: 960 }}>
+                      <ExpandMoreIcon sx={{ fontSize: 20, color: '#6B7280' }} />
+                      {/* Group label spans first three columns */}
+                      <Box sx={{ gridColumn: '2 / span 3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                          {String(groupValue).length > 50 ? String(groupValue).slice(0, 50) + '...' : String(groupValue)}
+                        </Typography>
+                        <Typography variant="body2" sx={{ backgroundColor: '#E0E7FF', color: '#3730A3', px: 1.5, py: 0.25, borderRadius: 9999, fontSize: 11, fontWeight: 500, textAlign: 'center', minWidth: 20 }}>
+                          {rows.length}
+                        </Typography>
+                      </Box>
+                      {allowedColumns.slice(3).map((col) => {
+                        if (responseKeys.includes(col)) return <Box key={col} />;
+                        const groupStats = groupPreview.find(g => g.value === groupValue);
+                        const mean = groupStats?.means[col];
+                        if (typeof mean === 'number') {
+                          return (
+                            <Typography key={col} variant="body2" sx={{ color: '#6B7280', fontStyle: 'italic', fontSize: 13 }}>
+                              avg: {mean.toFixed(decimalPrecision)}
+                            </Typography>
+                          );
+                        }
+                        return <Box key={col} />;
+                      })}
                     </Box>
-                    {allowedColumns.slice(3).map((col) => {
-                      if (responseKeys.includes(col)) return <Box key={col} />;
-                      const groupStats = groupPreview.find(g => g.value === groupValue);
-                      const mean = groupStats?.means[col];
-                      if (typeof mean === 'number') {
-                        return (
-                          <Typography key={col} variant="body2" sx={{ color: '#6B7280', fontStyle: 'italic', fontSize: 13 }}>
-                            avg: {mean.toFixed(decimalPrecision)}
-                          </Typography>
-                        );
-                      }
-                      return <Box key={col} />;
-                    })}
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails sx={{ p: 0 }}>
-                  <Box>
-                    {paginatedRows.map((row: any, idx: number) => (
-                      <Box key={idx} sx={{ display: 'grid', gridTemplateColumns: `auto 2fr 1fr 1fr repeat(${Math.max(allowedColumns.length - 3, 0)}, 1fr)`, gap: 2, alignItems: 'center', p: 2, borderBottom: idx < paginatedRows.length - 1 ? '1px solid #E5E7EB' : 'none', minWidth: 960 }}>
-                        <Box sx={{ width: 24 }} />
-                        {/* First three columns render as-is */}
-                        {allowedColumns.slice(0, 3).map(col => (
-                          <Box key={col}>
-                            {responseKeys.includes(col) ? (
-                              <Button size="small" variant="text" color="secondary" startIcon={<VisibilityOutlinedIcon />} onClick={() => onView(row)} sx={{ fontWeight: 600 }}>
-                                View
-                              </Button>
-                            ) : (
-                              (() => {
-                                const value = row[col];
-                                const isNumeric = col === '__index' || (value !== null && value !== undefined && !isNaN(Number(value)) && value !== '');
-                                const isPrompt = col === 'prompt';
-                                return (
-                                  <Typography variant="body2" sx={{ maxWidth: 200, textAlign: isNumeric ? 'center' : 'left' }}>
-                                    {isPrompt ? (<FormattedCell text={String(value ?? '')} isPrompt={true} />) : (<TruncatedCell text={String(value ?? '')} />)}
-                                  </Typography>
-                                );
-                              })()
-                            )}
-                          </Box>
-                        ))}
-                        {/* Remaining columns */}
-                        {allowedColumns.slice(3).map(col => (
-                          <Box key={col}>
-                            {responseKeys.includes(col) ? (
-                              <Button size="small" variant="text" color="secondary" startIcon={<VisibilityOutlinedIcon />} onClick={() => onView(row)} sx={{ fontWeight: 600 }}>
-                                View
-                              </Button>
-                            ) : (
-                              (() => {
-                                const value = row[col];
-                                const isNumeric = col === '__index' || (value !== null && value !== undefined && !isNaN(Number(value)) && value !== '');
-                                const isPrompt = col === 'prompt';
-                                return (
-                                  <Typography variant="body2" sx={{ maxWidth: 200, textAlign: isNumeric ? 'center' : 'left' }}>
-                                    {isPrompt ? (<FormattedCell text={String(value ?? '')} isPrompt={true} />) : (<TruncatedCell text={String(value ?? '')} />)}
-                                  </Typography>
-                                );
-                              })()
-                            )}
-                          </Box>
-                        ))}
-                      </Box>
-                    ))}
-                    {totalPages > 1 && (
-                      <Box sx={{ p: 2, display: 'flex', justifyContent: 'center', borderTop: '1px solid #E5E7EB' }}>
-                        <Pagination count={totalPages} page={currentPage} onChange={(_, page) => handlePageChange(page)} size="small" />
-                      </Box>
-                    )}
-                  </Box>
-                </AccordionDetails>
-              </Accordion>
-            );
-          })}
-        </Box>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ p: 0 }}>
+                    <Box>
+                      {paginatedRows.map((row: any, idx: number) => (
+                        <Box key={idx} sx={{ display: 'grid', gridTemplateColumns: `auto 2fr 1fr 1fr repeat(${Math.max(allowedColumns.length - 3, 0)}, 1fr)`, gap: 2, alignItems: 'center', p: 2, borderBottom: idx < paginatedRows.length - 1 ? '1px solid #E5E7EB' : 'none', minWidth: 960 }}>
+                          <Box sx={{ width: 24 }} />
+                          {/* First three columns render as-is */}
+                          {allowedColumns.slice(0, 3).map(col => (
+                            <Box key={col}>
+                              {responseKeys.includes(col) ? (
+                                <Button size="small" variant="text" startIcon={<VisibilityOutlinedIcon />} onClick={() => onView(row)} sx={{ fontWeight: 600, color: retroColors.blue }}>
+                                  View
+                                </Button>
+                              ) : (
+                                (() => {
+                                  const value = row[col];
+                                  const isNumeric = col === '__index' || (value !== null && value !== undefined && !isNaN(Number(value)) && value !== '');
+                                  const isPrompt = col === 'prompt';
+                                  return (
+                                    <Typography variant="body2" sx={{ maxWidth: 200, textAlign: isNumeric ? 'center' : 'left' }}>
+                                      {isPrompt ? (<FormattedCell text={String(value ?? '')} isPrompt={true} />) : (<TruncatedCell text={String(value ?? '')} />)}
+                                    </Typography>
+                                  );
+                                })()
+                              )}
+                            </Box>
+                          ))}
+                          {/* Remaining columns */}
+                          {allowedColumns.slice(3).map(col => (
+                            <Box key={col}>
+                              {responseKeys.includes(col) ? (
+                                <Button size="small" variant="text" startIcon={<VisibilityOutlinedIcon />} onClick={() => onView(row)} sx={{ fontWeight: 600, color: retroColors.blue }}>
+                                  View
+                                </Button>
+                              ) : (
+                                (() => {
+                                  const value = row[col];
+                                  const isNumeric = col === '__index' || (value !== null && value !== undefined && !isNaN(Number(value)) && value !== '');
+                                  const isPrompt = col === 'prompt';
+                                  return (
+                                    <Typography variant="body2" sx={{ maxWidth: 200, textAlign: isNumeric ? 'center' : 'left' }}>
+                                      {isPrompt ? (<FormattedCell text={String(value ?? '')} isPrompt={true} />) : (<TruncatedCell text={String(value ?? '')} />)}
+                                    </Typography>
+                                  );
+                                })()
+                              )}
+                            </Box>
+                          ))}
+                        </Box>
+                      ))}
+                      {totalPages > 1 && (
+                        <Box sx={{ p: 2, display: 'flex', justifyContent: 'center', borderTop: '1px solid #E5E7EB' }}>
+                          <Pagination count={totalPages} page={currentPage} onChange={(_, page) => handlePageChange(page)} size="small" />
+                        </Box>
+                      )}
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+              );
+            })}
+          </Box>
         </>
       );
     }
@@ -2389,77 +2817,118 @@ function App() {
     // Normal flat table view when no groupBy
     return (
       <>
-        {/* Benchmark Metrics Table (same style as Metrics tab) */}
-        <DataTabBenchmarkTable
-          operationalRows={operationalRows}
-          method={method}
-          propertiesRows={propertiesRows}
-          modelScores={resultsMetrics?.model_scores}
-        />
-        
-        <Box sx={{ mt: 2 }}>
-        <FilterBar
-          searchValue={dataSearchQuery}
-          onSearchChange={setDataSearchQuery}
-          searchPlaceholder="Search data..."
-          categoricalColumns={categoricalColumns}
-          pendingColumn={pendingColumn}
-          pendingValues={pendingValues}
-          pendingNegated={pendingNegated}
-          onPendingColumnChange={(column) => { 
-            setPendingColumn(column); 
-            setPendingValues([]); 
-            setPendingNegated(false); 
-          }}
-          onPendingValuesChange={setPendingValues}
-          onPendingNegatedChange={setPendingNegated}
-          onAddFilter={() => {
-            if (!pendingColumn || pendingValues.length === 0) return;
-            const operator: Filter['operator'] = filters.length > 0 ? 'AND' : undefined;
-            const next: Filter[] = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
-            setPendingColumn(null);
-            setPendingValues([]);
-            setPendingNegated(false);
-            void applyFilters(next);
-          }}
-          filters={filters}
-          onRemoveFilter={removeFilter}
-          onChangeFilterOperator={(index, operator) => {
-            const next: Filter[] = filters.map((f, i) => i === index ? { ...f, operator } : f);
-            void applyFilters(next);
-          }}
-          uniqueValuesFor={uniqueValuesFor}
-          resultCount={sortedRows.length}
-          resultLabel="rows"
-          showGroupBy={true}
-          groupByOptions={allowedColumns}
-          groupByValue={groupBy}
-          onGroupByChange={(v) => { 
-            console.log('🔵 GroupBy onChange triggered with value:', v);
-            setGroupBy(v); 
-            setExpandedGroup(null); 
-            setGroupRows([]); 
-            if (v) {
-              console.log('🔵 Calling refreshGroupPreview with:', v);
-              refreshGroupPreview(v);
-            } else {
-              console.log('🔵 Clearing group preview');
-              setGroupPreview([]);
-            }
-          }}
-        />
+        {/* Benchmark Metrics Table/Chart with toggle */}
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Your Data Summary
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" sx={{ color: benchmarkViewMode === 'table' ? 'text.primary' : 'text.secondary' }}>
+                Table
+              </Typography>
+              <Switch
+                checked={benchmarkViewMode === 'graph'}
+                onChange={(e) => setBenchmarkViewMode(e.target.checked ? 'graph' : 'table')}
+                size="small"
+              />
+              <Typography variant="body2" sx={{ color: benchmarkViewMode === 'graph' ? 'text.primary' : 'text.secondary' }}>
+                Graph
+              </Typography>
+            </Box>
+          </Box>
+          <DataTabBenchmarkTable
+            operationalRows={operationalRows}
+            method={method}
+            propertiesRows={propertiesRows}
+            modelScores={resultsMetrics?.model_scores}
+            viewMode={benchmarkViewMode}
+            filters={{
+              selectedModels: [],
+              selectedMetrics: [],
+              selectedGroups: [],
+              selectedBehaviorTypes: [],
+              qualityMetric: '', // Not needed for grouped chart
+              sortBy: 'proportion_delta_desc',
+              topN: 5,
+              significanceOnly: false,
+              showCI: false,
+            }}
+            onQualityMetricsChange={(metrics) => {
+              setAvailableQualityMetrics(metrics);
+            }}
+          />
         </Box>
-      <DataTable
-        rows={sortedRows}
-        columns={allowedColumns}
-        responseKeys={responseKeys}
-        onView={onView}
-        allowedColumns={allowedColumns}
-        sortColumn={sortColumn}
-        sortDirection={sortDirection}
-        onSort={handleSort}
-        decimalPrecision={decimalPrecision}
-      />
+
+        <Box sx={{ mt: 2 }}>
+          <FilterBar
+            searchValue={dataSearchQuery}
+            onSearchChange={setDataSearchQuery}
+            searchPlaceholder="Search data..."
+            categoricalColumns={categoricalColumns}
+            pendingColumn={pendingColumn}
+            pendingValues={pendingValues}
+            pendingNegated={pendingNegated}
+            onPendingColumnChange={(column) => {
+              setPendingColumn(column);
+              setPendingValues([]);
+              setPendingNegated(false);
+            }}
+            onPendingValuesChange={setPendingValues}
+            onPendingNegatedChange={setPendingNegated}
+            onAddFilter={() => {
+              if (!pendingColumn || pendingValues.length === 0) return;
+              const operator: Filter['operator'] = filters.length > 0 ? 'AND' : undefined;
+              const next: Filter[] = [...filters, { column: pendingColumn, values: pendingValues, negated: pendingNegated, operator }];
+              setPendingColumn(null);
+              setPendingValues([]);
+              setPendingNegated(false);
+              void applyFilters(next);
+            }}
+            filters={filters}
+            onRemoveFilter={removeFilter}
+            onChangeFilterOperator={(index, operator) => {
+              const next: Filter[] = filters.map((f, i) => i === index ? { ...f, operator } : f);
+              void applyFilters(next);
+            }}
+            uniqueValuesFor={uniqueValuesFor}
+            resultCount={sortedRows.length}
+            resultLabel="rows"
+            showGroupBy={true}
+            groupByOptions={allowedColumns}
+            groupByValue={groupBy}
+            onGroupByChange={(v) => {
+              console.log('🔵 GroupBy onChange triggered with value:', v);
+              setGroupBy(v);
+              setExpandedGroup(null);
+              setGroupRows([]);
+              if (v) {
+                console.log('🔵 Calling refreshGroupPreview with:', v);
+                refreshGroupPreview(v);
+              } else {
+                console.log('🔵 Clearing group preview');
+                setGroupPreview([]);
+              }
+            }}
+          />
+
+          {/* Operation Chain Summary */}
+          <FilterSummary
+            operations={operationChain}
+            onRemoveOperation={removeOperation}
+          />
+        </Box>
+        <DataTable
+          rows={sortedRows}
+          columns={allowedColumns}
+          responseKeys={responseKeys}
+          onView={onView}
+          allowedColumns={allowedColumns}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+          decimalPrecision={decimalPrecision}
+        />
       </>
     );
   }, [activeSection, operationalRows, groupBy, groupPreview, sortedRows, allowedColumns, responseKeys, onView, groupPagination, sortColumn, sortDirection, handleSort, dataSearchQuery, categoricalColumns, pendingColumn, pendingValues, pendingNegated, filters, removeFilter, uniqueValuesFor, refreshGroupPreview, customCode, handleCustomCodeChange, runCustom, resetAll, customError]);
@@ -2467,15 +2936,7 @@ function App() {
   // Memoized properties content
   const propertiesContent = useMemo(() => {
     if (activeSection !== 'extraction') return null;
-    if (propertiesRows.length === 0) {
-      return (
-        <Box sx={{ p: 2, border: '1px solid #E5E7EB', borderRadius: 0.5, background: '#FFFFFF' }}>
-          <Typography variant="body1" color="text.secondary">
-            No properties available yet. Run "Extract on selected" or "Run on all traces" from the sidebar.
-          </Typography>
-        </Box>
-      );
-    }
+    // Always render PropertiesTab (even when empty) to show overview banner with zeros
     return (
       <PropertiesTab
         rows={propertiesRows}
@@ -2535,7 +2996,7 @@ function App() {
               return matches;
             }) || null;
           }
-          
+
           if (!row) {
             console.warn('[App] Could not locate row for property', { prop, idx, method });
           } else {
@@ -2543,7 +3004,7 @@ function App() {
             console.log('[App] OPERATIONAL DATAFRAME ROW - All columns:', row);
             console.log('[App] OPERATIONAL DATAFRAME ROW - Column names:', Object.keys(row));
           }
-          
+
           // Process evidence
           const rawEvidence = (prop as any).evidence;
           let ev: string[] = [];
@@ -2594,7 +3055,7 @@ function App() {
   // Memoized callbacks to prevent unnecessary effect triggers in children
   const getPropertiesRowsCb = useCallback(() => propertiesRows, [propertiesRows]);
   const getOperationalRowsCb = useCallback(() => operationalRows, [operationalRows]);
-  
+
   // Extraction panel callbacks
   const onPropertiesMergedCb = useCallback((props: any[]) => {
     console.log('[App] onPropertiesMergedCb - Received properties:', {
@@ -2644,7 +3105,7 @@ function App() {
           return matches;
         } else if (methodRef.current === 'side_by_side') {
           return opRow.question_id === prop.question_id &&
-                 (opRow.model_a === prop.model || opRow.model_b === prop.model);
+            (opRow.model_a === prop.model || opRow.model_b === prop.model);
         }
         return false;
       });
@@ -2661,9 +3122,9 @@ function App() {
         ...prop,
         __index: matchingRow?.__index,
         model_response: matchingRow?.model_response ||
-                       matchingRow?.model_a_response ||
-                       matchingRow?.model_b_response ||
-                       'No response found'
+          matchingRow?.model_a_response ||
+          matchingRow?.model_b_response ||
+          'No response found'
       };
     });
 
@@ -2677,7 +3138,7 @@ function App() {
     setPropertiesRows(prevRows => [...prevRows, ...enrichedProps]);
     // Don't auto-switch tabs - stay in extraction step
   }, []);
-  
+
   const onBatchLoadedCb = useCallback((rows: any[]) => {
     // Enrich properties with model_response from operational data
     const enrichedRows = rows.map(prop => {
@@ -2686,32 +3147,32 @@ function App() {
         if (methodRef.current === 'single_model') {
           return opRow.question_id === prop.question_id && opRow.model === prop.model;
         } else if (methodRef.current === 'side_by_side') {
-          return opRow.question_id === prop.question_id && 
-                 (opRow.model_a === prop.model || opRow.model_b === prop.model);
+          return opRow.question_id === prop.question_id &&
+            (opRow.model_a === prop.model || opRow.model_b === prop.model);
         }
         return false;
       });
-      
+
       // Add model_response and __index from the matching operational row
       return {
         ...prop,
         __index: matchingRow?.__index,
         model_response: matchingRow?.model_response ||
-                       matchingRow?.model_a_response ||
-                       matchingRow?.model_b_response ||
-                       'No response found'
+          matchingRow?.model_a_response ||
+          matchingRow?.model_b_response ||
+          'No response found'
       };
     });
-    
+
     setPropertiesRows(enrichedRows);
     // Don't auto-switch tabs - stay in extraction step to see properties in panel
   }, []);
-  
+
   const onBatchDoneCb = useCallback(() => {
     setBatchRunning(false);
     setPipelineStage('idle');
   }, []);
-  
+
   const onClustersUpdatedCb = useCallback((data: any) => {
     if (!data) {
       console.error('❌ onClustersUpdated received undefined/null data');
@@ -2720,6 +3181,7 @@ function App() {
 
     // Show the clustering complete alert when new clusters arrive
     setClusteringAlertDismissed(false);
+    setClusteringJustCompleted(true);
 
     // Enrich clusters with per-model quality data from metrics
     let enrichedClusters = data.clusters || [];
@@ -2781,13 +3243,13 @@ function App() {
       setResultsMetrics(normalizedMetrics);
     }
   }, []);
-  
+
   const onNavigateToMetricsCb = useCallback(() => {
     // Navigate to Insights step when clustering + metrics are ready
     setActiveSection('metrics');
     setSidebarExpanded(false);
   }, []);
-  
+
   const onNavigateToClustersCb = useCallback(() => {
     // Navigate to Clusters view when clustering is ready
     setActiveSection('clusters');
@@ -2800,29 +3262,29 @@ function App() {
       const zip = new JSZip();
       zip.file('clusters.jsonl', clusters.map(c => JSON.stringify(c)).join('\n'));
       zip.file('properties.jsonl', propertiesRows.map(p => JSON.stringify(p)).join('\n'));
-      
+
       if (operationalRows.length > 0) {
         zip.file('conversations.jsonl', operationalRows.map(r => JSON.stringify(r)).join('\n'));
       }
-      
+
       if (resultsMetrics?.model_cluster_scores && resultsMetrics.model_cluster_scores.length > 0) {
-        zip.file('model_cluster_scores_df.jsonl', 
+        zip.file('model_cluster_scores_df.jsonl',
           resultsMetrics.model_cluster_scores.map(m => JSON.stringify(m)).join('\n'));
       }
-      
+
       if (resultsMetrics?.cluster_scores && resultsMetrics.cluster_scores.length > 0) {
         zip.file('cluster_scores_df.jsonl',
           resultsMetrics.cluster_scores.map(m => JSON.stringify(m)).join('\n'));
       }
-      
+
       if (resultsMetrics?.model_scores && resultsMetrics.model_scores.length > 0) {
         zip.file('model_scores_df.jsonl',
           resultsMetrics.model_scores.map(m => JSON.stringify(m)).join('\n'));
       }
-      
+
       const blob = await zip.generateAsync({ type: 'blob' });
       const baseName = resultsName.trim() || uploadedFileName || 'clustering_results';
-      const filename = `${baseName}_${new Date().toISOString().slice(0,10)}.zip`;
+      const filename = `${baseName}_${new Date().toISOString().slice(0, 10)}.zip`;
       saveAs(blob, filename);
     } catch (err) {
       console.error('Download failed:', err);
@@ -2873,14 +3335,31 @@ function App() {
     // Prioritize the row being viewed in the trace drawer, otherwise use the default selection
     return (drawerOpen && selectedRow) ? selectedRow : selectedRowForExtraction;
   }, [drawerOpen, selectedRow, selectedRowForExtraction]);
-  
+
   const getAllRowsCb = useCallback(() => currentRows, [currentRows]);
-  
+
+  // Scroll to properties table callback
+  const scrollToPropertiesCb = useCallback(() => {
+    if (propertiesSectionRef.current) {
+      // Get the element's position
+      const element = propertiesSectionRef.current;
+      const elementPosition = element.getBoundingClientRect().top + window.pageYOffset;
+
+      // Offset to account for overview banner (~100px) and some padding
+      const offset = 120;
+
+      window.scrollTo({
+        top: elementPosition - offset,
+        behavior: 'smooth'
+      });
+    }
+  }, []);
+
   const onBatchStartCb = useCallback(() => {
     setBatchRunning(true);
     setPipelineStage('extraction');
   }, []);
-  
+
   const onBatchStatusCb = useCallback((progress: number, state: string | null, stage?: 'extraction' | 'clustering', details?: string) => {
     setBatchProgress(progress);
     setBatchState(state);
@@ -2891,7 +3370,7 @@ function App() {
     }
     console.log(`Batch status: ${stage} - ${state} - ${details}`);
   }, []);
-  
+
   const onRequestRecomputeCb = useCallback((included_property_ids?: string[]) => {
     (async () => {
       try {
@@ -2965,7 +3444,7 @@ function App() {
   // View Clusters navigation handler - opens cluster sidecard
   const handleNavigateToCluster = (clusterName: string) => {
     // Find the cluster by name/label
-    const cluster = clusters.find((c: any) => 
+    const cluster = clusters.find((c: any) =>
       String(c.label || c.cluster_label || '').toLowerCase() === clusterName.toLowerCase()
     );
     if (cluster) {
@@ -2996,11 +3475,11 @@ function App() {
       )}
       <AppBar position="fixed" ref={appBarRef}>
         <Toolbar sx={{ gap: 0, pl: 0 }}>
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              ml: -1, 
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              ml: -1,
               cursor: 'pointer'
             }}
             onClick={() => resetUiStateForNewSource('file')}
@@ -3012,11 +3491,11 @@ function App() {
               sx={{ width: 40, height: 40 }}
             />
           </Box>
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              flexGrow: 1, 
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              flexGrow: 1,
               ml: 1,
               cursor: 'pointer'
             }}
@@ -3036,15 +3515,35 @@ function App() {
                 </Typography>
               </Box>
             )}
+            {isAuthenticated ? (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleLogout}
+                startIcon={<LogoutIcon />}
+                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', '&:hover': { borderColor: 'white', backgroundColor: 'rgba(255,255,255,0.1)' } }}
+              >
+                Logout
+              </Button>
+            ) : (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setLoginOpen(true)}
+                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', '&:hover': { borderColor: 'white', backgroundColor: 'rgba(255,255,255,0.1)' } }}
+              >
+                Login
+              </Button>
+            )}
             <Button
               variant="contained"
               component="label"
               size="small"
               sx={{
                 color: 'white',
-                backgroundColor: '#4C6EF5', // Same blue as sidebar (primary.main)
+                backgroundColor: 'primary.main', // Uses retro blue from theme
                 '&:hover': {
-                  backgroundColor: '#3B5BDB', // Darker blue on hover
+                  backgroundColor: '#3A7BC8', // Darker retro blue on hover
                 }
               }}
             >
@@ -3060,57 +3559,94 @@ function App() {
             <Button
               variant="contained"
               size="small"
-              component="label"
+              onClick={(e) => setResultsMenuAnchor(e.currentTarget)}
               sx={{
                 color: 'white',
-                backgroundColor: '#7C3AED', // Purple used in app (secondary.main)
+                backgroundColor: 'secondary.main', // Uses retro purple from theme
                 '&:hover': {
-                  backgroundColor: '#6D28D9', // Darker purple on hover
+                  backgroundColor: '#7A4FAF', // Darker retro purple on hover
                 }
               }}
             >
               Load Results
-              <input
-                ref={resultsInputRef}
-                type="file"
-                hidden
-                /* @ts-ignore - webkitdirectory is not in TypeScript types but widely supported */
-                webkitdirectory=""
-                directory=""
-                multiple
-                onChange={(e) => {
-                  const files = e.target.files;
-                  if (files && files.length > 0) {
-                    void onLoadResultsLocal(files);
-                  }
-                }}
-              />
             </Button>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={onLoadDemoData}
-              sx={{
-                color: 'white',
-                backgroundColor: '#10B981', // Brighter green
-                '&:hover': {
-                  backgroundColor: '#059669', // Darker green on hover
+            <Menu
+              anchorEl={resultsMenuAnchor}
+              open={Boolean(resultsMenuAnchor)}
+              onClose={() => setResultsMenuAnchor(null)}
+            >
+              <MenuItem
+                onClick={() => {
+                  setResultsMenuAnchor(null);
+                  // Small delay to ensure menu closes before file picker opens
+                  setTimeout(() => {
+                    resultsInputRef.current?.click();
+                  }, 100);
+                }}
+              >
+                Load Folder
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setResultsMenuAnchor(null);
+                  // Small delay to ensure menu closes before file picker opens
+                  setTimeout(() => {
+                    resultsZipInputRef.current?.click();
+                  }, 100);
+                }}
+              >
+                Load Zip File
+              </MenuItem>
+            </Menu>
+            {/* Hidden file inputs */}
+            <input
+              ref={resultsInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              /* @ts-ignore - webkitdirectory is not in TypeScript types but widely supported */
+              webkitdirectory=""
+              directory=""
+              multiple
+              onChange={(e) => {
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                  void onLoadResultsLocal(files);
                 }
               }}
-            >
-              Start Demo
-            </Button>
+            />
+            <input
+              ref={resultsZipInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              accept=".zip"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  void onLoadResultsZip(file);
+                }
+              }}
+            />
+
           </Stack>
         </Toolbar>
+        <LoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} onLoginSuccess={() => { setIsAuthenticated(true); setLoginOpen(false); }} />
+        <DemoModeSelector
+          open={demoModeSelectorOpen}
+          onClose={() => setDemoModeSelectorOpen(false)}
+          onSelect={(mode) => {
+            setDemoModeSelectorOpen(false);
+            onLoadDemoData(mode);
+          }}
+        />
         {/* Global extraction/clustering progress, visible from all stages */}
         {batchRunning && (
           <Box sx={{ px: 3, pb: 1.5 }}>
-            <Typography variant="body2" sx={{ color: 'primary.main', mb: 0.5 }}>
+            <Typography variant="body2" sx={{ color: 'primary.main', mb: 0.5, fontWeight: 600, fontSize: '0.9rem' }}>
               {pipelineStage === 'extraction' && batchState
                 ? `Extracting properties: ${batchState} • ${Math.round((batchProgress || 0) * 100)}%`
                 : pipelineStage === 'clustering'
-                ? 'Clustering properties...'
-                : 'Processing...'}
+                  ? 'Clustering properties... (this may take a few minutes, please don\'t close your browser)'
+                  : 'Processing...'}
             </Typography>
             <LinearProgress
               variant={
@@ -3119,6 +3655,15 @@ function App() {
                   : 'indeterminate'
               }
               value={(batchProgress || 0) * 100}
+              sx={{
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                '& .MuiLinearProgress-bar': {
+                  borderRadius: 4,
+                  backgroundColor: '#2563eb',
+                }
+              }}
             />
           </Box>
         )}
@@ -3128,35 +3673,19 @@ function App() {
             <Alert
               severity="success"
               sx={{
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                color: '#065F46',
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                color: '#15803d',
                 '& .MuiAlert-icon': {
-                  color: '#10B981'
+                  color: '#22c55e'
+                },
+                '& .MuiAlert-action': {
+                  alignItems: 'flex-end',
+                  paddingTop: 0
                 }
               }}
               action={
-                <Stack direction="row" spacing={1} alignItems="center">
-                  {clusters.length > 0 && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => {
-                        setActiveSection('clusters');
-                        setSidebarExpanded(false);
-                      }}
-                      sx={{
-                        color: '#065F46',
-                        borderColor: 'rgba(6, 95, 70, 0.5)',
-                        '&:hover': {
-                          borderColor: '#065F46',
-                          backgroundColor: 'rgba(6, 95, 70, 0.1)'
-                        }
-                      }}
-                    >
-                      View Clusters
-                    </Button>
-                  )}
+                <Stack direction="row" spacing={1}>
                   {resultsMetrics && (
                     <Button
                       size="small"
@@ -3166,10 +3695,10 @@ function App() {
                         setSidebarExpanded(false);
                       }}
                       sx={{
-                        backgroundColor: '#10B981',
+                        backgroundColor: '#22c55e',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#059669'
+                          backgroundColor: '#16a34a'
                         }
                       }}
                     >
@@ -3182,11 +3711,11 @@ function App() {
                     startIcon={<DownloadIcon />}
                     onClick={handleDownloadResults}
                     sx={{
-                      color: '#065F46',
-                      borderColor: 'rgba(6, 95, 70, 0.5)',
+                      color: '#15803d',
+                      borderColor: 'rgba(21, 128, 61, 0.5)',
                       '&:hover': {
-                        borderColor: '#065F46',
-                        backgroundColor: 'rgba(6, 95, 70, 0.1)'
+                        borderColor: '#15803d',
+                        backgroundColor: 'rgba(21, 128, 61, 0.1)'
                       }
                     }}
                   >
@@ -3196,10 +3725,10 @@ function App() {
                     size="small"
                     onClick={() => setClusteringAlertDismissed(true)}
                     sx={{
-                      color: '#065F46',
+                      color: '#15803d',
                       ml: 1,
                       '&:hover': {
-                        backgroundColor: 'rgba(6, 95, 70, 0.1)'
+                        backgroundColor: 'rgba(21, 128, 61, 0.1)'
                       }
                     }}
                   >
@@ -3208,11 +3737,11 @@ function App() {
                 </Stack>
               }
             >
-              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#065F46' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#15803d' }}>
                 Clustering complete!
               </Typography>
-              <Typography variant="body2" sx={{ color: '#047857' }}>
-                Your properties have been clustered and insights are ready. Navigate to the <strong>Cluster Behaviors</strong> or <strong>View Insights</strong> section to explore the results.
+              <Typography variant="body2" sx={{ color: '#166534' }}>
+                Your properties have been clustered and insights are ready. Click <strong>View Insights</strong> to explore the results.
               </Typography>
             </Alert>
           </Box>
@@ -3220,9 +3749,9 @@ function App() {
       </AppBar>
       {/* offset for fixed AppBar - dynamically calculated to account for progress bar and clustering message */}
       <Box sx={{ height: `${appBarHeight}px` }} />
-      
+
       {/* Permanent Icon Sidebar */}
-      <PermanentIconSidebar 
+      <PermanentIconSidebar
         activeSection={activeSection}
         sidebarExpanded={sidebarExpanded}
         onSectionChange={(section) => {
@@ -3268,9 +3797,10 @@ function App() {
 
       {/* Removed expand chevron button; opening is handled by clicking icon sidebar */}
 
-            <Container maxWidth={false} sx={{
+      <Container maxWidth={false} sx={{
         py: 1,
         pt: 2, // Reduced top padding below header
+        px: 3, // Global horizontal padding for all tabs
         flexGrow: 1,
         display: 'flex',
         flexDirection: 'column',
@@ -3284,7 +3814,7 @@ function App() {
         {/* Left control sidebar is always available (collapsed by default via width + Drawer) */}
         {/* Getting started helper - shown before any upload */}
         {originalRows.length === 0 && !showColumnSelector && !isResultsMode && (
-          <Box sx={{ 
+          <Box sx={{
             mb: 2, py: 3, px: 2, borderRadius: 2,
             background: '#F8FAFC', color: 'text.secondary'
           }}>
@@ -3330,10 +3860,49 @@ function App() {
                   </Tooltip>
                 </Box>
               </Box>
-              <Typography variant="body2" sx={{ color: '#374151' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
-              <Typography variant="body2" sx={{ color: '#374151' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
-              <Typography variant="body2" sx={{ color: '#374151' }}>3) Click Done to load your table and explore</Typography>
-              
+
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>3) Click Done to load your table and explore</Typography>
+
+              <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                <img
+                  src="/stringsight_ui.png"
+                  alt="StringSight UI"
+                  style={{
+                    maxWidth: '75%',
+                    height: 'auto',
+                    borderRadius: '8px'
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => setDemoModeSelectorOpen(true)}
+                  startIcon={<PlayArrowIcon />}
+                  sx={{
+                    py: 1.5,
+                    px: 4,
+                    fontSize: '1.1rem',
+                    fontWeight: 600,
+                    color: 'white',
+                    backgroundColor: retroColors.green, // Retro terminal green
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                    '&:hover': {
+                      backgroundColor: '#3D9B73', // Darker retro green on hover
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                      transform: 'translateY(-1px)'
+                    },
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                >
+                  Try Demo Data
+                </Button>
+              </Box>
+
               <Box sx={{ mt: 2, mb: 1 }}>
                 <Typography variant="subtitle1" sx={{ color: '#374151', fontWeight: 600, mb: 1 }}>What data format should I use?</Typography>
                 <Typography variant="body2" sx={{ color: '#374151', mb: 1.5, fontSize: '0.875rem' }}>
@@ -3373,7 +3942,7 @@ function App() {
             </Box>
           </Box>
         )}
-        
+
         {/* Column Selector - shown when user needs to specify column mapping */}
         {showColumnSelector && (
           <ColumnSelector
@@ -3388,7 +3957,7 @@ function App() {
 
         {/* Show data interface only after data is loaded and column mapping is complete */}
         {originalRows.length > 0 && !showColumnSelector && (
-        <>
+          <>
             {/* Show filter notice if any rows were dropped due to missing scores */}
             {filterNotice && (
               <Box
@@ -3405,6 +3974,14 @@ function App() {
               </Box>
             )}
 
+            {/* Demo guidance popup for Data tab - shown when demo data is loaded and not yet dismissed */}
+            {activeSection === 'data' && isDemoSession && !dismissedDemoPopups.has('data') && operationalRows.length > 0 && (
+              <DemoGuidancePopup
+                section="data"
+                onDismiss={() => handleDismissDemoPopup('data')}
+              />
+            )}
+
             {activeSection === 'data' && dataOverview && (
               <DataOverviewBanner dataOverview={dataOverview} method={method} />
             )}
@@ -3412,253 +3989,253 @@ function App() {
             {/* Extraction panel in main content for Extraction step */}
             {activeSection === 'extraction' && (
               <Box sx={{ mb: 2, position: 'relative' }}>
-            <PropertyExtractionPanel
-              method={method}
-              uploadedFileName={uploadedFileName}
-              resultsName={resultsName}
-              onResultsNameChange={setResultsName}
-              isResultsMode={isResultsMode}
-              demoSampleSize={isDemoMode ? demoSampleSize : undefined}
-              getSelectedRow={getSelectedRowCb}
-              getAllRows={getAllRowsCb}
-              getOperationalRows={getOperationalRowsCb}
-              getPropertiesRows={getPropertiesRowsCb}
-              getClusters={() => clusters}
-              onPropertiesMerged={onPropertiesMergedCb}
-            onSelectEvidence={setSelectedEvidence}
-            onBatchLoaded={onBatchLoadedCb}
+                {/* Demo guidance popup for Extraction section */}
+                {isDemoSession && !dismissedDemoPopups.has('properties') && operationalRows.length > 0 && (
+                  <DemoGuidancePopup
+                    section="properties"
+                    onDismiss={() => handleDismissDemoPopup('properties')}
+                  />
+                )}
+                <PropertyExtractionPanel
+                  method={method}
+                  uploadedFileName={uploadedFileName}
+                  resultsName={resultsName}
+                  onResultsNameChange={setResultsName}
+                  isResultsMode={isResultsMode}
+                  demoSampleSize={isDemoMode || isDemoSession ? demoSampleSize : undefined} // Modified
+                  getSelectedRow={getSelectedRowCb}
+                  getAllRows={getAllRowsCb}
+                  getOperationalRows={getOperationalRowsCb}
+                  getPropertiesRows={getPropertiesRowsCb}
+                  getClusters={() => clusters}
+                  onPropertiesMerged={onPropertiesMergedCb}
+                  onSelectEvidence={setSelectedEvidence}
+                  onBatchLoaded={onBatchLoadedCb}
                   onBatchStart={onBatchStartCb}
-            onBatchStatus={onBatchStatusCb}
+                  onBatchStatus={onBatchStatusCb}
                   onBatchDone={onBatchDoneCb}
-            onClustersUpdated={onClustersUpdatedCb}
-            onNavigateToMetrics={onNavigateToMetricsCb}
-            onNavigateToClusters={onNavigateToClustersCb}
-            onOpenTrace={(row) => {
-              // Format trace data properly based on method (same as onView function)
-              if (method === "single_model") {
-                const messages = ensureOpenAIFormat(String(row?.["prompt"] ?? ""), row?.["model_response"]);
-                setSelectedTrace({ type: "single", messages });
-              } else if (method === "side_by_side") {
-                const prompt = String(row?.["prompt"] ?? "");
-                const messagesA = ensureOpenAIFormat(prompt, row?.["model_a_response"]);
-                const messagesB = ensureOpenAIFormat(prompt, row?.["model_b_response"]);
-                setSelectedTrace({
-                  type: "sbs",
-                  messagesA,
-                  messagesB,
-                  modelA: String(row?.["model_a"] ?? "Model A"),
-                  modelB: String(row?.["model_b"] ?? "Model B"),
-                });
-              }
-              setSelectedRow(row);
-              setDrawerOpen(true);
-              setSelectedEvidence(null);
-              setEvidenceTargetModel(undefined);
-            }}
-            onCloseTrace={() => {
-              setDrawerOpen(false);
-              setSelectedTrace(null);
-              setSelectedRow(null);
-              setSelectedEvidence(null);
-              setEvidenceTargetModel(undefined);
-              setSelectedProperty(null);
-            }}
-          />
-          {!backendAvailable && (
-            <Box sx={{ position: 'absolute', inset: 0, zIndex: (theme) => theme.zIndex.modal + 1, bgcolor: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, pointerEvents: 'all' }}>
-              <Box sx={{ bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 4, border: '1px solid #EA580C', textAlign: 'center' }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  Backend not connected. Set VITE_BACKEND to your backend URL to enable extraction.
-                </Typography>
+                  onClustersUpdated={onClustersUpdatedCb}
+                  onNavigateToMetrics={onNavigateToMetricsCb}
+                  onNavigateToClusters={onNavigateToClustersCb}
+                  onScrollToProperties={scrollToPropertiesCb}
+                  onOpenTrace={(row) => {
+                    // Format trace data properly based on method (same as onView function)
+                    if (method === "single_model") {
+                      const messages = ensureOpenAIFormat(String(row?.["prompt"] ?? ""), row?.["model_response"]);
+                      setSelectedTrace({ type: "single", messages });
+                    } else if (method === "side_by_side") {
+                      const prompt = String(row?.["prompt"] ?? "");
+                      const messagesA = ensureOpenAIFormat(prompt, row?.["model_a_response"]);
+                      const messagesB = ensureOpenAIFormat(prompt, row?.["model_b_response"]);
+                      setSelectedTrace({
+                        type: "sbs",
+                        messagesA,
+                        messagesB,
+                        modelA: String(row?.["model_a"] ?? "Model A"),
+                        modelB: String(row?.["model_b"] ?? "Model B"),
+                      });
+                    }
+                    setSelectedRow(row);
+                    setDrawerOpen(true);
+                    setSelectedEvidence(null);
+                    setEvidenceTargetModel(undefined);
+                  }}
+                  onCloseTrace={() => {
+                    setDrawerOpen(false);
+                    setSelectedTrace(null);
+                    setSelectedRow(null);
+                    setSelectedEvidence(null);
+                    setEvidenceTargetModel(undefined);
+                    setSelectedProperty(null);
+                  }}
+                />
+                {!backendAvailable && (
+                  <Box sx={{ position: 'absolute', inset: 0, zIndex: (theme) => theme.zIndex.modal + 1, bgcolor: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1, pointerEvents: 'all' }}>
+                    <Box sx={{ bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 4, border: '1px solid #EA580C', textAlign: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        We are having trouble connecting, thank your for your patience!
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
               </Box>
-            </Box>
-          )}
-          </Box>
             )}
-
-            {/* Operation Chain Summary */}
-            <FilterSummary
-              operations={operationChain}
-              onRemoveOperation={removeOperation}
-            />
 
             {/* Top action row: extraction hint and results download */}
             <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
-            {/* Hint message for extraction feature - shown when data is loaded but no properties */}
-            {originalRows.length > 0 && !showColumnSelector && propertiesRows.length === 0 && (
-              <Box
-                component="span"
-                sx={{ 
-                  px: 2, 
-                  py: 1, 
-                  backgroundColor: '#EFF6FF', 
-                  border: '1px solid #4C6EF5', 
-                  borderRadius: 1,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  height: '36px'
-                }}
-              >
-                <Typography variant="body2" sx={{ color: '#4C6EF5', fontWeight: 600 }}>
-                  Click <strong>🔍</strong> in the sidebar to analyze your traces
-                </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+              </Box>
+            </Box>
+
+            {/* Content based on active section */}
+            {/* Mount table/properties only when active to keep memory low */}
+            {activeSection === 'data' ? tableContent : null}
+            {activeSection === 'extraction' ? (
+              <Box ref={propertiesSectionRef}>
+                {propertiesContent}
+              </Box>
+            ) : null}
+            {(activeSection === 'clusters' || hasViewedClusters) && (
+              <Box sx={{ display: activeSection === 'clusters' ? 'block' : 'none' }}>
+                {/* Demo guidance popup for Clusters section */}
+                {isDemoSession && !dismissedDemoPopups.has('clusters') && activeSection === 'clusters' && clusters.length > 0 && (
+                  <DemoGuidancePopup
+                    section="clusters"
+                    onDismiss={() => handleDismissDemoPopup('clusters')}
+                  />
+                )}
+                <ClustersTab
+                  clusters={clusters}
+                  totalConversationsByModel={totalConversationsByModel}
+                  totalUniqueConversations={totalUniqueConversations}
+                  getPropertiesRows={getPropertiesRowsCb}
+                  onRequestRecompute={onRequestRecomputeCb}
+                  modelClusterScores={resultsMetrics?.model_cluster_scores}
+                  externalSearchQuery={clusterSearchQuery}
+                  onClusterClick={(cluster) => {
+                    console.log('[App] onClusterClick called with cluster:', cluster);
+                    setSelectedCluster(cluster);
+                    setClusterSidecardOpen(true);
+                    console.log('[App] Sidecard state set to open');
+                  }}
+                />
               </Box>
             )}
-          </Box>
-        </Box>
+            {activeSection === 'metrics' && (
+              <Box>
+                {/* Demo guidance popup for Metrics section */}
+                {isDemoSession && !dismissedDemoPopups.has('metrics') && resultsMetrics && (
+                  <DemoGuidancePopup
+                    section="metrics"
+                    onDismiss={() => handleDismissDemoPopup('metrics')}
+                  />
+                )}
+                {resultsMetrics ? (
+                  <MetricsTab
+                    resultsData={resultsMetrics}
+                    filters={metricsFilters}
+                    onFiltersChange={setMetricsFilters}
+                    totalUniqueConversations={totalUniqueConversations}
+                    method={method}
+                    onDataProcessed={onMetricsDataProcessedCb}
+                    onNavigateToCluster={handleNavigateToCluster}
+                    onViewExample={(cluster) => {
+                      // Randomly select an example from the cluster
+                      if (!cluster.examples || cluster.examples.length === 0) return;
 
-        {/* Content based on active section */}
-        {/* Mount table/properties only when active to keep memory low */}
-        {activeSection === 'data' ? tableContent : null}
-        {activeSection === 'extraction' ? propertiesContent : null}
-        {(activeSection === 'clusters' || hasViewedClusters) && (
-          <Box sx={{ display: activeSection === 'clusters' ? 'block' : 'none' }}>
-            <ClustersTab
-              clusters={clusters}
-              totalConversationsByModel={totalConversationsByModel}
-              totalUniqueConversations={totalUniqueConversations}
-              getPropertiesRows={getPropertiesRowsCb}
-              onRequestRecompute={onRequestRecomputeCb}
-              modelClusterScores={resultsMetrics?.model_cluster_scores}
-              externalSearchQuery={clusterSearchQuery}
-              onClusterClick={(cluster) => {
-                console.log('[App] onClusterClick called with cluster:', cluster);
-                setSelectedCluster(cluster);
-                setClusterSidecardOpen(true);
-                console.log('[App] Sidecard state set to open');
-              }}
-            />
-          </Box>
-        )}
-        {activeSection === 'metrics' && (
-          <Box sx={{ mt: 1 }}>
-            {resultsMetrics ? (
-              <MetricsTab
-                resultsData={resultsMetrics}
-                filters={metricsFilters}
-                onFiltersChange={setMetricsFilters}
-                totalUniqueConversations={totalUniqueConversations}
-                method={method}
-                onDataProcessed={onMetricsDataProcessedCb}
-                onNavigateToCluster={handleNavigateToCluster}
-                onViewExample={(cluster) => {
-                  // Randomly select an example from the cluster
-                  if (!cluster.examples || cluster.examples.length === 0) return;
+                      const randomIndex = Math.floor(Math.random() * cluster.examples.length);
+                      const selectedExample = cluster.examples[randomIndex];
 
-                  const randomIndex = Math.floor(Math.random() * cluster.examples.length);
-                  const selectedExample = cluster.examples[randomIndex];
+                      console.log('[App] onViewExample - Selected example:', selectedExample);
+                      console.log('[App] onViewExample - Cluster model:', cluster.model);
 
-                  console.log('[App] onViewExample - Selected example:', selectedExample);
-                  console.log('[App] onViewExample - Cluster model:', cluster.model);
+                      // Example format: [question_id, {predicted_text: "..."}, {property_description: "..."}]
+                      const questionId = selectedExample[0];
+                      const propertyData = selectedExample[2]; // Third element contains property_description
+                      const propertyDescription = propertyData?.property_description;
 
-                  // Example format: [question_id, {predicted_text: "..."}, {property_description: "..."}]
-                  const questionId = selectedExample[0];
-                  const propertyData = selectedExample[2]; // Third element contains property_description
-                  const propertyDescription = propertyData?.property_description;
-
-                  console.log('[App] onViewExample - Looking for property:', {
-                    questionId,
-                    model: cluster.model,
-                    propertyDescription,
-                    totalProperties: propertiesRows.length
-                  });
-
-                  // Find the matching property in propertiesRows
-                  const prop = propertiesRows.find((p: any) => {
-                    const matchesQid = String(p.question_id) === String(questionId);
-                    const matchesModel = String(p.model) === String(cluster.model);
-                    const matchesDescription = String(p.property_description) === String(propertyDescription);
-
-                    // Debug: log properties that match on question_id
-                    if (matchesQid) {
-                      console.log('[App] onViewExample - Found property with matching qid:', {
-                        qid: p.question_id,
-                        model: p.model,
-                        description: p.property_description,
-                        matchesModel,
-                        matchesDescription
+                      console.log('[App] onViewExample - Looking for property:', {
+                        questionId,
+                        model: cluster.model,
+                        propertyDescription,
+                        totalProperties: propertiesRows.length
                       });
-                    }
 
-                    return matchesQid && matchesModel && matchesDescription;
-                  });
+                      // Find the matching property in propertiesRows
+                      const prop = propertiesRows.find((p: any) => {
+                        const matchesQid = String(p.question_id) === String(questionId);
+                        const matchesModel = String(p.model) === String(cluster.model);
+                        const matchesDescription = String(p.property_description) === String(propertyDescription);
 
-                  if (!prop) {
-                    console.warn('[App] onViewExample - Could not find property for example');
-                    console.warn('[App] onViewExample - First 3 properties:', propertiesRows.slice(0, 3));
-                    return;
-                  }
+                        // Debug: log properties that match on question_id
+                        if (matchesQid) {
+                          console.log('[App] onViewExample - Found property with matching qid:', {
+                            qid: p.question_id,
+                            model: p.model,
+                            description: p.property_description,
+                            matchesModel,
+                            matchesDescription
+                          });
+                        }
 
-                  // Find the corresponding row in operationalRows (same as onOpenPropertyById)
-                  const idx = (prop as any).__index ?? (prop as any).row_index;
-                  let row: any | null = null;
-                  if (idx != null) {
-                    row = operationalRows.find(r => Number(r?.__index) === Number(idx)) || null;
-                  }
-                  if (!row) {
-                    const qid = (prop as any).question_id;
-                    const modelName = String((prop as any).model || '');
-                    row = operationalRows.find(r => {
-                      const rq = r?.question_id;
-                      if (method === 'single_model') {
-                        return rq === qid && String(r?.model || '') === modelName;
-                      } else if (method === 'side_by_side') {
-                        return rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName);
+                        return matchesQid && matchesModel && matchesDescription;
+                      });
+
+                      if (!prop) {
+                        console.warn('[App] onViewExample - Could not find property for example');
+                        console.warn('[App] onViewExample - First 3 properties:', propertiesRows.slice(0, 3));
+                        return;
                       }
-                      return false;
-                    }) || null;
-                  }
 
-                  if (!row) {
-                    console.warn('[App] onViewExample - Could not find row for property');
-                    return;
-                  }
+                      // Find the corresponding row in operationalRows (same as onOpenPropertyById)
+                      const idx = (prop as any).__index ?? (prop as any).row_index;
+                      let row: any | null = null;
+                      if (idx != null) {
+                        row = operationalRows.find(r => Number(r?.__index) === Number(idx)) || null;
+                      }
+                      if (!row) {
+                        const qid = (prop as any).question_id;
+                        const modelName = String((prop as any).model || '');
+                        row = operationalRows.find(r => {
+                          const rq = r?.question_id;
+                          if (method === 'single_model') {
+                            return rq === qid && String(r?.model || '') === modelName;
+                          } else if (method === 'side_by_side') {
+                            return rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName);
+                          }
+                          return false;
+                        }) || null;
+                      }
 
-                  // Process evidence (same logic as onOpenPropertyById)
-                  const rawEvidence = (prop as any).evidence;
-                  let ev: string[] = [];
+                      if (!row) {
+                        console.warn('[App] onViewExample - Could not find row for property');
+                        return;
+                      }
 
-                  if (Array.isArray(rawEvidence)) {
-                    ev = rawEvidence;
-                  } else if (rawEvidence && typeof rawEvidence === 'string') {
-                    // Parse comma-separated quoted strings
-                    // Split on quote/comma patterns: ", " between double-quoted items
-                    const trimmed = rawEvidence.trim();
-                    const parts = trimmed.split(/"\s*,\s*"|\n|,\s(?=[\w\d])/g).map(s => s.replace(/^"|"$/g, '').trim());
-                    ev = parts.filter(Boolean);
-                  } else if (rawEvidence) {
-                    ev = [String(rawEvidence)];
-                  }
+                      // Process evidence (same logic as onOpenPropertyById)
+                      const rawEvidence = (prop as any).evidence;
+                      let ev: string[] = [];
 
-                  console.log('[App] onViewExample - Setting evidence:', ev);
-                  console.log('[App] onViewExample - Property:', prop);
+                      if (Array.isArray(rawEvidence)) {
+                        ev = rawEvidence;
+                      } else if (rawEvidence && typeof rawEvidence === 'string') {
+                        // Parse comma-separated quoted strings
+                        // Split on quote/comma patterns: ", " between double-quoted items
+                        const trimmed = rawEvidence.trim();
+                        const parts = trimmed.split(/"\s*,\s*"|\n|,\s(?=[\w\d])/g).map(s => s.replace(/^"|"$/g, '').trim());
+                        ev = parts.filter(Boolean);
+                      } else if (rawEvidence) {
+                        ev = [String(rawEvidence)];
+                      }
 
-                  // Set property context and evidence
-                  setSelectedEvidence(ev);
-                  setEvidenceTargetModel((prop as any).model);
-                  setSelectedProperty(prop);
+                      console.log('[App] onViewExample - Setting evidence:', ev);
+                      console.log('[App] onViewExample - Property:', prop);
 
-                  // Open the trace with preserveEvidence=true
-                  onView(row, true);
-                }}
-                debug={true}
-                showBenchmark={true}
-                showClusterPlots={false}
-                showModelCards={false}
-              />
-            ) : (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <Typography variant="h6" color="text.secondary" gutterBottom>
-                  No Metrics Data Available
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Load results from a folder that contains computed metrics, or run the clustering pipeline to generate metrics.
-                </Typography>
+                      // Set property context and evidence
+                      setSelectedEvidence(ev);
+                      setEvidenceTargetModel((prop as any).model);
+                      setSelectedProperty(prop);
+
+                      // Open the trace with preserveEvidence=true
+                      onView(row, true);
+                    }}
+                    debug={true}
+                    showBenchmark={true}
+                    showClusterPlots={false}
+                    showModelCards={false}
+                  />
+                ) : (
+                  <Box sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      No Metrics Data Available
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Load results from a folder that contains computed metrics, or run the clustering pipeline to generate metrics.
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             )}
-          </Box>
-        )}
           </>
         )}
       </Container>
@@ -3683,42 +4260,7 @@ function App() {
         ModalProps={{ keepMounted: true }}
       >
         <>
-            {/* Collapse button and Download PDF */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <IconButton
-                onClick={() => {
-                  setDrawerOpen(false);
-                  setSelectedTrace(null);
-                  setSelectedRow(null);
-                  setSelectedEvidence(null);
-                  setEvidenceTargetModel(undefined);
-                  setSelectedProperty(null);
-                }}
-                sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 1,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  '&:hover': {
-                    backgroundColor: 'action.hover',
-                  }
-                }}
-              >
-                <ChevronRightIcon />
-              </IconButton>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<DownloadIcon />}
-                onClick={handleDrawerPrint}
-                sx={{ textTransform: 'none' }}
-              >
-                Download PDF
-              </Button>
-            </Box>
-
-            <Box ref={traceContentRef}>
+          <Box ref={traceContentRef}>
             {(selectedTrace?.type === "single" || selectedTrace?.type === "sbs") && selectedProperty && (
               // Property information header when viewing from properties table
               <PropertyTraceHeader
@@ -3726,6 +4268,16 @@ function App() {
                 selectedProperty={selectedProperty}
                 method={method}
                 evidenceTargetModel={evidenceTargetModel}
+                onBack={() => {
+                  setDrawerOpen(false);
+                  setSelectedTrace(null);
+                  setSelectedRow(null);
+                  setSelectedEvidence(null);
+                  setEvidenceTargetModel(undefined);
+                  setSelectedProperty(null);
+                }}
+                onDownloadPDF={handleDrawerPrint}
+                backLabel="Close"
               />
             )}
             {selectedTrace?.type === "single" && (() => {
@@ -3756,8 +4308,8 @@ function App() {
                 scoreB={(selectedRow as any)?.score_b}
               />
             )}
-            </Box>
-          </>
+          </Box>
+        </>
       </Drawer>
 
       {/* Cluster Sidecard */}

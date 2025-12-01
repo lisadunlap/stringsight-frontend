@@ -8,8 +8,9 @@
 import { Box, useTheme } from '@mui/material';
 // @ts-ignore - Plotly types issue
 import Plotly from 'plotly.js-dist-min';
-// @ts-ignore - React-plotly types issue  
+// @ts-ignore - React-plotly types issue
 import createPlotlyComponent from 'react-plotly.js/factory';
+import { retroColors } from '../../../theme';
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -35,24 +36,24 @@ export interface PlotlyChartBaseProps {
 }
 
 /**
- * Standard color palette for models - consistent across all charts
+ * Standard color palette for models - using retro tech theme
  */
 export const MODEL_COLORS = [
-  '#1f77b4', // blue
-  '#ff7f0e', // orange  
-  '#2ca02c', // green
-  '#d62728', // red
-  '#9467bd', // purple
-  '#8c564b', // brown
-  '#e377c2', // pink
-  '#7f7f7f', // gray
-  '#bcbd22', // olive
-  '#17becf', // cyan
-  '#aec7e8', // light blue
-  '#ffbb78', // light orange
-  '#98df8a', // light green
-  '#ff9896', // light red
-  '#c5b0d5', // light purple
+  retroColors.blue,    // IBM blue - classic tech
+  retroColors.orange,  // Amber CRT - warm glow
+  retroColors.green,   // Terminal green - techy
+  retroColors.red,     // Error red - familiar
+  retroColors.purple,  // Grape - retro refined
+  '#8c564b',           // brown (supporting)
+  '#e377c2',           // pink (supporting)
+  '#7f7f7f',           // gray (supporting)
+  '#bcbd22',           // olive (supporting)
+  '#17becf',           // cyan (supporting)
+  '#aec7e8',           // light blue (supporting)
+  '#ffbb78',           // light orange (supporting)
+  '#98df8a',           // light green (supporting)
+  '#ff9896',           // light red (supporting)
+  '#c5b0d5',           // light purple (supporting)
 ];
 
 /**

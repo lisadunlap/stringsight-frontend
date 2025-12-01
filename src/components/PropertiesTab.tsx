@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Table, TableHead, TableRow, TableCell, TableBody, Button, TableContainer, Accordion, AccordionSummary, AccordionDetails, Typography, Chip, Pagination, Fade, Tooltip } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { retroColors } from '../theme';
 import FilterBar from './FilterBar';
 import FormattedCell from './FormattedCell';
 import PropertiesOverviewBanner from './PropertiesOverviewBanner';
@@ -93,7 +94,17 @@ export default function PropertiesTab({
 
   // Get all available columns from the enriched properties data with custom ordering
   const availableColumns = React.useMemo(() => {
-    if (enrichedRows.length === 0) return [];
+    // When no rows, show default expected columns for properties
+    if (enrichedRows.length === 0) {
+      return [
+        'property_description',
+        'behavior_type',
+        'evidence',
+        'reason',
+        'model',
+        'question_id'
+      ];
+    }
     const allKeys = new Set<string>();
     enrichedRows.forEach(row => {
       Object.keys(row).forEach(key => allKeys.add(key));
@@ -293,7 +304,6 @@ export default function PropertiesTab({
         <Button
           size="small"
           variant="text"
-          color="secondary"
           startIcon={<VisibilityOutlinedIcon />}
           onClick={(e) => {
             e.stopPropagation();
@@ -306,7 +316,7 @@ export default function PropertiesTab({
             });
             onOpenProperty(rowData);
           }}
-          sx={{ fontWeight: 600 }}
+          sx={{ fontWeight: 600, color: retroColors.blue }}
         >
           View
         </Button>
@@ -431,10 +441,10 @@ export default function PropertiesTab({
   }, [filtered, availableColumns]);
 
   return (
-    <Box sx={{ pt: 0.5 }}>
+    <Box>
       {/* (Prompt/task description controls intentionally not included here) */}
       {/* Properties Overview Banner */}
-      <PropertiesOverviewBanner properties={rows} />
+      <PropertiesOverviewBanner properties={filtered} />
       
       {/* Grouped Bar Chart: Property Distribution by Model (collapsed by default) */}
       {propertyCountsByModel && propertyCountsByModel.size > 0 && (
@@ -444,14 +454,16 @@ export default function PropertiesTab({
             borderRadius: 1,
             '&:before': { display: 'none' },
             boxShadow: 'none',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E5E7EB',
           }}
         >
           <AccordionSummary
             expandIcon={<ExpandMoreIcon />}
             sx={{
-              backgroundColor: '#F9FAFB',
-              border: '1px solid #E5E7EB',
-              borderRadius: 1,
+              backgroundColor: '#FFFFFF',
+              borderBottom: '1px solid #E5E7EB',
+              borderRadius: 0,
               '& .MuiAccordionSummary-content': { my: 0.25 },
             }}
           >
@@ -592,7 +604,134 @@ export default function PropertiesTab({
         onGroupByChange={setGroupBy}
         onReset={resetAll}
       />
-      
+
+      {/* Active Filters Summary */}
+      {(query || filters.length > 0 || groupBy) && (
+        <Box sx={{
+          mb: 2,
+          pb: 1.5,
+          borderBottom: '2px solid',
+          borderColor: '#D1D5DB',
+        }}>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography variant="subtitle2" sx={{
+              color: '#6B7280',
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              mr: 1
+            }}>
+              Active Filters:
+            </Typography>
+
+            {query && (
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  fontSize: '0.875rem',
+                  color: '#92400E',
+                  pb: 0.5,
+                  borderBottom: '2px solid',
+                  borderColor: '#92400E',
+                }}
+              >
+                <Box component="span">
+                  Search: "{query}"
+                </Box>
+                <Button
+                  size="small"
+                  onClick={() => setQuery('')}
+                  sx={{
+                    minWidth: 'auto',
+                    p: 0,
+                    color: '#92400E',
+                    '&:hover': {
+                      color: 'error.main',
+                      bgcolor: 'transparent'
+                    }
+                  }}
+                >
+                  ✕
+                </Button>
+              </Box>
+            )}
+
+            {filters.map((filter, index) => (
+              <Box
+                key={index}
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  fontSize: '0.875rem',
+                  color: '#92400E',
+                  pb: 0.5,
+                  borderBottom: '2px solid',
+                  borderColor: '#92400E',
+                }}
+              >
+                <Box component="span">
+                  {filter.column}: {filter.negated ? 'NOT ' : ''}{filter.values.join(', ')}
+                  {filter.operator && index > 0 ? ` (${filter.operator})` : ''}
+                </Box>
+                <Button
+                  size="small"
+                  onClick={() => removeFilter(index)}
+                  sx={{
+                    minWidth: 'auto',
+                    p: 0,
+                    color: '#92400E',
+                    '&:hover': {
+                      color: 'error.main',
+                      bgcolor: 'transparent'
+                    }
+                  }}
+                >
+                  ✕
+                </Button>
+              </Box>
+            ))}
+
+            {groupBy && (
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  fontSize: '0.875rem',
+                  color: '#92400E',
+                  pb: 0.5,
+                  borderBottom: '2px solid',
+                  borderColor: '#92400E',
+                }}
+              >
+                <Box component="span">
+                  Group by: {groupBy}
+                </Box>
+                <Button
+                  size="small"
+                  onClick={() => setGroupBy(null)}
+                  sx={{
+                    minWidth: 'auto',
+                    p: 0,
+                    color: '#92400E',
+                    '&:hover': {
+                      color: 'error.main',
+                      bgcolor: 'transparent'
+                    }
+                  }}
+                >
+                  ✕
+                </Button>
+              </Box>
+            )}
+          </Stack>
+        </Box>
+      )}
+
       {/* Render grouped or ungrouped table */}
       {groupedData ? (
         // Grouped view
@@ -647,6 +786,17 @@ export default function PropertiesTab({
                       const start = (currentPage - 1) * pageSize;
                       const end = Math.min(group.rows.length, start + pageSize);
                       const rowsSlice = group.rows.slice(start, end);
+                      if (rowsSlice.length === 0) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={availableColumns.length} sx={{ textAlign: 'center', py: 4 }}>
+                              <Typography variant="body1" color="text.secondary">
+                                No properties in this group yet.
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
                       return rowsSlice.map((p, i) => (
                         <TableRow key={i} hover>
                           {availableColumns.map((column) => {
@@ -712,7 +862,15 @@ export default function PropertiesTab({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {pageRows.map((p, i) => {
+                {pageRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={availableColumns.length} sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography variant="body1" color="text.secondary">
+                        No properties extracted yet. Click "Label Trace at Row 0" or "Label and Cluster All Traces" above to start.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : pageRows.map((p, i) => {
                   const row = (
                     <TableRow key={i} hover>
                       {availableColumns.map((column) => {
