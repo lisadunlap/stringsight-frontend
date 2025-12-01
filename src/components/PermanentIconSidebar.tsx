@@ -137,7 +137,7 @@ export default function PermanentIconSidebar({
         width: 150,
         height: (theme) => `calc(100vh - ${theme.mixins.toolbar.minHeight}px)`,
         backgroundColor: 'background.paper',
-        borderRight: '1px solid',
+        borderRight: '2px solid',
         borderColor: 'divider',
         display: 'flex',
         flexDirection: 'column',

@@ -1550,15 +1550,17 @@ export default function PropertyExtractionPanel({
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column', mt: 3 }}>
-            {busy && extractionProgress > 0 && (
+            {busy && (
               <Box sx={{ width: '100%', mb: 1 }}>
                 <LinearProgress
-                  variant="determinate"
+                  variant={extractionProgress > 0 ? "determinate" : "indeterminate"}
                   value={extractionProgress}
                   sx={{ height: 6, borderRadius: 1 }}
                 />
                 <Typography variant="caption" sx={{ mt: 0.5, display: 'block', textAlign: 'center', color: 'text.secondary' }}>
-                  Extracting properties... {Math.round(extractionProgress)}%
+                  {extractionProgress > 0 
+                    ? `Extracting properties... ${Math.round(extractionProgress)}%`
+                    : 'Extracting properties...'}
                 </Typography>
               </Box>
             )}

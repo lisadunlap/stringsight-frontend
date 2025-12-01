@@ -1773,12 +1773,12 @@ function App() {
       return m === modelA || m === modelB;
     });
 
-    // Group by question_id (or prompt if missing)
+    // Group by question_id (use row index if missing to avoid using prompt as ID)
     const groups = new Map<string, Record<string, any>[]>();
-    filteredRows.forEach(row => {
+    filteredRows.forEach((row, idx) => {
       const qid = row['question_id'] != null && row['question_id'] !== ''
         ? String(row['question_id'])
-        : String(row[mapping.promptCol] || '');
+        : String(idx); // Use index instead of prompt to avoid long IDs
       if (!groups.has(qid)) groups.set(qid, []);
       groups.get(qid)!.push(row);
     });
@@ -2966,35 +2966,41 @@ function App() {
               console.log('[App] onOpenProperty - No match found by index');
             }
           }
+
           if (!row) {
-            // Fallback: match on question_id and model
+            // Fallback: match on question_id
             const qid = (prop as any).question_id;
-            const modelName = String((prop as any).model || '');
+            const modelName = String((prop as any).model || '').trim();
 
-            console.log('[App] onOpenProperty - Searching by question_id + model:', { qid, qid_type: typeof qid, modelName, method });
-            console.log('[App] onOpenProperty - Sample operationalRows[0]:', {
-              question_id: operationalRows[0]?.question_id,
-              question_id_type: typeof operationalRows[0]?.question_id,
-              model: operationalRows[0]?.model,
-              model_type: typeof operationalRows[0]?.model,
-              __index: operationalRows[0]?.__index
-            });
-            console.log('[App] onOpenProperty - Total operationalRows:', operationalRows.length);
+            console.log('[App] onOpenProperty - Searching by question_id:', { qid, modelName });
 
+            // First try exact match on question_id AND model
             row = operationalRows.find(r => {
-              const rq = r?.question_id;
-              const matches = method === 'single_model'
-                ? rq === qid && String(r?.model || '') === modelName
-                : method === 'side_by_side'
-                  ? rq === qid && (String(r?.model_a || '') === modelName || String(r?.model_b || '') === modelName)
-                  : false;
+              const rqStr = String(r?.question_id ?? '');
+              const qidStr = String(qid ?? '');
 
-              if (matches) {
-                console.log('[App] Found match!', { rq, qid, model: r?.model || r?.model_a });
+              // Skip empty question_ids
+              if (!rqStr || !qidStr) return false;
+
+              if (rqStr !== qidStr) return false;
+
+              // Check model if present
+              if (method === 'single_model') {
+                return String(r?.model || '').trim() === modelName;
+              } else if (method === 'side_by_side') {
+                return String(r?.model_a || '').trim() === modelName || String(r?.model_b || '').trim() === modelName;
               }
+              return true;
+            });
 
-              return matches;
-            }) || null;
+            // If still not found, try just question_id (looser match)
+            if (!row && qid) {
+              console.log('[App] onOpenProperty - Strict match failed, trying just question_id or __index...');
+              row = operationalRows.find(r =>
+                String(r?.question_id ?? '') === String(qid) ||
+                String(r?.__index ?? '') === String(qid)
+              );
+            }
           }
 
           if (!row) {
@@ -3088,7 +3094,10 @@ function App() {
       // Find matching operational row by question_id and model
       const matchingRow = operationalRowsRef.current.find(opRow => {
         if (methodRef.current === 'single_model') {
-          const matches = opRow.question_id === prop.question_id && opRow.model === prop.model;
+          // Normalize question_id to string for comparison (handles string vs number mismatch)
+          const opQidStr = String(opRow.question_id ?? '');
+          const propQidStr = String(prop.question_id ?? '');
+          const matches = opQidStr === propQidStr && opRow.model === prop.model;
           if (!matches && propIdx === 0) {
             // Debug first property match attempt
             console.log('[App] Checking opRow:', {
@@ -3098,13 +3107,16 @@ function App() {
               opRow_model_type: typeof opRow.model,
               prop_qid: prop.question_id,
               prop_model: prop.model,
-              qid_match: opRow.question_id === prop.question_id,
+              qid_match: opQidStr === propQidStr,
               model_match: opRow.model === prop.model
             });
           }
           return matches;
         } else if (methodRef.current === 'side_by_side') {
-          return opRow.question_id === prop.question_id &&
+          // Normalize question_id to string for comparison (handles string vs number mismatch)
+          const opQidStr = String(opRow.question_id ?? '');
+          const propQidStr = String(prop.question_id ?? '');
+          return opQidStr === propQidStr &&
             (opRow.model_a === prop.model || opRow.model_b === prop.model);
         }
         return false;
@@ -3145,9 +3157,15 @@ function App() {
       // Find matching operational row by question_id and model
       const matchingRow = operationalRowsRef.current.find(opRow => {
         if (methodRef.current === 'single_model') {
-          return opRow.question_id === prop.question_id && opRow.model === prop.model;
+          // Normalize question_id to string for comparison (handles string vs number mismatch)
+          const opQidStr = String(opRow.question_id ?? '');
+          const propQidStr = String(prop.question_id ?? '');
+          return opQidStr === propQidStr && opRow.model === prop.model;
         } else if (methodRef.current === 'side_by_side') {
-          return opRow.question_id === prop.question_id &&
+          // Normalize question_id to string for comparison (handles string vs number mismatch)
+          const opQidStr = String(opRow.question_id ?? '');
+          const propQidStr = String(prop.question_id ?? '');
+          return opQidStr === propQidStr &&
             (opRow.model_a === prop.model || opRow.model_b === prop.model);
         }
         return false;
