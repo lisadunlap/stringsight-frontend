@@ -386,11 +386,32 @@ export default function ClusterSidecard({
         }}
       >
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          {/* Header - only close button */}
-          <Box sx={{ p: 2, borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-            <IconButton onClick={onClose} size="small">
-              <CloseIcon />
-            </IconButton>
+          {/* Header - Back, Download, Close */}
+          <Box sx={{ p: 2, borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton onClick={() => {
+                setViewMode('cluster-details');
+                setSelectedPropertyId(null);
+              }} size="small">
+                <ArrowBackIcon />
+              </IconButton>
+              <Typography variant="body2">Back to Cluster</Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<DownloadIcon />}
+                onClick={handlePropertyTracePrint}
+                sx={{ textTransform: 'none' }}
+              >
+                Download PDF
+              </Button>
+              <IconButton onClick={onClose} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </Box>
 
           {/* Content */}
@@ -401,12 +422,6 @@ export default function ClusterSidecard({
                 selectedProperty={prop}
                 method={method}
                 evidenceTargetModel={(prop as any).model}
-                onBack={() => {
-                  setViewMode('cluster-details');
-                  setSelectedPropertyId(null);
-                }}
-                onDownloadPDF={handlePropertyTracePrint}
-                backLabel="Back to Cluster"
                 disableNegativeMargin={true}
               />
               <Box sx={{ p: 2 }}>

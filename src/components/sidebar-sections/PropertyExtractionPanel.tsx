@@ -596,10 +596,18 @@ export default function PropertyExtractionPanel({
 
           // Find properties for this specific row using question_id
           // Match by question_id string comparison (handles both string and number formats)
+          // Also handle compound IDs (e.g. "0-0" matches "0")
           const rowProperties = allProperties.filter(p => {
             const propQid = String(p.question_id || '');
             const rowQid = String(rowQuestionId || '');
-            return propQid === rowQid;
+
+            // Exact match
+            if (propQid === rowQid) return true;
+
+            // Compound match (e.g. prop "0-0" matches row "0")
+            if (propQid.startsWith(rowQid + '-')) return true;
+
+            return false;
           });
 
           if (rowProperties.length === 0) {
@@ -816,12 +824,13 @@ export default function PropertyExtractionPanel({
       setJobProgress(0);
       setJobState('queued');
 
-      // STAGE 1: Pipeline Job (Extraction + Clustering)
-      onBatchStatus?.(0, 'queued', 'extraction', 'Starting pipeline job...');
+      // STAGE 1: Extraction Job Only
+      onBatchStatus?.(0, 'queued', 'extraction', 'Starting extraction job...');
 
       const outputDir = generateOutputDir();
 
-      const pipelineBody = {
+      // Only send extraction parameters, NOT clustering parameters
+      const extractBody = {
         rows,
         method,
         system_prompt: selectedPrompt,
@@ -833,121 +842,58 @@ export default function PropertyExtractionPanel({
         max_workers: maxWorkers,
         sample_size: demoSampleSize || sampleSize || undefined,
         output_dir: outputDir,
-        // Clustering params
-        min_cluster_size: minClusterSize,
-        embedding_model: isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : embeddingModel,
-        groupby_column: isDemoMode ? DEMO_MODE_SETTINGS.groupBy : groupBy,
-        summary_model: isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : summarizationModel,
-        cluster_assignment_model: isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : matchingModel,
-        email: email || undefined
+        // Clustering params REMOVED - we will run clustering separately after extraction
       };
 
-      const startRes = await pipelineJobStart(pipelineBody);
+      // Use extractJobStart instead of pipelineJobStart
+      const startRes = await extractJobStart(extractBody);
       setJobId(startRes.job_id);
 
       await new Promise<void>((resolve, reject) => {
-        console.error('[PropertyExtraction] 🚀 STARTING POLLING LOOP for job', startRes.job_id);
+        console.error('[PropertyExtraction] 🚀 STARTING POLLING LOOP for extraction job', startRes.job_id);
         const t = setInterval(async () => {
           try {
             const s = await extractJobStatus(startRes.job_id);
             console.error(`[PropertyExtraction] 🔄 Polling job ${startRes.job_id}: ${s.status} (${Math.round((s.progress || 0) * 100)}%)`);
 
-            // Map backend status to UI state if needed, or use directly
-            // Backend returns: queued, processing, completed, failed
             setJobState(s.status);
             setJobProgress(s.progress || 0);
 
             // Update status message based on progress
-            let statusMsg = 'Processing pipeline...';
-            let stage: 'extraction' | 'clustering' = 'extraction';
+            let statusMsg = 'Extracting properties...';
 
-            if (s.progress < 0.2) {
-              statusMsg = 'Extracting properties...';
-              stage = 'extraction';
-            } else if (s.progress < 0.8) {
-              statusMsg = 'Clustering properties...';
-              stage = 'clustering';
-              setCurrentStage('clustering');
-            } else {
-              statusMsg = 'Finalizing results...';
-              stage = 'clustering';
-            }
+            onBatchStatus?.(s.progress || 0, s.status, 'extraction', statusMsg);
 
-            onBatchStatus?.(s.progress || 0, s.status, stage, statusMsg);
-
-            // Backend uses 'running', legacy might use 'processing'
             if (s.status === 'completed') {
               clearInterval(t);
-              console.log('[PropertyExtraction] Job completed! Fetching results...');
+              console.log('[PropertyExtraction] Extraction job completed! Fetching results...');
 
-              // Load complete results from the pipeline job (properties + clusters)
-              console.error('[PropertyExtraction] Job completed! Fetching full results...');
-
+              // Load results from the extraction job
               const r = await extractJobResult(startRes.job_id);
               console.error('[PropertyExtraction] 📊 Job result path:', r.result_path);
 
-              if (r.result_path) {
-                try {
-                  // Load full results
-                  console.error(`[PropertyExtraction] 🔄 Loading full results from: ${r.result_path}`);
-                  const fullResults = await resultsLoad(r.result_path);
+              const extractedProperties = r.properties || [];
+              console.log('[PropertyExtraction] 📦 Extracted properties:', extractedProperties.length);
 
-                  console.error('[PropertyExtraction] 📦 Full results loaded:', {
-                    properties: fullResults.properties?.length,
-                    clusters: fullResults.clusters?.length,
-                    metrics: !!fullResults.metrics
-                  });
-
-                  // Update properties
-                  if (onBatchLoaded && fullResults.properties) {
-                    console.log('[PropertyExtraction] 📋 Calling onBatchLoaded with', fullResults.properties.length, 'properties');
-                    onBatchLoaded(fullResults.properties);
-                  }
-
-                  // CRITICAL: Update clusters to trigger completion UI
-                  if (onClustersUpdated && fullResults.clusters && fullResults.clusters.length > 0) {
-                    console.log('[PropertyExtraction] 🎯 Calling onClustersUpdated with', fullResults.clusters.length, 'clusters');
-                    console.log('[PropertyExtraction] 🎯 Cluster data structure:', {
-                      first_cluster_keys: Object.keys(fullResults.clusters[0] || {}),
-                      has_label: !!fullResults.clusters[0]?.label,
-                      has_property_ids: !!fullResults.clusters[0]?.property_ids
-                    });
-
-                    onClustersUpdated({
-                      clusters: fullResults.clusters,
-                      metrics: {
-                        model_cluster_scores: fullResults.metrics?.model_cluster_scores || [],
-                        cluster_scores: fullResults.metrics?.cluster_scores || [],
-                        model_scores: fullResults.metrics?.model_scores || []
-                      }
-                    });
-
-                    console.log('[PropertyExtraction] ✅ onClustersUpdated called - banner should now appear!');
-                  } else {
-                    console.warn('[PropertyExtraction] ⚠️ NOT calling onClustersUpdated:', {
-                      has_callback: !!onClustersUpdated,
-                      has_clusters_array: !!fullResults.clusters,
-                      clusters_length: fullResults.clusters?.length || 0
-                    });
-                  }
-
-                  console.log('[PropertyExtraction] ✅ Full results loaded successfully');
-                } catch (e) {
-                  console.error('[PropertyExtraction] Failed to load full results:', e);
-                  // Fallback to just loading properties
-                  const extractedProperties = r.properties || [];
-                  if (onBatchLoaded) {
-                    onBatchLoaded(extractedProperties);
-                  }
-                }
-              } else {
-                // No result_path, just use properties from job result
-                const extractedProperties = r.properties || [];
-                console.log('[PropertyExtraction] No result_path, using properties from job result:', extractedProperties.length);
-                if (onBatchLoaded) {
-                  onBatchLoaded(extractedProperties);
-                }
+              // Update properties table immediately!
+              if (onBatchLoaded) {
+                console.log('[PropertyExtraction] 📋 Calling onBatchLoaded with', extractedProperties.length, 'properties');
+                onBatchLoaded(extractedProperties);
               }
+
+              // Scroll to properties table
+              setTimeout(() => {
+                if (onScrollToProperties) {
+                  onScrollToProperties();
+                }
+              }, 300);
+
+              setBusy(false);
+              setCurrentStage(null);
+
+              // STAGE 2: Trigger clustering automatically
+              console.log('[PropertyExtraction] 🚀 Triggering clustering with extracted properties...');
+              await runClusteringWithProperties(extractedProperties);
 
               resolve();
             } else if (s.status === 'cancelled') {
@@ -964,9 +910,6 @@ export default function PropertyExtractionPanel({
           }
         }, 1000);
       });
-
-      setBusy(false);
-      setCurrentStage(null);
 
       onBatchDone?.();
     } catch (error) {
@@ -1558,7 +1501,7 @@ export default function PropertyExtractionPanel({
                   sx={{ height: 6, borderRadius: 1 }}
                 />
                 <Typography variant="caption" sx={{ mt: 0.5, display: 'block', textAlign: 'center', color: 'text.secondary' }}>
-                  {extractionProgress > 0 
+                  {extractionProgress > 0
                     ? `Extracting properties... ${Math.round(extractionProgress)}%`
                     : 'Extracting properties...'}
                 </Typography>

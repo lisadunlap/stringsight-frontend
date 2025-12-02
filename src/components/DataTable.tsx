@@ -69,7 +69,7 @@ const DataTable = React.memo(function DataTable({
       model_response: "RESPONSE",
       model_a: "MODEL A",
       model_b: "MODEL B",
-      model_a_response: "RESPONSE A",
+      model_a_response: "RESPONSE",
       model_b_response: "RESPONSE B",
       score: "SCORE",
       score_a: "SCORE A",
@@ -149,13 +149,13 @@ const DataTable = React.memo(function DataTable({
           }
 
           const str = String(displayValue ?? "");
-          
+
           // Check if this is a numeric column (index or numeric value)
           const isNumeric = col === '__index' || (value !== null && value !== undefined && !isNaN(Number(value)) && value !== '');
-          
+
           // Check if this is a prompt column that should use rich formatting
           const isPrompt = col === 'prompt';
-          
+
           return (
             <Box sx={{ textAlign: isNumeric ? 'center' : 'left' }}>
               {isPrompt ? (
@@ -191,62 +191,63 @@ const DataTable = React.memo(function DataTable({
         sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}
       >
         <Table size="small">
-        <TableHead sx={{ backgroundColor: '#F3F4F6' }}>
-          {table.getHeaderGroups().map((hg) => (
-            <TableRow key={hg.id}>
-              {hg.headers.map((h) => (
-                <TableCell 
-                  key={h.id} 
-                  sx={{ 
-                    color: '#374151', 
-                    fontWeight: 700, 
-                    fontSize: 12, 
-                    letterSpacing: 0.4,
-                    cursor: onSort ? 'pointer' : 'default',
-                    '&:hover': onSort ? { backgroundColor: '#F9FAFB' } : {},
-                    ...(h.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {})
-                  }}
-                  onClick={() => onSort && onSort(h.column.id)}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
-                    {onSort && sortColumn === h.column.id && sortDirection === 'asc' && <ArrowUpwardIcon sx={{ fontSize: 12 }} />}
-                    {onSort && sortColumn === h.column.id && sortDirection === 'desc' && <ArrowDownwardIcon sx={{ fontSize: 12 }} />}
-                  </Box>
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableHead>
-        <TableBody>
-          {table.getRowModel().rows.map((r, idx) => {
-            const rowEl = (
-              <TableRow hover key={r.id}>
-                {r.getVisibleCells().map((c) => {
-                  const isResponseCell = responseKeys.includes(c.column.id) && idx === 0;
-                  return (
+          <TableHead sx={{ backgroundColor: '#F3F4F6' }}>
+            {table.getHeaderGroups().map((hg) => (
+              <TableRow key={hg.id}>
+                {hg.headers.map((h) => (
                   <TableCell
-                    key={c.id}
-                    sx={{ borderBottom: '1px solid #E5E7EB', ...(c.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {}) }}
-                    data-tutorial-id={isResponseCell ? 'demo-model-response-column' : undefined}
+                    key={h.id}
+                    sx={{
+                      color: '#374151',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      letterSpacing: 0.4,
+                      cursor: onSort ? 'pointer' : 'default',
+                      '&:hover': onSort ? { backgroundColor: '#F9FAFB' } : {},
+                      ...(h.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {})
+                    }}
+                    onClick={() => onSort && onSort(h.column.id)}
                   >
-                    <Box sx={c.column.id === 'prompt' ? { maxWidth: 420, wordBreak: 'break-all', overflowWrap: 'anywhere', whiteSpace: 'normal' } : undefined}>
-                      {flexRender(c.column.columnDef.cell, c.getContext())}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                      {onSort && sortColumn === h.column.id && sortDirection === 'asc' && <ArrowUpwardIcon sx={{ fontSize: 12 }} />}
+                      {onSort && sortColumn === h.column.id && sortDirection === 'desc' && <ArrowDownwardIcon sx={{ fontSize: 12 }} />}
                     </Box>
                   </TableCell>
-                );})}
+                ))}
               </TableRow>
-            );
-            if (animateOnMountRef.current && idx < 20) {
-              return (
-                <Fade in timeout={Math.min(1100 + idx * 220, 5200)} key={`fade-${r.id}`}>
-                  {rowEl}
-                </Fade>
+            ))}
+          </TableHead>
+          <TableBody>
+            {table.getRowModel().rows.map((r, idx) => {
+              const rowEl = (
+                <TableRow hover key={r.id}>
+                  {r.getVisibleCells().map((c) => {
+                    const isResponseCell = responseKeys.includes(c.column.id) && idx === 0;
+                    return (
+                      <TableCell
+                        key={c.id}
+                        sx={{ borderBottom: '1px solid #E5E7EB', ...(c.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {}) }}
+                        data-tutorial-id={isResponseCell ? 'demo-model-response-column' : undefined}
+                      >
+                        <Box sx={c.column.id === 'prompt' ? { maxWidth: 420, wordBreak: 'break-all', overflowWrap: 'anywhere', whiteSpace: 'normal' } : undefined}>
+                          {flexRender(c.column.columnDef.cell, c.getContext())}
+                        </Box>
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
               );
-            }
-            return rowEl;
-          })}
-        </TableBody>
+              if (animateOnMountRef.current && idx < 20) {
+                return (
+                  <Fade in timeout={Math.min(1100 + idx * 220, 5200)} key={`fade-${r.id}`}>
+                    {rowEl}
+                  </Fade>
+                );
+              }
+              return rowEl;
+            })}
+          </TableBody>
         </Table>
       </TableContainer>
       {rows.length > PAGE_SIZE && (

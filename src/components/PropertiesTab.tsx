@@ -109,12 +109,12 @@ export default function PropertiesTab({
     enrichedRows.forEach(row => {
       Object.keys(row).forEach(key => allKeys.add(key));
     });
-    
+
     const allKeysArray = Array.from(allKeys);
-    
+
     // Columns to exclude
     const excludedColumns = new Set(['id', 'meta', 'raw_response', 'row_index', '__index', 'contains_errors']);
-    
+
     // Filter out excluded columns and columns with all NaN/null values
     const validColumns = allKeysArray.filter(col => {
       // Skip excluded columns
@@ -122,26 +122,26 @@ export default function PropertiesTab({
         console.log(`[PropertiesTab] Excluding column: ${col} (in exclusion list)`);
         return false;
       }
-      
+
       // Check if column has any non-null, non-undefined, non-NaN values
       const hasValidValues = enrichedRows.some(row => {
         const value = row[col];
-        return value !== null && 
-               value !== undefined && 
-               value !== '' && 
-               !(typeof value === 'number' && isNaN(value)) &&
-               String(value).toLowerCase() !== 'nan';
+        return value !== null &&
+          value !== undefined &&
+          value !== '' &&
+          !(typeof value === 'number' && isNaN(value)) &&
+          String(value).toLowerCase() !== 'nan';
       });
-      
+
       if (!hasValidValues) {
         console.log(`[PropertiesTab] Excluding column: ${col} (all values are null/NaN/empty)`);
       }
-      
+
       return hasValidValues;
     });
-    
+
     console.log(`[PropertiesTab] Valid columns after filtering:`, validColumns);
-    
+
     // Custom ordering: question_id first, property_description second, then model, then model_response, then the rest
     const orderedColumns: string[] = [];
 
@@ -169,7 +169,7 @@ export default function PropertiesTab({
       .sort();
 
     orderedColumns.push(...remainingColumns);
-    
+
     return orderedColumns;
   }, [enrichedRows]);
 
@@ -192,10 +192,10 @@ export default function PropertiesTab({
   // Apply filters and search
   const filtered = React.useMemo(() => {
     let result = enrichedRows;
-    
+
     // Apply search filter
     if (query.trim()) {
-    const q = query.toLowerCase().trim();
+      const q = query.toLowerCase().trim();
       result = result.filter(r => {
         // Search across all text columns
         return availableColumns.some(col => {
@@ -204,7 +204,7 @@ export default function PropertiesTab({
         });
       });
     }
-    
+
     // Apply column filters with AND/OR logic
     if (filters.length > 0) {
       result = result.filter(row => {
@@ -233,7 +233,7 @@ export default function PropertiesTab({
         return combinedResult;
       });
     }
-    
+
     return result;
   }, [enrichedRows, query, filters, availableColumns]);
 
@@ -280,7 +280,7 @@ export default function PropertiesTab({
   // Helper function to get behavior type color
   const getBehaviorTypeColor = (behaviorType: string): string => {
     const type = String(behaviorType).toLowerCase().trim();
-    
+
     if (type === 'positive') {
       return '#10B981'; // Green
     } else if (type === 'negative (critical)' || type === 'negative(critical)') {
@@ -290,14 +290,23 @@ export default function PropertiesTab({
     } else if (type === 'style') {
       return '#8B5CF6'; // Purple
     }
-    
+
     return 'transparent'; // Default/no color
   };
 
   // Helper function to format cell values
   const formatCellValue = (value: any, columnName: string, rowData: any): React.ReactNode => {
     if (value === null || value === undefined) return '';
-    
+
+    // Special handling for question_id - strip suffix (e.g. "26-0" -> "26")
+    if (columnName === 'question_id') {
+      const strValue = String(value);
+      if (strValue.includes('-')) {
+        return strValue.split('-')[0];
+      }
+      return strValue;
+    }
+
     // Special handling for model_response - show as button
     if (columnName === 'model_response') {
       return (
@@ -322,7 +331,7 @@ export default function PropertiesTab({
         </Button>
       );
     }
-    
+
     // Handle arrays - join them first
     let displayValue = value;
     if (Array.isArray(value)) {
@@ -332,13 +341,13 @@ export default function PropertiesTab({
     } else {
       displayValue = String(value);
     }
-    
+
     // Special handling for property_description with unexpected behavior flag
     if (columnName === 'property_description') {
-      const isUnexpectedBehavior = rowData?.unexpected_behavior === true || 
-                                   rowData?.unexpected_behavior === 'true' ||
-                                   String(rowData?.unexpected_behavior || '').toLowerCase() === 'true';
-      
+      const isUnexpectedBehavior = rowData?.unexpected_behavior === true ||
+        rowData?.unexpected_behavior === 'true' ||
+        String(rowData?.unexpected_behavior || '').toLowerCase() === 'true';
+
       if (isUnexpectedBehavior) {
         return (
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
@@ -347,8 +356,8 @@ export default function PropertiesTab({
                 ⚠️
               </Typography>
             </Tooltip>
-            <FormattedCell 
-              text={displayValue} 
+            <FormattedCell
+              text={displayValue}
               maxLength={300}
               isPrompt={false}
             />
@@ -356,11 +365,11 @@ export default function PropertiesTab({
         );
       }
     }
-    
+
     // Use FormattedCell for all text content (with expandable functionality)
     return (
-      <FormattedCell 
-        text={displayValue} 
+      <FormattedCell
+        text={displayValue}
         maxLength={columnName === 'property_description' ? 300 : columnName === 'evidence' ? 200 : 150}
         isPrompt={false}
       />
@@ -370,14 +379,14 @@ export default function PropertiesTab({
   // Group the filtered data if groupBy is selected
   const groupedData = React.useMemo(() => {
     if (!groupBy) return null;
-    
+
     const groups = new Map<string, any[]>();
     filtered.forEach(row => {
       const key = String(row[groupBy] || 'Unknown');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(row);
     });
-    
+
     return Array.from(groups.entries()).map(([value, rows]) => ({
       value,
       count: rows.length,
@@ -404,10 +413,10 @@ export default function PropertiesTab({
   // Calculate property counts by model and behavior type for grouped bar chart
   const propertyCountsByModel = React.useMemo(() => {
     // Find behavior type column
-    const behaviorTypeColumn = availableColumns.find(col => 
+    const behaviorTypeColumn = availableColumns.find(col =>
       col.toLowerCase().includes('behavior') && col.toLowerCase().includes('type')
     );
-    
+
     if (!behaviorTypeColumn || !availableColumns.includes('model')) {
       return null;
     }
@@ -425,7 +434,7 @@ export default function PropertiesTab({
 
       const counts = countsByModel.get(model)!;
       const behaviorType = String(row[behaviorTypeColumn] || '').toLowerCase().trim();
-      
+
       if (behaviorType === 'positive') {
         counts.positive++;
       } else if (behaviorType === 'negative (critical)' || behaviorType === 'negative(critical)') {
@@ -445,7 +454,7 @@ export default function PropertiesTab({
       {/* (Prompt/task description controls intentionally not included here) */}
       {/* Properties Overview Banner */}
       <PropertiesOverviewBanner properties={filtered} />
-      
+
       {/* Grouped Bar Chart: Property Distribution by Model (collapsed by default) */}
       {propertyCountsByModel && propertyCountsByModel.size > 0 && (
         <Accordion
@@ -494,82 +503,82 @@ export default function PropertiesTab({
             >
               <Box sx={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
                 <Plot
-            data={(() => {
-              const models = Array.from(propertyCountsByModel.keys());
-              const values = Array.from(propertyCountsByModel.values());
-              
-              // Calculate total for each model
-              const totals = values.map(c => c.positive + c.negativeCritical + c.negativeNonCritical + c.style);
-              
-              return [
-                {
-                  type: 'bar' as const,
-                  name: 'Positive',
-                  x: models,
-                  y: values.map((c, i) => totals[i] > 0 ? c.positive / totals[i] : 0),
-                  marker: { color: '#10B981' },
-                  hovertemplate: '%{x}<br>Positive: %{y:.2%}<extra></extra>',
-                },
-                {
-                  type: 'bar' as const,
-                  name: 'Negative (Critical)',
-                  x: models,
-                  y: values.map((c, i) => totals[i] > 0 ? c.negativeCritical / totals[i] : 0),
-                  marker: { color: '#EF4444' },
-                  hovertemplate: '%{x}<br>Negative (Critical): %{y:.2%}<extra></extra>',
-                },
-                {
-                  type: 'bar' as const,
-                  name: 'Negative (Non-Critical)',
-                  x: models,
-                  y: values.map((c, i) => totals[i] > 0 ? c.negativeNonCritical / totals[i] : 0),
-                  marker: { color: '#F97316' },
-                  hovertemplate: '%{x}<br>Negative (Non-Critical): %{y:.2%}<extra></extra>',
-                },
-                {
-                  type: 'bar' as const,
-                  name: 'Style',
-                  x: models,
-                  y: values.map((c, i) => totals[i] > 0 ? c.style / totals[i] : 0),
-                  marker: { color: '#8B5CF6' },
-                  hovertemplate: '%{x}<br>Style: %{y:.2%}<extra></extra>',
-                },
-              ];
-            })()}
-            layout={{
-              height: 280,
-              margin: { l: 50, r: 20, t: 10, b: 50 },
-              xaxis: { 
-                tickangle: 0,
-                automargin: true,
-                tickfont: { size: 10 },
-              },
-              yaxis: { 
-                title: { text: 'Proportion', font: { size: 11 } },
-                gridcolor: '#eee',
-                tickfont: { size: 10 },
-                tickformat: '.0%',
-              },
-              barmode: 'group',
-              legend: {
-                orientation: 'h' as const,
-                x: 0.5,
-                y: 1.05,
-                xanchor: 'center',
-                yanchor: 'bottom',
-                font: { size: 10 },
-              },
-              paper_bgcolor: '#FFFFFF',
-              plot_bgcolor: '#FFFFFF',
-            }}
-            config={{ 
-              displayModeBar: false,
-              displaylogo: false,
-              responsive: true,
-            }}
-            style={{ width: '100%', height: '280px', maxWidth: '100%' }}
-            useResizeHandler={true}
-          />
+                  data={(() => {
+                    const models = Array.from(propertyCountsByModel.keys());
+                    const values = Array.from(propertyCountsByModel.values());
+
+                    // Calculate total for each model
+                    const totals = values.map(c => c.positive + c.negativeCritical + c.negativeNonCritical + c.style);
+
+                    return [
+                      {
+                        type: 'bar' as const,
+                        name: 'Positive',
+                        x: models,
+                        y: values.map((c, i) => totals[i] > 0 ? c.positive / totals[i] : 0),
+                        marker: { color: '#10B981' },
+                        hovertemplate: '%{x}<br>Positive: %{y:.2%}<extra></extra>',
+                      },
+                      {
+                        type: 'bar' as const,
+                        name: 'Negative (Critical)',
+                        x: models,
+                        y: values.map((c, i) => totals[i] > 0 ? c.negativeCritical / totals[i] : 0),
+                        marker: { color: '#EF4444' },
+                        hovertemplate: '%{x}<br>Negative (Critical): %{y:.2%}<extra></extra>',
+                      },
+                      {
+                        type: 'bar' as const,
+                        name: 'Negative (Non-Critical)',
+                        x: models,
+                        y: values.map((c, i) => totals[i] > 0 ? c.negativeNonCritical / totals[i] : 0),
+                        marker: { color: '#F97316' },
+                        hovertemplate: '%{x}<br>Negative (Non-Critical): %{y:.2%}<extra></extra>',
+                      },
+                      {
+                        type: 'bar' as const,
+                        name: 'Style',
+                        x: models,
+                        y: values.map((c, i) => totals[i] > 0 ? c.style / totals[i] : 0),
+                        marker: { color: '#8B5CF6' },
+                        hovertemplate: '%{x}<br>Style: %{y:.2%}<extra></extra>',
+                      },
+                    ];
+                  })()}
+                  layout={{
+                    height: 280,
+                    margin: { l: 50, r: 20, t: 10, b: 50 },
+                    xaxis: {
+                      tickangle: 0,
+                      automargin: true,
+                      tickfont: { size: 10 },
+                    },
+                    yaxis: {
+                      title: { text: 'Proportion', font: { size: 11 } },
+                      gridcolor: '#eee',
+                      tickfont: { size: 10 },
+                      tickformat: '.0%',
+                    },
+                    barmode: 'group',
+                    legend: {
+                      orientation: 'h' as const,
+                      x: 0.5,
+                      y: 1.05,
+                      xanchor: 'center',
+                      yanchor: 'bottom',
+                      font: { size: 10 },
+                    },
+                    paper_bgcolor: '#FFFFFF',
+                    plot_bgcolor: '#FFFFFF',
+                  }}
+                  config={{
+                    displayModeBar: false,
+                    displaylogo: false,
+                    responsive: true,
+                  }}
+                  style={{ width: '100%', height: '280px', maxWidth: '100%' }}
+                  useResizeHandler={true}
+                />
               </Box>
             </Box>
           </AccordionDetails>
@@ -584,10 +593,10 @@ export default function PropertiesTab({
         pendingColumn={pendingColumn}
         pendingValues={pendingValues}
         pendingNegated={pendingNegated}
-        onPendingColumnChange={(column) => { 
-          setPendingColumn(column); 
-          setPendingValues([]); 
-          setPendingNegated(false); 
+        onPendingColumnChange={(column) => {
+          setPendingColumn(column);
+          setPendingValues([]);
+          setPendingNegated(false);
         }}
         onPendingValuesChange={setPendingValues}
         onPendingNegatedChange={setPendingNegated}
@@ -738,10 +747,10 @@ export default function PropertiesTab({
         <Box sx={{ border: '1px solid #C7D2FE', borderRadius: 0.5, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
           {groupedData.map((group, groupIndex) => (
             <Accordion key={groupIndex} sx={{ '&:before': { display: 'none' }, boxShadow: 'none', border: 'none' }}>
-              <AccordionSummary 
+              <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
-                sx={{ 
-                  backgroundColor: '#F5F3FF', 
+                sx={{
+                  backgroundColor: '#F5F3FF',
                   borderBottom: '1px solid #C7D2FE',
                   '&:hover': { backgroundColor: '#EDE9FE' }
                 }}
@@ -750,9 +759,9 @@ export default function PropertiesTab({
                   <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                     {groupBy}: {String(group.value).length > 50 ? String(group.value).slice(0, 50) + '...' : String(group.value)}
                   </Typography>
-                  <Chip 
-                    label={`${group.count} properties`} 
-                    size="small" 
+                  <Chip
+                    label={`${group.count} properties`}
+                    size="small"
                     sx={{ backgroundColor: '#E0E7FF', color: '#3730A3' }}
                   />
                 </Box>
@@ -762,13 +771,13 @@ export default function PropertiesTab({
                   <TableHead sx={{ backgroundColor: '#EEF2FF' }}>
                     <TableRow>
                       {availableColumns.map((column) => (
-                        <TableCell 
+                        <TableCell
                           key={column}
-                          sx={{ 
-                            color: '#374151', 
-                            fontWeight: 700, 
-                            fontSize: 12, 
-                            letterSpacing: 0.4, 
+                          sx={{
+                            color: '#374151',
+                            fontWeight: 700,
+                            fontSize: 12,
+                            letterSpacing: 0.4,
                             textTransform: 'uppercase',
                             minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 200 : column === 'category' ? 75 : 'auto'
                           }}
@@ -802,11 +811,11 @@ export default function PropertiesTab({
                           {availableColumns.map((column) => {
                             const isBehaviorType = column.toLowerCase().includes('behavior') && column.toLowerCase().includes('type');
                             const textColor = isBehaviorType ? getBehaviorTypeColor(p[column]) : 'inherit';
-                            
+
                             return (
-                              <TableCell 
+                              <TableCell
                                 key={column}
-                                sx={{ 
+                                sx={{
                                   maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 100 : 200,
                                   verticalAlign: 'top',
                                   color: textColor,
@@ -845,13 +854,13 @@ export default function PropertiesTab({
               <TableHead sx={{ backgroundColor: '#EEF2FF' }}>
                 <TableRow>
                   {availableColumns.map((column) => (
-                    <TableCell 
+                    <TableCell
                       key={column}
-                      sx={{ 
-                        color: '#374151', 
-                        fontWeight: 700, 
-                        fontSize: 12, 
-                        letterSpacing: 0.4, 
+                      sx={{
+                        color: '#374151',
+                        fontWeight: 700,
+                        fontSize: 12,
+                        letterSpacing: 0.4,
                         textTransform: 'uppercase',
                         minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 200 : column === 'category' ? 125 : 'auto'
                       }}
@@ -876,12 +885,12 @@ export default function PropertiesTab({
                       {availableColumns.map((column) => {
                         const isBehaviorType = column.toLowerCase().includes('behavior') && column.toLowerCase().includes('type');
                         const textColor = isBehaviorType ? getBehaviorTypeColor(p[column]) : 'inherit';
-                        
+
                         return (
-                          <TableCell 
+                          <TableCell
                             key={column}
-                            sx={{ 
-                                  maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 100 : 200,
+                            sx={{
+                              maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 100 : 200,
                               verticalAlign: 'top',
                               color: textColor,
                               fontWeight: textColor !== 'inherit' ? 600 : 'inherit'
