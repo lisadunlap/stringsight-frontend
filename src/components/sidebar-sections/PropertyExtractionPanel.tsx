@@ -148,8 +148,13 @@ function transformRowsForBackend(
 ): Record<string, any>[] {
   if (method === 'side_by_side') {
     return rows.map(row => {
+      // Prioritize existing question_id, fallback to __index
+      const qid = (row.question_id !== undefined && row.question_id !== null && row.question_id !== '')
+        ? row.question_id
+        : (row.__index ?? '');
+
       const transformed: Record<string, any> = {
-        question_id: String(row.__index ?? row.question_id ?? ''),
+        question_id: String(qid),
         prompt: row.prompt
       };
 
@@ -184,8 +189,13 @@ function transformRowsForBackend(
     });
   } else if (method === 'single_model') {
     return rows.map(row => {
+      // Prioritize existing question_id, fallback to __index
+      const qid = (row.question_id !== undefined && row.question_id !== null && row.question_id !== '')
+        ? row.question_id
+        : (row.__index ?? '');
+
       const transformed: Record<string, any> = {
-        question_id: String(row.__index ?? row.question_id ?? ''),
+        question_id: String(qid),
         prompt: row.prompt,
         model: row.model
       };
@@ -538,9 +548,10 @@ export default function PropertyExtractionPanel({
         return;
       }
 
-      // Ensure question_id is set to __index if available, to avoid using prompt as ID
-      // This matches the behavior in transformRowsForBackend and prevents long prompts from becoming IDs
-      if (sanitizedRow.__index !== undefined) {
+      // Ensure question_id is set to __index if available AND question_id is missing
+      // This prevents overwriting valid question_ids (like "0-0") with the index ("0")
+      const hasQuestionId = sanitizedRow.question_id !== undefined && sanitizedRow.question_id !== null && sanitizedRow.question_id !== '';
+      if (!hasQuestionId && sanitizedRow.__index !== undefined) {
         sanitizedRow.question_id = String(sanitizedRow.__index);
       }
 
