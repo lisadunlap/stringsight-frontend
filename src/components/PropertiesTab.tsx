@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Table, TableHead, TableRow, TableCell, TableBody, Button, TableContainer, Accordion, AccordionSummary, AccordionDetails, Typography, Chip, Pagination, Fade, Tooltip } from '@mui/material';
+import { Box, Table, TableHead, TableRow, TableCell, TableBody, Button, TableContainer, Accordion, AccordionSummary, AccordionDetails, Typography, Chip, Pagination, Fade, Tooltip, Stack } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { retroColors } from '../theme';
@@ -299,12 +299,9 @@ export default function PropertiesTab({
     if (value === null || value === undefined) return '';
 
     // Special handling for question_id - strip suffix (e.g. "26-0" -> "26")
+    // Special handling for question_id - show full ID
     if (columnName === 'question_id') {
-      const strValue = String(value);
-      if (strValue.includes('-')) {
-        return strValue.split('-')[0];
-      }
-      return strValue;
+      return String(value);
     }
 
     // Special handling for model_response - show as button
