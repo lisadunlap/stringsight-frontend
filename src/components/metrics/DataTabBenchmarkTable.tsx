@@ -50,8 +50,11 @@ export default function DataTabBenchmarkTable({
         for (const key of Object.keys(row)) {
           if (key.startsWith('quality_')) {
             const metricName = key.replace('quality_', '');
-            // Skip CI columns - they're handled via the main metric column
-            if (!metricName.endsWith('_ci_lower') &&
+            // Skip delta metrics, significance columns, and CI columns
+            if (!metricName.includes('delta') &&
+                !metricName.includes('Delta') &&
+                !metricName.endsWith('_significant') &&
+                !metricName.endsWith('_ci_lower') &&
                 !metricName.endsWith('_ci_mean') &&
                 !metricName.endsWith('_ci_upper')) {
               metricSet.add(metricName);
