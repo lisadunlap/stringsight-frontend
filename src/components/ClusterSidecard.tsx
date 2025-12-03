@@ -801,6 +801,32 @@ export default function ClusterSidecard({
                         const padding = maxAbs > 0 ? maxAbs * 0.1 : 0.1;
                         const symmetricRange = maxAbs > 0 ? maxAbs + padding : 0.1;
 
+                        // Create shaded regions: red for left (negative), green for right (positive)
+                        const shadedRegions = [
+                          {
+                            type: 'rect',
+                            x0: -symmetricRange,
+                            x1: 0,
+                            y0: 0,
+                            y1: 1,
+                            yref: 'paper',
+                            fillcolor: 'rgba(220, 38, 38, 0.05)', // Very light red
+                            line: { width: 0 },
+                            layer: 'below'
+                          },
+                          {
+                            type: 'rect',
+                            x0: 0,
+                            x1: symmetricRange,
+                            y0: 0,
+                            y1: 1,
+                            yref: 'paper',
+                            fillcolor: 'rgba(5, 150, 105, 0.05)', // Very light green
+                            line: { width: 0 },
+                            layer: 'below'
+                          }
+                        ];
+
                         return (
                           <Box key={metric} sx={{ flex: 1, minWidth: 0 }}>
                             <Typography variant="caption" sx={{ color: '#6B7280', display: 'block', mb: 0.5, textAlign: 'center' }}>
@@ -822,17 +848,17 @@ export default function ClusterSidecard({
                                 xaxis: {
                                   title: { text: 'Quality Δ', standoff: 15 },
                                   tickformat: `.${decimals}f`,
-                                  zeroline: true, // Use built-in zeroline for clean rendering
+                                  zeroline: true,
                                   zerolinecolor: '#374151',
                                   zerolinewidth: 2,
-                                  range: [-symmetricRange, symmetricRange], // Center 0 line
+                                  range: [-symmetricRange, symmetricRange],
                                 },
                                 yaxis: {
                                   title: { text: 'Frequency', standoff: 15 },
                                   rangemode: 'tozero',
                                   tickformat: `.${decimals}f`
                                 },
-                                shapes: [],
+                                shapes: shadedRegions,
                                 paper_bgcolor: '#FFFFFF',
                                 plot_bgcolor: '#FFFFFF',
                                 showlegend: i === 0,

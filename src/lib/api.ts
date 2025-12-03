@@ -384,3 +384,67 @@ export async function recomputeClusterMetrics(body: {
     total_unique_conversations?: number;
   }>;
 }
+
+/**
+ * Start a clustering job (job-based, non-blocking)
+ */
+export async function startClusterJob(body: {
+  operationalRows: any[];
+  properties: any[];
+  params: { minClusterSize?: number | null; embeddingModel: string; groupBy?: 'none' | 'category' | 'behavior_type'; summarizationModel?: string; matchingModel?: string };
+  score_columns?: string[];
+  method?: 'single_model' | 'side_by_side' | 'unknown';
+  model_column_map?: Record<string, string>;
+  output_dir?: string | null;
+  sample_size?: number;
+  email?: string;
+  metrics_kwargs?: { compute_confidence_intervals?: boolean; bootstrap_samples?: number };
+}) {
+  const res = await fetch(`${API_BASE}/cluster/job/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    job_id: string;
+    state: string;
+    progress: number;
+  }>;
+}
+
+/**
+ * Get clustering job status
+ */
+export async function getClusterJobStatus(jobId: string) {
+  const res = await fetch(`${API_BASE}/cluster/job/status/${jobId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    job_id: string;
+    status: string;
+    progress: number;
+    error_message?: string;
+  }>;
+}
+
+/**
+ * Get clustering job result (when completed)
+ */
+export async function getClusterJobResult(jobId: string) {
+  const res = await fetch(`${API_BASE}/cluster/job/result/${jobId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    job_id: string;
+    result: {
+      clusters: any[];
+      total_conversations_by_model?: Record<string, number>;
+      total_unique_conversations?: number;
+      metrics?: {
+        model_cluster_scores: any[];
+        cluster_scores: any[];
+        model_scores: any[];
+      };
+    };
+    result_path?: string;
+  }>;
+}

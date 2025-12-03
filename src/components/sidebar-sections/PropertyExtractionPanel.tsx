@@ -24,7 +24,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, sendDemoEmail } from '../../lib/api';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, sendDemoEmail, startClusterJob, getClusterJobStatus, getClusterJobResult } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
@@ -1095,6 +1095,7 @@ export default function PropertyExtractionPanel({
         model_column_map: modelColumnMap,
         output_dir: outputDir,
         sample_size: demoSampleSize || sampleSize || undefined,
+        email: email || undefined,
         // Enable confidence intervals for metrics
         metrics_kwargs: {
           compute_confidence_intervals: true,
@@ -1114,68 +1115,91 @@ export default function PropertyExtractionPanel({
         method: body.method,
         model_column_map: body.model_column_map,
         hasScoreColumns: !!(body as any).score_columns,
+        email: body.email,
       });
 
-      const res = await runClustering(body as any);
+      // Start clustering job (non-blocking)
+      console.log('🚀 Starting clustering job...');
+      const jobResponse = await startClusterJob(body as any);
+      const jobId = jobResponse.job_id;
+      console.log(`✅ Clustering job started: ${jobId}`);
 
-      // DEBUG: Log complete response
-      console.log('📥 CLUSTERING RESPONSE:', {
-        hasClusters: !!res?.clusters,
-        clustersCount: res?.clusters?.length,
-        hasMetrics: !!res?.metrics,
-        hasModelScores: !!res?.metrics?.model_scores,
-        hasModelClusterScores: !!res?.metrics?.model_cluster_scores,
-      });
+      // Poll for job completion
+      let completed = false;
+      while (!completed) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1 second
 
-      // Log metrics if available
-      if (res?.metrics?.model_scores) {
-        console.log('🔵 Backend model_scores:', res.metrics.model_scores);
-        console.log('🔍 model_scores quality check:',
-          res.metrics.model_scores.map((s: any) => ({
-            model: s.model,
-            size: s.size,
-            allKeys: Object.keys(s),
-            qualityKeys: Object.keys(s).filter(k => k.startsWith('quality_')),
-            qualitiesCount: Object.keys(s).filter(k => k.startsWith('quality_') && !k.includes('_ci_')).length
-          }))
-        );
-      } else {
-        console.warn('⚠️ No model_scores in clustering response!');
+        const statusResponse = await getClusterJobStatus(jobId);
+        console.log(`🔄 Clustering job ${jobId}: ${statusResponse.status} (${Math.round((statusResponse.progress || 0) * 100)}%)`);
+
+        // Update progress
+        onBatchStatus?.(statusResponse.progress || 0, statusResponse.status as any, 'clustering',
+          statusResponse.progress < 0.3 ? 'Preparing clustering...' :
+          statusResponse.progress < 0.7 ? 'Clustering properties...' :
+          statusResponse.progress < 0.9 ? 'Computing metrics...' :
+          'Finalizing results...');
+
+        if (statusResponse.status === 'completed') {
+          completed = true;
+          console.log('✅ Clustering job completed! Fetching results...');
+
+          // Fetch the final result
+          const resultResponse = await getClusterJobResult(jobId);
+          const res = resultResponse.result;
+
+          // DEBUG: Log complete response
+          console.log('📥 CLUSTERING RESPONSE:', {
+            hasClusters: !!res?.clusters,
+            clustersCount: res?.clusters?.length,
+            hasMetrics: !!res?.metrics,
+            hasModelScores: !!res?.metrics?.model_scores,
+            hasModelClusterScores: !!res?.metrics?.model_cluster_scores,
+          });
+
+          // Log metrics if available
+          if (res?.metrics?.model_scores) {
+            console.log('🔵 Backend model_scores:', res.metrics.model_scores);
+            console.log('🔍 model_scores quality check:',
+              res.metrics.model_scores.map((s: any) => ({
+                model: s.model,
+                size: s.size,
+                allKeys: Object.keys(s),
+                qualityKeys: Object.keys(s).filter(k => k.startsWith('quality_')),
+                qualitiesCount: Object.keys(s).filter(k => k.startsWith('quality_') && !k.includes('_ci_')).length
+              }))
+            );
+          } else {
+            console.warn('⚠️ No model_scores in clustering response!');
+          }
+
+          if (res?.metrics?.model_cluster_scores) {
+            console.log('🔵 Backend model_cluster_scores sample:', res.metrics.model_cluster_scores[0]);
+            console.log('🔍 model_cluster_scores keys:', Object.keys(res.metrics.model_cluster_scores[0] || {}));
+            console.log('🔍 Quality columns in model_cluster_scores:',
+              Object.keys(res.metrics.model_cluster_scores[0] || {}).filter(k => k.startsWith('quality_'))
+            );
+          }
+
+          if (!res) {
+            throw new Error('Clustering API returned undefined response');
+          }
+
+          if (onClustersUpdated) {
+            onClustersUpdated(res);
+          }
+
+          onBatchStatus?.(1, 'done', 'clustering', 'Clustering complete');
+        } else if (statusResponse.status === 'error') {
+          throw new Error(statusResponse.error_message || 'Clustering job failed');
+        } else if (statusResponse.status === 'cancelled') {
+          throw new Error('Clustering job was cancelled');
+        }
       }
-
-      if (res?.metrics?.model_cluster_scores) {
-        console.log('🔵 Backend model_cluster_scores sample:', res.metrics.model_cluster_scores[0]);
-        console.log('🔍 model_cluster_scores keys:', Object.keys(res.metrics.model_cluster_scores[0] || {}));
-        console.log('🔍 Quality columns in model_cluster_scores:',
-          Object.keys(res.metrics.model_cluster_scores[0] || {}).filter(k => k.startsWith('quality_'))
-        );
-      }
-
-      if (!res) {
-        throw new Error('Clustering API returned undefined response');
-      }
-
-      if (onClustersUpdated) {
-        onClustersUpdated(res);
-      }
-
-
-      // Don't navigate automatically - stay in extraction step
-      // User will see banner and can navigate manually
-
-      onBatchStatus?.(1, 'done', 'clustering', 'Clustering complete');
     } catch (error) {
       console.error('Clustering failed:', error);
       const errorMessage = String(error);
-      // Provide more helpful messages for network/timeout errors
-      let userMessage = errorMessage;
-      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('timeout')) {
-        userMessage = 'Network timeout: The clustering request timed out, but the backend may still be processing. ' +
-          'Please wait a few minutes and check if results were saved. If you specified an output directory, ' +
-          'you can try reloading the results from that location.';
-      }
-      setErrorMsg(`Clustering failed: ${userMessage}`);
-      onBatchStatus?.(0, 'error', 'clustering', `Clustering failed: ${userMessage}`);
+      setErrorMsg(`Clustering failed: ${errorMessage}`);
+      onBatchStatus?.(0, 'error', 'clustering', `Clustering failed: ${errorMessage}`);
     } finally {
       setClusteringBusy(false);
       setCurrentStage(null);
