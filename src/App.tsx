@@ -3189,6 +3189,8 @@ function App() {
   const onBatchDoneCb = useCallback(() => {
     setBatchRunning(false);
     setPipelineStage('idle');
+    setBatchProgress(0);
+    setBatchState(null);
   }, []);
 
   const onClustersUpdatedCb = useCallback((data: any) => {
@@ -3374,11 +3376,15 @@ function App() {
   }, []);
 
   const onBatchStartCb = useCallback(() => {
+    console.log('[onBatchStart] Setting batchRunning=true, batchProgress=0');
     setBatchRunning(true);
     setPipelineStage('extraction');
+    setBatchProgress(0);
+    setBatchState(null);
   }, []);
 
   const onBatchStatusCb = useCallback((progress: number, state: string | null, stage?: 'extraction' | 'clustering', details?: string) => {
+    console.log(`[onBatchStatus] BEFORE: batchProgress was ${batchProgress}, setting to ${progress} (${Math.round(progress * 100)}%) - stage: ${stage}, state: ${state}`);
     setBatchProgress(progress);
     setBatchState(state);
     if (stage === 'clustering') {
@@ -3387,7 +3393,7 @@ function App() {
       setPipelineStage('extraction');
     }
     console.log(`Batch status: ${stage} - ${state} - ${details}`);
-  }, []);
+  }, [batchProgress]);
 
   const onRequestRecomputeCb = useCallback((included_property_ids?: string[]) => {
     (async () => {
@@ -3667,11 +3673,8 @@ function App() {
                   : 'Processing...'}
             </Typography>
             <LinearProgress
-              variant={
-                pipelineStage === 'extraction' && (batchProgress || 0) > 0
-                  ? 'determinate'
-                  : 'indeterminate'
-              }
+              key={pipelineStage}
+              variant={pipelineStage === 'extraction' && (batchProgress || 0) > 0 ? 'determinate' : 'indeterminate'}
               value={(batchProgress || 0) * 100}
               sx={{
                 height: 8,
@@ -3680,6 +3683,7 @@ function App() {
                 '& .MuiLinearProgress-bar': {
                   borderRadius: 4,
                   backgroundColor: '#2563eb',
+                  transition: 'none !important',
                 }
               }}
             />

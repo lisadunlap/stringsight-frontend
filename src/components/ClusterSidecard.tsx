@@ -712,7 +712,28 @@ export default function ClusterSidecard({
                   const hasFreqCI = showCI && Object.keys(proportionCIByModel).length > 0;
 
                   return (
-                    <Stack direction="row" spacing={2} sx={{ width: '100%' }}>
+                    <Stack direction="column" spacing={1} sx={{ width: '100%' }}>
+                      {/* Global legend at the top */}
+                      <Box sx={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 2, py: 0.5 }}>
+                        {models.map(model => (
+                          <Box key={model} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box
+                              sx={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: '50%',
+                                backgroundColor: modelColors[model] || '#6B7280',
+                                border: '1.5px solid #FFFFFF',
+                                boxShadow: '0 0 0 1px rgba(0,0,0,0.1)',
+                              }}
+                            />
+                            <Typography variant="caption" sx={{ color: '#334155', fontSize: '0.875rem' }}>
+                              {model}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                      <Stack direction="row" spacing={2} sx={{ width: '100%' }}>
                       {metricKeys.map((metric, i) => {
                         // Build scatter data for this metric
                         const scatterData = models.map(model => {
@@ -770,7 +791,7 @@ export default function ClusterSidecard({
                             hovertemplate: `${model}<br>Quality Δ: %{x:.${decimals}f}<br>Frequency: %{y:.${decimals}f}<extra></extra>`,
                             error_x: errorX,
                             error_y: errorY,
-                            showlegend: i === 0, // Only show legend on first plot
+                            showlegend: false, // Legend is now shown globally at the top
                           };
                         });
 
@@ -829,7 +850,7 @@ export default function ClusterSidecard({
 
                         return (
                           <Box key={metric} sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="caption" sx={{ color: '#6B7280', display: 'block', mb: 0.5, textAlign: 'center' }}>
+                            <Typography variant="caption" sx={{ color: '#6B7280', display: 'block', mb: 0.5, textAlign: 'center', fontSize: '0.9rem', fontWeight: 500 }}>
                               {metric}
                             </Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0, px: 1, width: '100%' }}>
@@ -861,14 +882,7 @@ export default function ClusterSidecard({
                                 shapes: shadedRegions,
                                 paper_bgcolor: '#FFFFFF',
                                 plot_bgcolor: '#FFFFFF',
-                                showlegend: i === 0,
-                                legend: {
-                                  orientation: 'h',
-                                  y: -0.2,
-                                  x: 0.5,
-                                  xanchor: 'center',
-                                  yanchor: 'top'
-                                },
+                                showlegend: false,
                               }}
                               config={{ displayModeBar: false, responsive: true }}
                               style={{ width: '100%' }}
@@ -876,6 +890,7 @@ export default function ClusterSidecard({
                           </Box>
                         );
                       })}
+                      </Stack>
                     </Stack>
                   );
                 })()}

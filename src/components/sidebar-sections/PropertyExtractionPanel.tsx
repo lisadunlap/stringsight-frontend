@@ -784,16 +784,19 @@ export default function PropertyExtractionPanel({
 
     // DEMO MODE INTERCEPTION
     if (isDemoMode && (uploadedFileName === 'taubench_airline' || uploadedFileName === 'taubench_airline_sbs')) {
+      // Reset progress FIRST before any other state changes
+      onBatchStart?.();
+
       setBusy(true);
       setCurrentStage('extraction');
-      onBatchStart?.();
       setErrorMsg(null);
       setJobProgress(0);
       setJobState('processing');
 
       try {
-        // Simulate progress (3 seconds)
-        // 50 steps * 60ms = 3000ms
+        // Wait a tick to ensure state updates are processed
+        await new Promise(r => setTimeout(r, 0));
+
         // Simulate progress (3 seconds)
         // 50 steps * 60ms = 3000ms
         for (let i = 0; i <= 100; i += 2) {
@@ -826,9 +829,11 @@ export default function PropertyExtractionPanel({
       return;
     }
 
+    // Reset progress FIRST before any other state changes
+    onBatchStart?.();
+
     setBusy(true);
     setCurrentStage('extraction');
-    onBatchStart?.();
 
     try {
       setErrorMsg(null);
