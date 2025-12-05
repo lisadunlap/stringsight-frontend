@@ -1274,17 +1274,18 @@ function App() {
 
       // Load properties (no pre-enrichment needed - PropertiesTab handles at render time)
       // Don't add __index since property index doesn't match conversation index
-      // Skip loading properties in demo mode to start with empty table
-      if (properties.length > 0 && (!isDemoMode || isDemoSession)) {
+      // Skip loading properties only if this is bundled demo data loaded for tutorial (isDemoSession = true)
+      const isLoadingBundledDemo = isDemoSession;
+      if (properties.length > 0 && !isLoadingBundledDemo) {
         setPropertiesRows(properties);
         console.log(`✅ Loaded ${properties.length} properties`);
-      } else if (isDemoMode && !isDemoSession && properties.length > 0) {
+      } else if (isLoadingBundledDemo && properties.length > 0) {
         console.log(`⚠️ Demo mode: Skipping ${properties.length} pre-loaded properties - table will start empty`);
       }
 
       // Load or compute metrics and enrich clusters
-      // Skip loading clusters in demo mode to allow fresh clustering
-      if (clusters.length > 0 && (!isDemoMode || isDemoSession)) {
+      // Skip loading clusters only if this is bundled demo data loaded for tutorial (isDemoSession = true)
+      if (clusters.length > 0 && !isLoadingBundledDemo) {
         if (Object.keys(metrics).length > 0) {
           // Use pre-computed metrics if available
           const normalizedMetrics = normalizeMetricsColumnNames(metrics);
@@ -1369,16 +1370,16 @@ function App() {
           setClusters(ensureExamplesArray(clusters));
           console.log(`✅ Loaded ${clusters.length} clusters (no metrics available)`);
         }
-      } else if (isDemoMode && !isDemoSession && clusters.length > 0) {
+      } else if (isLoadingBundledDemo && clusters.length > 0) {
         console.log(`⚠️ Demo mode: Skipping ${clusters.length} pre-loaded clusters - will cluster from scratch`);
       }
 
       // Switch to appropriate view based on loaded data
-      // In demo mode, stay on data tab to let user follow the tutorial
-      if ((!isDemoMode || isDemoSession) && clusters.length > 0 && Object.keys(metrics).length > 0) {
+      // For bundled demo data, stay on data tab to let user follow the tutorial
+      if (!isLoadingBundledDemo && clusters.length > 0 && Object.keys(metrics).length > 0) {
         setActiveSection('metrics');
         console.log('📊 Switched to Metrics view');
-      } else if ((!isDemoMode || isDemoSession) && clusters.length > 0) {
+      } else if (!isLoadingBundledDemo && clusters.length > 0) {
         setActiveSection('clusters');
         console.log('📊 Switched to Clusters view');
       } else if (properties.length > 0) {
