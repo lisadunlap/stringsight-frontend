@@ -7,6 +7,7 @@ import {
   ArrowDownward as ArrowDownIcon,
   MenuBook as DocsIcon,
   Download as DownloadIcon,
+  BugReport as BugReportIcon,
 } from '@mui/icons-material';
 import { EXTERNAL_LINKS } from '../config';
 
@@ -276,7 +277,7 @@ export default function PermanentIconSidebar({
       )}
 
       <Tooltip title="Documentation - View StringSight documentation" placement="right">
-        <Box sx={{ mb: 0 }}>
+        <Box sx={{ mb: 1 }}>
           <IconButton
             onClick={() => window.open(EXTERNAL_LINKS.DOCUMENTATION, '_blank', 'noopener,noreferrer')}
             sx={{
@@ -292,6 +293,27 @@ export default function PermanentIconSidebar({
             }}
           >
             <DocsIcon />
+          </IconButton>
+        </Box>
+      </Tooltip>
+
+      <Tooltip title="Report Bug - Send bug report to lisabdunlap@berkeley.edu" placement="right">
+        <Box sx={{ mb: 0 }}>
+          <IconButton
+            onClick={() => window.location.href = 'mailto:lisabdunlap@berkeley.edu?subject=StringSight Bug Report'}
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: 2,
+              backgroundColor: 'transparent',
+              color: 'text.secondary',
+              '&:hover': {
+                backgroundColor: 'action.hover',
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            <BugReportIcon />
           </IconButton>
         </Box>
       </Tooltip>
