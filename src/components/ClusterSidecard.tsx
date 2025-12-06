@@ -711,6 +711,13 @@ export default function ClusterSidecard({
                   const hasCIData = showCI && Object.keys(qualityDeltaCIByModel).length > 0;
                   const hasFreqCI = showCI && Object.keys(proportionCIByModel).length > 0;
 
+                  // Group metrics into rows of max 2
+                  const metricsPerRow = 2;
+                  const metricRows: string[][] = [];
+                  for (let i = 0; i < metricKeys.length; i += metricsPerRow) {
+                    metricRows.push(metricKeys.slice(i, i + metricsPerRow));
+                  }
+
                   return (
                     <Stack direction="column" spacing={1} sx={{ width: '100%' }}>
                       {/* Global legend at the top */}
@@ -733,8 +740,9 @@ export default function ClusterSidecard({
                           </Box>
                         ))}
                       </Box>
-                      <Stack direction="row" spacing={2} sx={{ width: '100%' }}>
-                      {metricKeys.map((metric, i) => {
+                      {metricRows.map((rowMetrics, rowIdx) => (
+                        <Stack key={rowIdx} direction="row" spacing={2} sx={{ width: '100%' }}>
+                          {rowMetrics.map((metric, i) => {
                         // Build scatter data for this metric
                         const scatterData = models.map(model => {
                           const qualityDelta = Number((qualityDeltaByModel[model] || {})[metric] || 0);
@@ -890,7 +898,8 @@ export default function ClusterSidecard({
                           </Box>
                         );
                       })}
-                      </Stack>
+                        </Stack>
+                      ))}
                     </Stack>
                   );
                 })()}
