@@ -50,10 +50,6 @@ import type { DataOperation } from "./types/operations";
 import { TutorialProvider, useTutorial } from "./context/TutorialContext";
 import { createFilterOperation, createCustomCodeOperation, createSortOperation } from "./types/operations";
 import { EXTERNAL_LINKS } from "./config";
-import { Login } from "./components/Login";
-import { LoginDialog } from "./components/LoginDialog";
-import { getToken, removeToken } from "./lib/auth";
-import LogoutIcon from '@mui/icons-material/Logout';
 import { retroColors } from "./theme";
 import DemoModeSelector from "./components/DemoModeSelector";
 import DemoGuidancePopup from "./components/DemoGuidancePopup";
@@ -610,7 +606,6 @@ function ExampleFormatTabs() {
 
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getToken());
 
   // Data management layers as suggested
   const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]); // Raw uploaded data
@@ -620,20 +615,6 @@ function App() {
   const [currentRows, setCurrentRows] = useState<Record<string, any>[]>([]); // With filters applied
 
   const [method, setMethod] = useState<"single_model" | "side_by_side" | "unknown">("unknown");
-
-  const handleLogout = () => {
-    removeToken();
-    setIsAuthenticated(false);
-    // Reset state
-    setOriginalRows([]);
-    setOperationalRows([]);
-    setCurrentRows([]);
-    setPropertiesRows([]);
-    setClusters([]);
-    setIsDemoSession(false); // Added
-  };
-  // Login dialog state
-  const [loginOpen, setLoginOpen] = useState(false);
 
   // Demo mode selector dialog state
   const [demoModeSelectorOpen, setDemoModeSelectorOpen] = useState(false);
@@ -3589,26 +3570,6 @@ function App() {
                 </Typography>
               </Box>
             )}
-            {isAuthenticated ? (
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={handleLogout}
-                startIcon={<LogoutIcon />}
-                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', '&:hover': { borderColor: 'white', backgroundColor: 'rgba(255,255,255,0.1)' } }}
-              >
-                Logout
-              </Button>
-            ) : (
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setLoginOpen(true)}
-                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', '&:hover': { borderColor: 'white', backgroundColor: 'rgba(255,255,255,0.1)' } }}
-              >
-                Login
-              </Button>
-            )}
             <Button
               variant="contained"
               component="label"
@@ -3703,7 +3664,6 @@ function App() {
 
           </Stack>
         </Toolbar>
-        <LoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} onLoginSuccess={() => { setIsAuthenticated(true); setLoginOpen(false); }} />
         <DemoModeSelector
           open={demoModeSelectorOpen}
           onClose={() => setDemoModeSelectorOpen(false)}

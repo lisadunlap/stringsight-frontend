@@ -206,12 +206,6 @@ export async function extractBatch(body: {
 // Async batch job endpoints
 // ----------------------------
 
-import { getAuthHeaders } from './auth';
-
-// ----------------------------
-// Async batch job endpoints
-// ----------------------------
-
 export async function extractJobStart(body: {
   rows: Record<string, any>[];
   method?: 'single_model' | 'side_by_side';
@@ -231,8 +225,7 @@ export async function extractJobStart(body: {
   const res = await fetch(`${API_BASE}/api/v1/jobs/extract`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders()
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
   });
@@ -263,8 +256,7 @@ export async function pipelineJobStart(body: {
   const res = await fetch(`${API_BASE}/api/v1/jobs/pipeline`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders()
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
   });
@@ -273,11 +265,7 @@ export async function pipelineJobStart(body: {
 }
 
 export async function extractJobStatus(job_id: string) {
-  const res = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}`, {
-    headers: {
-      ...getAuthHeaders()
-    },
-  });
+  const res = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<{
     id: string;
@@ -290,11 +278,7 @@ export async function extractJobStatus(job_id: string) {
 
 // Legacy/Unused endpoints for now (or mapped to new ones if needed)
 export async function extractJobResult(job_id: string) {
-  const res = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}/results`, {
-    headers: {
-      ...getAuthHeaders()
-    }
-  });
+  const res = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}/results`);
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`Failed to fetch results: ${errorText}`);
@@ -314,8 +298,7 @@ export async function sendDemoEmail(body: {
   const res = await fetch(`${API_BASE}/api/v1/jobs/email-demo`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders()
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
   });

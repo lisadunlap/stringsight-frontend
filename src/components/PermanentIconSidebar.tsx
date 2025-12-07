@@ -300,7 +300,7 @@ export default function PermanentIconSidebar({
       <Tooltip title="Report Bug - Send bug report to lisabdunlap@berkeley.edu" placement="right">
         <Box sx={{ mb: 0 }}>
           <IconButton
-            onClick={() => window.location.href = 'mailto:lisabdunlap@berkeley.edu?subject=StringSight Bug Report'}
+            onClick={() => window.location.href = 'mailto:lisabdunlap@berkeley.edu?subject=Whoops, there\'s a bug in StringSight'}
             sx={{
               width: 48,
               height: 48,
