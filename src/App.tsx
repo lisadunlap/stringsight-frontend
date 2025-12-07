@@ -377,6 +377,7 @@ function ExampleFormatTabs() {
         <Tab label="Conversation Format" />
         <Tab label="Custom Format" />
         <Tab label="Side-by-Side" />
+        <Tab label="With Images" />
       </Tabs>
 
       {/* Conversation Format Example */}
@@ -551,6 +552,54 @@ function ExampleFormatTabs() {
               {': 4.0,\n    '}
               <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness_b"</span>
               {': 4.6\n  }\n]'}
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* Image Format Example */}
+      {tabValue === 3 && (
+        <Box>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+            <strong>Multi-turn conversations with images</strong> using OpenAI format. Include image URLs in the <code>content</code> field using the multimodal message format.
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+            <strong>Fields:</strong>{' '}
+            <code style={{ backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 4px', borderRadius: '3px' }}>prompt</code>,{' '}
+            <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model</code>,{' '}
+            <code style={{ backgroundColor: '#E9D5FF', color: '#9333EA', padding: '2px 4px', borderRadius: '3px' }}>model_response</code>,{' '}
+            <code style={{ backgroundColor: '#FED7AA', color: '#EA580C', padding: '2px 4px', borderRadius: '3px' }}>score (optional, can be multiple scores)</code>
+            <br />
+            <em>Note: Content can be a string or an array with text and image_url objects</em>
+          </Typography>
+          <Box sx={{
+            backgroundColor: 'white',
+            border: '1px solid #E5E7EB',
+            borderRadius: 1,
+            p: 1.5,
+            fontFamily: 'monospace',
+            fontSize: '0.75rem',
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap'
+          }}>
+            <Box component="pre" sx={{ m: 0, fontFamily: 'inherit' }}>
+              {'[\n  {\n    '}
+              <span style={{ color: '#16A34A', fontWeight: 600 }}>"prompt"</span>
+              {': "What is in this image?",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"model"</span>
+              {': "gpt-4-vision",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_response"</span>
+              {': [\n      {\n        "role": "user",\n        "content": [\n          {"type": "text", "text": "What is in this image?"},\n          {"type": "image_url", "image_url": {"url": "https://example.com/image1.jpg"}}\n        ]\n      },\n      {\n        "role": "assistant",\n        "content": "This image shows a cat sitting on a windowsill."\n      }\n    ],\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy"</span>
+              {': 0.95\n  },\n  {\n    '}
+              <span style={{ color: '#16A34A', fontWeight: 600 }}>"prompt"</span>
+              {': "Compare these two charts",\n    '}
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>"model"</span>
+              {': "claude-3-opus",\n    '}
+              <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_response"</span>
+              {': [\n      {\n        "role": "user",\n        "content": [\n          {"type": "text", "text": "Compare these two charts"},\n          {"type": "image_url", "image_url": {"url": "https://example.com/chart1.png"}},\n          {"type": "image_url", "image_url": {"url": "https://example.com/chart2.png"}}\n        ]\n      },\n      {\n        "role": "assistant",\n        "content": "The first chart shows exponential growth while the second shows linear progression..."\n      },\n      {\n        "role": "user",\n        "content": "Which one is better for investment?"\n      },\n      {\n        "role": "assistant",\n        "content": "Based on the trends, the exponential growth pattern suggests..."\n      }\n    ],\n    '}
+              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness"</span>
+              {': 4.8\n  }\n]'}
             </Box>
           </Box>
         </Box>

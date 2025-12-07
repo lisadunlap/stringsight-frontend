@@ -1516,20 +1516,22 @@ export default function PropertyExtractionPanel({
           </Box>
 
           {/* Email Notification */}
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-              Notifications
-            </Typography>
-            <TextField
-              size="small"
-              label="Email (optional)"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter email for job completion notification"
-              fullWidth
-              helperText="Receive an email with results when the job completes"
-            />
-          </Box>
+          {import.meta.env.VITE_DEMO === 'true' && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                Notifications
+              </Typography>
+              <TextField
+                size="small"
+                label="Email (optional)"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter email for job completion notification"
+                fullWidth
+                helperText="Receive an email with results when the job completes"
+              />
+            </Box>
+          )}
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column', mt: 3 }}>
