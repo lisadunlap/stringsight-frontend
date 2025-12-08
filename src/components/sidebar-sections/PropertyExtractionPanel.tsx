@@ -1259,7 +1259,7 @@ export default function PropertyExtractionPanel({
           {isDemoMode && uploadedFileName && uploadedFileName !== 'taubench_airline' && uploadedFileName !== 'taubench_airline_sbs' && (
             <Box sx={{ mb: 2, bgcolor: '#f0fdf4', color: '#065f46', px: 2, py: 1.25, borderRadius: 1, boxShadow: 1, border: '2px solid #10b981', textAlign: 'center' }}>
               <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                Only 50 rows are processed in demo mode for faster results. To run on your full traces please `pip install stringsight`` + `stringsight launch`
+                Only 50 rows are processed in demo mode for faster results. To run on your full traces please `pip install stringsight` + `stringsight launch`
               </Typography>
             </Box>
           )}
@@ -1300,7 +1300,7 @@ export default function PropertyExtractionPanel({
                       Task description
                     </Typography>
                     <Tooltip
-                      title="Describe what you want the LLM to focus on when analyzing traces. Edit this to extract specific behaviors relevant to your use case."
+                      title="Describe what you want the LLM to focus on when analyzing traces. Edit this to extract specific behaviors relevant to your use case and look in advanced setting to see the full system prompt."
                       arrow
                       placement="top"
                     >
