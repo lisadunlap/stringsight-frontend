@@ -904,7 +904,7 @@ export function MetricsInsightsOverview({
             </Stack>
 
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2, flexShrink: 0 }}>
-              Negative behaviors that improve metrics, and style behaviors with quality impact. Only shows patterns that are statistically significant.
+              Negative behaviors that improve metrics, and stylistic behaviors that either improve or worsen metrics. Only shows patterns that are statistically significant.
             </Typography>
 
           {qualityMetrics.length === 0 ? (
@@ -941,6 +941,25 @@ export function MetricsInsightsOverview({
               (a, b) => (categoryConfig[a]?.order || 999) - (categoryConfig[b]?.order || 999)
             );
 
+            // Calculate global min and max across all deltas for scaling
+            const allDeltas = sortedCategories.flatMap(category =>
+              groupedPatterns[category].flatMap(pattern =>
+                pattern.metricsImpacted.map(mi => mi.avgDelta)
+              )
+            );
+            const minDelta = Math.min(...allDeltas, 0); // Include 0 to ensure scale includes it
+            const maxDelta = Math.max(...allDeltas, 0); // Include 0 to ensure scale includes it
+            const deltaRange = Math.max(Math.abs(minDelta), Math.abs(maxDelta));
+
+            // Get all unique metrics across all patterns
+            const allMetrics = Array.from(new Set(
+              sortedCategories.flatMap(category =>
+                groupedPatterns[category].flatMap(pattern =>
+                  pattern.metricsImpacted.map(mi => mi.metric)
+                )
+              )
+            )).sort();
+
             return (
               <Stack spacing={3}>
                 {sortedCategories.map((category) => {
@@ -971,6 +990,12 @@ export function MetricsInsightsOverview({
                       >
                         {patterns.map((pattern, idx) => {
                           const isLast = idx === patterns.length - 1;
+
+                          // Create a map of metrics to their deltas for this pattern
+                          const metricsMap = new Map(
+                            pattern.metricsImpacted.map(mi => [mi.metric, mi])
+                          );
+
                           return (
                             <Box
                               key={idx}
@@ -1003,27 +1028,66 @@ export function MetricsInsightsOverview({
                                   }}
                                 />
                               </Box>
-                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-                                {pattern.metricsImpacted.map((mi, miIdx) => {
-                                  const isPositive = mi.avgDelta > 0;
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, minWidth: 0 }}>
+                                {allMetrics.map((metric) => {
+                                  const metricData = metricsMap.get(metric);
+                                  const hasData = metricData !== undefined;
+                                  const isPositive = hasData && metricData.avgDelta > 0;
+                                  const avgDelta = hasData ? metricData.avgDelta : 0;
+                                  // Scale bar width based on global min/max
+                                  const barWidth = hasData && deltaRange > 0 ? (Math.abs(avgDelta) / deltaRange) * 100 : 0;
+
                                   return (
-                                    <Typography
-                                      key={miIdx}
-                                      variant="body2"
-                                      sx={{
-                                        color: isPositive ? 'success.main' : 'error.main',
-                                        fontWeight: 500,
-                                        fontSize: '0.85rem',
-                                        flex: '1 1 33%',
-                                        maxWidth: '33%',
-                                        minWidth: 0,
-                                        whiteSpace: 'normal',
-                                        wordBreak: 'break-word',
-                                        lineHeight: 1.2
-                                      }}
+                                    <Tooltip
+                                      key={metric}
+                                      title={hasData ? `${metric}: ${isPositive ? '+' : ''}${avgDelta.toFixed(3)}` : `${metric}: no data`}
+                                      arrow
+                                      placement="top"
                                     >
-                                      {isPositive ? '+' : ''}{mi.avgDelta.toFixed(2)} {mi.metric}
-                                    </Typography>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        {/* Bar container */}
+                                        <Box
+                                          sx={{
+                                            width: 140,
+                                            height: 10,
+                                            bgcolor: 'grey.100',
+                                            borderRadius: 0.5,
+                                            position: 'relative',
+                                            overflow: 'hidden'
+                                          }}
+                                        >
+                                          {hasData && (
+                                            <Box
+                                              sx={{
+                                                position: 'absolute',
+                                                left: 0,
+                                                top: 0,
+                                                height: '100%',
+                                                width: `${barWidth}%`,
+                                                bgcolor: isPositive ? '#22C55E' : '#EF4444',
+                                                opacity: 0.8,
+                                                transition: 'width 0.3s ease'
+                                              }}
+                                            />
+                                          )}
+                                        </Box>
+
+                                        {/* Metric name */}
+                                        <Typography
+                                          variant="caption"
+                                          sx={{
+                                            fontSize: '0.75rem',
+                                            color: hasData ? 'text.secondary' : 'text.disabled',
+                                            minWidth: 100,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
+                                          }}
+                                        >
+                                          {metric}
+                                        </Typography>
+                                      </Box>
+                                    </Tooltip>
                                   );
                                 })}
                               </Box>

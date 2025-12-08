@@ -2971,7 +2971,7 @@ function App() {
     return (
       <PropertiesTab
         rows={propertiesRows}
-        originalData={originalRows}
+        originalData={operationalRows}
         onOpenProperty={(prop) => {
           console.log('[App] onOpenProperty - Clicked property:', {
             fullProperty: prop,
@@ -3909,31 +3909,33 @@ function App() {
                 />
               </Box>
 
-              <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-                <Button
-                  variant="contained"
-                  size="large"
-                  onClick={() => setDemoModeSelectorOpen(true)}
-                  startIcon={<PlayArrowIcon />}
-                  sx={{
-                    py: 1.5,
-                    px: 4,
-                    fontSize: '1.1rem',
-                    fontWeight: 600,
-                    color: 'white',
-                    backgroundColor: retroColors.green, // Retro terminal green
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                    '&:hover': {
-                      backgroundColor: '#3D9B73', // Darker retro green on hover
-                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                      transform: 'translateY(-1px)'
-                    },
-                    transition: 'all 0.2s ease-in-out'
-                  }}
-                >
-                  Try Demo Data
-                </Button>
-              </Box>
+              {import.meta.env.VITE_DEMO === 'true' && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => setDemoModeSelectorOpen(true)}
+                    startIcon={<PlayArrowIcon />}
+                    sx={{
+                      py: 1.5,
+                      px: 4,
+                      fontSize: '1.1rem',
+                      fontWeight: 600,
+                      color: 'white',
+                      backgroundColor: retroColors.green, // Retro terminal green
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                      '&:hover': {
+                        backgroundColor: '#3D9B73', // Darker retro green on hover
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        transform: 'translateY(-1px)'
+                      },
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    Try Demo Data
+                  </Button>
+                </Box>
+              )}
 
               <Box sx={{ mt: 2, mb: 1 }}>
                 <Typography variant="subtitle1" sx={{ color: '#374151', fontWeight: 600, mb: 1 }}>What data format should I use?</Typography>

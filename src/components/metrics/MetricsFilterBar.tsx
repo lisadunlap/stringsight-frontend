@@ -1,12 +1,10 @@
 /**
  * MetricsFilterBar - Horizontal filter bar for metrics visualization.
- * 
+ *
  * This component provides a compact horizontal filter bar with:
  * - Model multi-select
- * - Metric multi-select
  * - Show CI toggle (exp for misaligned metrics)
  * - Only show significant examples toggle
- * - Sort by dropdown (freq delta, freq, or quality delta)
  */
 
 import {
@@ -130,34 +128,6 @@ export function MetricsFilterBar({
           </FormControl>
         </Box>
 
-        {/* Metric Selection */}
-        <Box sx={{ minWidth: 200, flex: '0 0 auto' }}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Metrics</InputLabel>
-            <Select
-              multiple
-              value={filters.selectedMetrics}
-              onChange={(e) => {
-                const value = typeof e.target.value === 'string' ? e.target.value.split(',') : (e.target.value as string[]);
-                updateFilters({ selectedMetrics: value });
-              }}
-              input={<OutlinedInput label="Metrics" />}
-              renderValue={(selected) => {
-                const count = (selected as string[]).length;
-                return count > 0 ? `${count} selected` : 'All';
-              }}
-              MenuProps={{ PaperProps: { style: { maxHeight: 320 } } }}
-            >
-              {availableQualityMetrics.map((metric) => (
-                <MenuItem key={metric} value={metric}>
-                  <Checkbox checked={filters.selectedMetrics.indexOf(metric) > -1} />
-                  <ListItemText primary={getDisplayName(metric)} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
-
         {/* Behavior Type Selection */}
         {availableBehaviorTypes.length > 0 && (
           <Box sx={{ minWidth: 180, flex: '0 0 auto' }}>
@@ -189,7 +159,7 @@ export function MetricsFilterBar({
         )}
       </Box>
 
-      {/* Second Row: Toggles and Sort By */}
+      {/* Second Row: Toggles */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         {/* Show CI Toggle */}
         <FormControlLabel
@@ -219,24 +189,6 @@ export function MetricsFilterBar({
           label="Only show significant"
           sx={{ flex: '0 0 auto' }}
         />
-
-        {/* Sort By */}
-        <Box sx={{ minWidth: 160, flex: '0 0 auto' }}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Sort by</InputLabel>
-            <Select
-              value={filters.sortBy}
-              label="Sort by"
-              onChange={(e) => updateFilters({ sortBy: e.target.value as MetricsSortOption })}
-            >
-              {sortOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
       </Box>
     </Box>
   );

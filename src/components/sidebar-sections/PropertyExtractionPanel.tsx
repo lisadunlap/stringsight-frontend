@@ -1345,6 +1345,19 @@ export default function PropertyExtractionPanel({
             </Stack>
           </Box>
 
+          {/* Results folder - outside advanced settings */}
+          <Box sx={{ mt: 3 }}>
+            <TextField
+              size="small"
+              label="Results folder name"
+              value={resultsNameProp || ''}
+              onChange={(e) => onResultsNameChange?.(e.target.value)}
+              placeholder="Auto-generated from filename"
+              helperText={resultsNameProp ? `Results will be saved to: ${resultsNameProp}_[timestamp]` : 'Defaults to uploaded filename'}
+              fullWidth
+            />
+          </Box>
+
           {/* Advanced Settings Section */}
           <Box sx={{ mt: 3 }}>
             <Accordion>
@@ -1378,14 +1391,6 @@ export default function PropertyExtractionPanel({
                         onChange={(e) => setSampleSize(e.target.value ? Number(e.target.value) : null)}
                         placeholder="Leave empty for all prompts"
                         helperText={sampleSize ? `Will sample ${sampleSize} prompts total` : 'Process all prompts'}
-                      />
-                      <TextField
-                        size="small"
-                        label="Results folder name"
-                        value={resultsNameProp || ''}
-                        onChange={(e) => onResultsNameChange?.(e.target.value)}
-                        placeholder="Auto-generated from filename"
-                        helperText={resultsNameProp ? `Results will be saved to: ${resultsNameProp}_[timestamp]` : 'Defaults to uploaded filename'}
                       />
                       <Accordion>
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -1464,25 +1469,6 @@ export default function PropertyExtractionPanel({
                           {(embeddingModels.length ? embeddingModels : [embeddingModel]).map(m => (
                             <MenuItem key={m} value={m}>{m}</MenuItem>
                           ))}
-                        </Select>
-                        {isDemoMode && (
-                          <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                            Fixed in demo mode
-                          </Typography>
-                        )}
-                      </FormControl>
-
-                      <FormControl size="small" disabled={isDemoMode}>
-                        <InputLabel id="group-by-label">Group by</InputLabel>
-                        <Select
-                          labelId="group-by-label"
-                          value={isDemoMode ? DEMO_MODE_SETTINGS.groupBy : groupBy}
-                          label="Group by"
-                          onChange={(e) => setGroupBy(e.target.value as any)}
-                        >
-                          <MenuItem value={'none'}>None</MenuItem>
-                          <MenuItem value={'category'}>category</MenuItem>
-                          <MenuItem value={'behavior_type'}>behavior_type</MenuItem>
                         </Select>
                         {isDemoMode && (
                           <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5 }}>
