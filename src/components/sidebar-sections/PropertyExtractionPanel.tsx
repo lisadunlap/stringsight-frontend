@@ -1502,6 +1502,7 @@ export default function PropertyExtractionPanel({
           </Box>
 
           {/* Email Notification */}
+          {/* Temporarily disabled
           {import.meta.env.VITE_DEMO === 'true' && (
             <Box sx={{ mt: 3 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
@@ -1518,6 +1519,7 @@ export default function PropertyExtractionPanel({
               />
             </Box>
           )}
+          */}
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column', mt: 3 }}>
