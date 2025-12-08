@@ -19,11 +19,13 @@ import {
   DialogContent,
   DialogActions,
   IconButton,
-  InputAdornment
+  InputAdornment,
+  Tooltip
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, sendDemoEmail, startClusterJob, getClusterJobStatus, getClusterJobResult } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 
@@ -1293,8 +1295,19 @@ export default function PropertyExtractionPanel({
 
               {canTaskDescribe && (
                 <Stack spacing={1}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                      Task description
+                    </Typography>
+                    <Tooltip
+                      title="Describe what you want the LLM to focus on when analyzing traces. Edit this to extract specific behaviors relevant to your use case."
+                      arrow
+                      placement="top"
+                    >
+                      <InfoOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'help' }} />
+                    </Tooltip>
+                  </Box>
                   <TextField
-                    label="Task description"
                     value={taskDescription}
                     onChange={(e) => {
                       const val = e.target.value;
