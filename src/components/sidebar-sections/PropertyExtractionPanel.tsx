@@ -1253,6 +1253,15 @@ export default function PropertyExtractionPanel({
             </Box>
           )}
 
+          {/* Demo mode banner for user-uploaded data */}
+          {isDemoMode && uploadedFileName && uploadedFileName !== 'taubench_airline' && uploadedFileName !== 'taubench_airline_sbs' && (
+            <Box sx={{ mb: 2, bgcolor: '#f0fdf4', color: '#065f46', px: 2, py: 1.25, borderRadius: 1, boxShadow: 1, border: '2px solid #10b981', textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                Only 50 rows are processed in demo mode for faster results. To run on your full traces please `pip install stringsight`` + `stringsight launch`
+              </Typography>
+            </Box>
+          )}
+
           {/* <Typography variant="body2" sx={{ color: 'primary.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
             Label interesting behaviors from your traces. Click 'Label Trace at Row 0' to see an example.
           </Typography> */}
