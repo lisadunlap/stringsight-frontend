@@ -1792,48 +1792,102 @@ function App() {
 
   // Removed server results loader
 
-  // Client-side pairing: convert tidy rows to side-by-side format
+  /**
+   * Client-side pairing: convert tidy rows (one row per (prompt, model)) into side-by-side rows.
+   *
+   * Behavior:
+   * - If a non-empty `question_id` exists, we group strictly by normalized `question_id`.
+   * - If `question_id` is missing for all filtered rows, we:
+   *   - Deduplicate by (prompt, model) using an exact prompt match (after trim) and model string.
+   *   - Group rows by exact prompt string to find prompts answered by both models.
+   *
+   * This ensures that prompts which both models answered are paired even when no explicit ID is provided.
+   */
   function pairTidyToSideBySide(rows: Record<string, any>[], mapping: ColumnMapping): Record<string, any>[] {
     const modelColumn = mapping.selectedModels!.column;
     const modelA = mapping.selectedModels!.modelA;
     const modelB = mapping.selectedModels!.modelB;
 
     // Filter to only rows with modelA or modelB
-    const filteredRows = rows.filter(r => {
-      const m = String(r[modelColumn] || '');
+    const filteredRows = rows.filter((r) => {
+      const m = String(r[modelColumn] ?? '');
       return m === modelA || m === modelB;
     });
 
-    // Group by question_id (use row index if missing to avoid using prompt as ID)
-    const groups = new Map<string, Record<string, any>[]>();
-    filteredRows.forEach((row, idx) => {
-      const qid = row['question_id'] != null && row['question_id'] !== ''
-        ? String(row['question_id'])
-        : String(idx); // Use index instead of prompt to avoid long IDs
-      if (!groups.has(qid)) groups.set(qid, []);
-      groups.get(qid)!.push(row);
+    if (filteredRows.length === 0) {
+      return [];
+    }
+
+    // Detect whether we have consistently usable question_id values:
+    // require that ALL filtered rows have a non-empty question_id, otherwise
+    // fall back to prompt-based grouping.
+    const hasQuestionIdValues = filteredRows.length > 0 && filteredRows.every((row) => {
+      const qid = row['question_id'];
+      return qid != null && String(qid).trim() !== '';
     });
 
-    // Build side-by-side rows: keep only groups with exactly 2 rows (one per model)
-    const pairedRows: Record<string, any>[] = [];
-    let pairIndex = 0;
+    /**
+     * Helper: given a set of rows, dedupe by (prompt, model), then pair by prompt.
+     * Used both when there is no question_id and as a fallback when question_id-based
+     * pairing produces zero pairs.
+     */
+    const buildPairsByPrompt = (inputRows: Record<string, any>[]) => {
+      const promptCol = mapping.promptCol;
+      const seen = new Set<string>();
+      const deduped: Record<string, any>[] = [];
+      let duplicateCount = 0;
 
-    groups.forEach((groupRows, qid) => {
-      const rowA = groupRows.find(r => String(r[modelColumn]) === modelA);
-      const rowB = groupRows.find(r => String(r[modelColumn]) === modelB);
+      for (const row of inputRows) {
+        const promptRaw = row[promptCol];
+        const modelRaw = row[modelColumn];
+        const promptKey = String(promptRaw ?? '').trim();
+        const modelKey = String(modelRaw ?? '');
+        const key = `${promptKey}||${modelKey}`;
 
-      if (rowA && rowB) {
+        if (seen.has(key)) {
+          duplicateCount += 1;
+          continue;
+        }
+
+        seen.add(key);
+        deduped.push(row);
+      }
+
+      if (duplicateCount > 0) {
+        console.warn(
+          `[pairTidyToSideBySide] Dropped ${duplicateCount} duplicate (prompt, model) rows while pairing models "${modelA}" and "${modelB}" (prompt-based).`,
+        );
+      }
+
+      // Group by exact prompt string (after trim)
+      const promptGroups = new Map<string, Record<string, any>[]>();
+      deduped.forEach((row) => {
+        const promptRaw = row[promptCol];
+        const key = String(promptRaw ?? '').trim();
+        if (!promptGroups.has(key)) promptGroups.set(key, []);
+        promptGroups.get(key)!.push(row);
+      });
+
+      const pairs: Record<string, any>[] = [];
+      let pairIndex = 0;
+
+      promptGroups.forEach((groupRows) => {
+        const rowA = groupRows.find((r) => String(r[modelColumn] ?? '') === modelA);
+        const rowB = groupRows.find((r) => String(r[modelColumn] ?? '') === modelB);
+        if (!rowA || !rowB) return;
+
+        const promptValue = (rowA[promptCol] ?? rowB[promptCol] ?? '') as string;
+
         const sbsRow: Record<string, any> = {
-          __index: pairIndex++,
-          question_id: qid,
-          prompt: rowA[mapping.promptCol] || rowB[mapping.promptCol] || '',
+          __index: pairIndex,
+          question_id: String(pairIndex),
+          prompt: promptValue,
           model_a: modelA,
           model_b: modelB,
-          model_a_response: rowA[mapping.responseCols[0]] || '',
-          model_b_response: rowB[mapping.responseCols[0]] || '',
+          model_a_response: rowA[mapping.responseCols[0]] ?? '',
+          model_b_response: rowB[mapping.responseCols[0]] ?? '',
         };
 
-        // Build score_a and score_b from selected score columns
         if (mapping.scoreCols.length > 0) {
           const toNumber = (v: any): number | undefined => {
             if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
@@ -1849,25 +1903,120 @@ function App() {
             if (typeof v === 'string') {
               const s = v.trim();
               if (s.startsWith('{') && s.endsWith('}')) {
-                try { return JSON.parse(s); } catch (_) { return null; }
+                try {
+                  return JSON.parse(s);
+                } catch (_) {
+                  return null;
+                }
               }
             }
             return null;
           };
 
-          const buildScore = (r: Record<string, any>) => {
+          const buildScore = (r: Record<string, any>): Record<string, number> | undefined => {
             const s: Record<string, number> = {};
             for (const col of mapping.scoreCols) {
               const raw = r[col];
               const asDict = parseMaybeJsonDict(raw);
               if (asDict) {
-                // Score column contains an object like {accuracy: 0.8}
                 for (const [k, v] of Object.entries(asDict)) {
                   const num = toNumber(v);
                   if (num !== undefined) s[k] = num;
                 }
               } else {
-                // Score column is a scalar value
+                const k = col.replace(/^(score_)?/i, '').replace(/_?score$/i, '') || 'value';
+                const num = toNumber(raw);
+                if (num !== undefined) s[k] = num;
+              }
+            }
+            return Object.keys(s).length > 0 ? s : undefined;
+          };
+
+          const scoreA = buildScore(rowA);
+          const scoreB = buildScore(rowB);
+          if (scoreA) sbsRow.score_a = scoreA;
+          if (scoreB) sbsRow.score_b = scoreB;
+        }
+
+        pairs.push(sbsRow);
+        pairIndex += 1;
+      });
+
+      if (pairs.length === 0 && duplicateCount > 0) {
+        console.warn(
+          `[pairTidyToSideBySide] No pairs created after dropping ${duplicateCount} duplicate (prompt, model) rows for models "${modelA}" and "${modelB}".`,
+        );
+      }
+
+      return pairs;
+    };
+
+    // First attempt: group by question_id when available on all rows
+    if (hasQuestionIdValues) {
+      const groups = new Map<string, Record<string, any>[]>();
+      filteredRows.forEach((row, idx) => {
+        const qid = row['question_id'];
+        const key = qid != null && String(qid).trim() !== '' ? String(qid) : String(idx);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(row);
+      });
+
+      const pairedRows: Record<string, any>[] = [];
+      let pairIndex = 0;
+
+      groups.forEach((groupRows, groupKey) => {
+        const rowA = groupRows.find((r) => String(r[modelColumn] ?? '') === modelA);
+        const rowB = groupRows.find((r) => String(r[modelColumn] ?? '') === modelB);
+        if (!rowA || !rowB) return;
+
+        const promptValue = (rowA[mapping.promptCol] ?? rowB[mapping.promptCol] ?? '') as string;
+
+        const sbsRow: Record<string, any> = {
+          __index: pairIndex++,
+          question_id: groupKey,
+          prompt: promptValue,
+          model_a: modelA,
+          model_b: modelB,
+          model_a_response: rowA[mapping.responseCols[0]] ?? '',
+          model_b_response: rowB[mapping.responseCols[0]] ?? '',
+        };
+
+        if (mapping.scoreCols.length > 0) {
+          const toNumber = (v: any): number | undefined => {
+            if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+            if (typeof v === 'string' && v.trim() !== '') {
+              const n = Number(v);
+              return Number.isFinite(n) ? n : undefined;
+            }
+            return undefined;
+          };
+
+          const parseMaybeJsonDict = (v: any): Record<string, any> | null => {
+            if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, any>;
+            if (typeof v === 'string') {
+              const s = v.trim();
+              if (s.startsWith('{') && s.endsWith('}')) {
+                try {
+                  return JSON.parse(s);
+                } catch (_) {
+                  return null;
+                }
+              }
+            }
+            return null;
+          };
+
+          const buildScore = (r: Record<string, any>): Record<string, number> | undefined => {
+            const s: Record<string, number> = {};
+            for (const col of mapping.scoreCols) {
+              const raw = r[col];
+              const asDict = parseMaybeJsonDict(raw);
+              if (asDict) {
+                for (const [k, v] of Object.entries(asDict)) {
+                  const num = toNumber(v);
+                  if (num !== undefined) s[k] = num;
+                }
+              } else {
                 const k = col.replace(/^(score_)?/i, '').replace(/_?score$/i, '') || 'value';
                 const num = toNumber(raw);
                 if (num !== undefined) s[k] = num;
@@ -1883,10 +2032,20 @@ function App() {
         }
 
         pairedRows.push(sbsRow);
-      }
-    });
+      });
 
-    return pairedRows;
+      if (pairedRows.length > 0) {
+        return pairedRows;
+      }
+
+      console.warn(
+        `[pairTidyToSideBySide] No pairs found when grouping by question_id for models "${modelA}" and "${modelB}". Falling back to prompt-based pairing.`,
+      );
+      return buildPairsByPrompt(filteredRows);
+    }
+
+    // No usable question_id values at all: go straight to prompt-based pairing
+    return buildPairsByPrompt(filteredRows);
   }
 
   // New function to process data with flexible column mapping
