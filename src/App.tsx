@@ -132,6 +132,13 @@ function transformRowsForBackend(
         transformed.scores = [row.score_b];
       }
 
+      // Pass through winner for side-by-side conversations if present.
+      // Backend expects a top-level string field (model name or 'tie') and will
+      // normalize it into numeric winner scores internally.
+      if (row.winner !== undefined) {
+        transformed.winner = row.winner;
+      }
+
       return transformed;
     });
   } else if (method === 'single_model') {
@@ -1272,8 +1279,11 @@ function App() {
           model_b: conv.model_b,
           model_a_response: conv.model_a_response,
           model_b_response: conv.model_b_response,
-          score_a: conv.score_a,  // Already an object
-          score_b: conv.score_b   // Already an object
+        score_a: conv.score_a,  // Already an object
+        score_b: conv.score_b,  // Already an object
+        // Winner is emitted as a top-level string field by the backend when present.
+        // Keep it on operational rows so it can be sent back on recompute and shown in the UI.
+        winner: (conv as any).winner
         })
       }));
 
@@ -1637,8 +1647,9 @@ function App() {
           model_b: conv.model_b,
           model_a_response: conv.model_a_response,
           model_b_response: conv.model_b_response,
-          score_a: conv.score_a,
-          score_b: conv.score_b
+        score_a: conv.score_a,
+        score_b: conv.score_b,
+        winner: (conv as any).winner
         })
       }));
 
@@ -1888,6 +1899,13 @@ function App() {
           model_b_response: rowB[mapping.responseCols[0]] ?? '',
         };
 
+        // Preserve winner if present on either tidy row for this prompt/model pair.
+        // Winner is expected to be a string: model name (e.g. 'gpt-4', 'model_a', 'model_b') or 'tie'.
+        const winnerValue = (rowA as any).winner ?? (rowB as any).winner;
+        if (winnerValue !== undefined) {
+          (sbsRow as any).winner = winnerValue;
+        }
+
         if (mapping.scoreCols.length > 0) {
           const toNumber = (v: any): number | undefined => {
             if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
@@ -1980,6 +1998,11 @@ function App() {
           model_a_response: rowA[mapping.responseCols[0]] ?? '',
           model_b_response: rowB[mapping.responseCols[0]] ?? '',
         };
+
+        const winnerValue = (rowA as any).winner ?? (rowB as any).winner;
+        if (winnerValue !== undefined) {
+          (sbsRow as any).winner = winnerValue;
+        }
 
         if (mapping.scoreCols.length > 0) {
           const toNumber = (v: any): number | undefined => {
@@ -2098,6 +2121,12 @@ function App() {
           // Default model_b name if not mapped
           opRow.model_b = 'model_b';
         }
+      }
+
+      // Preserve winner if present on input rows for side-by-side evaluations.
+      // Winner is a top-level string column (model name or 'tie') and is not part of the score dicts.
+      if (mapping.method === 'side_by_side' && (row as any).winner !== undefined) {
+        (opRow as any).winner = (row as any).winner;
       }
 
       // Build score dictionaries per selected columns (backend contract)
@@ -4499,6 +4528,7 @@ function App() {
                 rawResponseB={selectedRow?.model_b_response}
                 scoreA={(selectedRow as any)?.score_a}
                 scoreB={(selectedRow as any)?.score_b}
+                winner={(selectedRow as any)?.winner}
               />
             )}
           </Box>
