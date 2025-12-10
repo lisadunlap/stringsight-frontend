@@ -298,8 +298,8 @@ export function MetricsControlPanel({
             <MenuItem value="proportion_delta_asc">Proportion Δ (Low to High)</MenuItem>
             <MenuItem value="quality_desc">Quality (High to Low)</MenuItem>
             <MenuItem value="quality_asc">Quality (Low to High)</MenuItem>
-            <MenuItem value="quality_delta_desc">Quality Δ (High to Low)</MenuItem>
-            <MenuItem value="quality_delta_asc">Quality Δ (Low to High)</MenuItem>
+            <MenuItem value="quality_delta_desc">Quality Impact (High to Low)</MenuItem>
+            <MenuItem value="quality_delta_asc">Quality Impact (Low to High)</MenuItem>
             <MenuItem value="size_desc">Cluster Size (Large to Small)</MenuItem>
             <MenuItem value="size_asc">Cluster Size (Small to Large)</MenuItem>
           </Select>

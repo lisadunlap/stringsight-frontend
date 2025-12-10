@@ -29,6 +29,16 @@ import { MetricsOverviewBanner } from './MetricsOverviewBanner';
 import { MetricsFilterBar } from './MetricsFilterBar';
 import type { MetricsFilters, MetricsSummary, ModelClusterPayload, ModelBenchmarkPayload, ModelClusterRow } from '../../types/metrics';
 
+interface MetricScoreRange {
+  /** Minimum observed absolute score for this metric across all conversations/models. */
+  min: number;
+  /** Maximum observed absolute score for this metric across all conversations/models. */
+  max: number;
+}
+
+/** Mapping from quality metric name (e.g. "win_rate") to its global absolute score range. */
+type MetricScoreRanges = Record<string, MetricScoreRange>;
+
 interface MetricsTabProps {
   /** Pre-loaded results data */
   resultsData: {
@@ -192,6 +202,60 @@ export function MetricsTab({
       console.log('MetricsTab Debug - Sample row.quality:', modelClusterScores[0]?.quality);
     }
 
+    /**
+     * Compute global absolute score ranges per quality metric.
+     * 
+     * This scans both benchmark rows (if present) and model-cluster rows for
+     * absolute quality scores (not deltas), using either:
+     * - nested `quality[metric]`, or
+     * - flattened `quality_${metric}` columns.
+     * 
+     * The resulting ranges are used by downstream components (e.g. misaligned
+     * patterns) to normalize quality deltas against a consistent score scale.
+     */
+    const scoreRanges: MetricScoreRanges = {};
+
+    const benchmarkRows: any[] = Array.isArray(resultsData.model_scores)
+      ? resultsData.model_scores
+      : [];
+
+    const allRowsForScores: any[] = [
+      ...benchmarkRows,
+      ...modelClusterScores
+    ];
+
+    const getAbsoluteScore = (row: any, metricName: string): number | undefined => {
+      // Prefer nested quality object when present
+      const nestedQuality = row.quality && typeof row.quality === 'object'
+        ? row.quality[metricName]
+        : undefined;
+      const flatQuality = row[`quality_${metricName}`];
+
+      const value = typeof nestedQuality === 'number' && isFinite(nestedQuality)
+        ? nestedQuality
+        : (typeof flatQuality === 'number' && isFinite(flatQuality) ? flatQuality : undefined);
+
+      return value;
+    };
+
+    Array.from(qualityMetrics).forEach((metricName) => {
+      let min = Number.POSITIVE_INFINITY;
+      let max = Number.NEGATIVE_INFINITY;
+
+      allRowsForScores.forEach((row) => {
+        const value = getAbsoluteScore(row, metricName);
+        if (typeof value !== 'number') {
+          return;
+        }
+        if (value < min) min = value;
+        if (value > max) max = value;
+      });
+
+      if (min !== Number.POSITIVE_INFINITY && max !== Number.NEGATIVE_INFINITY && max > min) {
+        scoreRanges[metricName] = { min, max };
+      }
+    });
+
     // Create summary
     const summary: MetricsSummary = {
       source: 'json' as const,
@@ -229,6 +293,7 @@ export function MetricsTab({
       qualityMetrics: Array.from(qualityMetrics),
       availableGroups: Array.from(groups),
       availableBehaviorTypes: Array.from(behaviorTypes).sort(),
+      scoreRanges,
       isLoading: false,
       error: null,
       refetch: () => Promise.resolve()
@@ -242,6 +307,7 @@ export function MetricsTab({
     qualityMetrics,
     availableGroups,
     availableBehaviorTypes,
+    scoreRanges,
     isLoading,
     error,
     refetch
@@ -377,6 +443,7 @@ export function MetricsTab({
           benchmarkData={benchmarkData}
           qualityMetrics={qualityMetrics || []}
           summary={summary}
+          scoreRanges={scoreRanges}
           showBenchmark={showBenchmark}
           showClusterPlots={showClusterPlots}
           showModelCards={showModelCards}

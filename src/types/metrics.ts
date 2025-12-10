@@ -151,7 +151,7 @@ export type MetricsPlotType =
   | "frequency"        // Absolute proportion
   | "frequency_delta"  // Proportion delta (with zero line)
   | "quality"          // Absolute quality
-  | "quality_delta";   // Quality delta (with zero line)
+  | "quality_delta";   // Quality impact / attributable impact (with zero line)
 
 /**
  * Configuration for individual chart components.

@@ -69,7 +69,7 @@ export function MetricsFilterBar({
   const sortOptions: { value: MetricsSortOption; label: string }[] = [
     { value: 'proportion_delta_desc', label: 'Freq Delta' },
     { value: 'proportion_desc', label: 'Freq' },
-    { value: 'quality_delta_desc', label: 'Quality Delta' },
+    { value: 'quality_delta_desc', label: 'Quality Impact' },
   ];
 
   const handleReset = () => {

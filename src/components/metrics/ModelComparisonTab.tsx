@@ -144,7 +144,7 @@ export function ModelComparisonTab({
             Model Comparison
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            All behaviors with positive frequency delta (&gt;{(minDelta * 100).toFixed(1)}%) for each model
+            Patterns where this model shows up noticeably more often than others (more than {(minDelta * 100).toFixed(1)} percentage points higher).
           </Typography>
         </Box>
         <Box sx={{ width: 200, mr: 2 }}>

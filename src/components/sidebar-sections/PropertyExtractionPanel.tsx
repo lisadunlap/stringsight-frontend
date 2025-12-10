@@ -1246,6 +1246,11 @@ export default function PropertyExtractionPanel({
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body1" sx={{ color: 'primary.main', fontWeight: 500 }}>
+              Use an LLM/VLM annotator to extract interesting behaviors from traces. View the full systems prompt used in advanced settings and click 'Label Trace at Row 0' for an example.
+            </Typography>
+          </Box>
           {/* Results mode banner */}
           {isResultsMode && (
             <Box sx={{ mb: 2, bgcolor: '#F97316', color: '#FFFFFF', px: 2, py: 1.25, borderRadius: 1, boxShadow: 1, border: '1px solid #EA580C', textAlign: 'center' }}>
@@ -1268,9 +1273,6 @@ export default function PropertyExtractionPanel({
             Label interesting behaviors from your traces. Click 'Label Trace at Row 0' to see an example.
           </Typography> */}
           <Box>
-            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
-              Extraction Prompt
-            </Typography>
             <Stack spacing={2} data-tutorial-id="extract-properties-trace">
               <Autocomplete
                 size="small"

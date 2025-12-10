@@ -694,12 +694,12 @@ export default function ClusterSidecard({
 
           {/* Plots */}
           <Box sx={{ mb: 0.5 }}>
-            {/* Scatter plots: Quality Delta vs Frequency (one per metric) */}
+            {/* Scatter plots: Quality Impact vs Frequency (one per metric) */}
             {perModelProps && Object.keys(perModelProps).length > 0 && qualityDeltaByModel && Object.keys(qualityDeltaByModel).length > 0 && (
               <Box sx={{ mb: 1 }}>
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0 }}>
-                  <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Delta vs Frequency</Typography>
-                  <Tooltip title="Each plot shows the change in performance per model when looking only at conversations that contain the behavior. Each dot represents a model.">
+                  <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Impact vs Frequency</Typography>
+                  <Tooltip title="How much this behavior raises or lowers the overall model score (weighted by frequency).">
                     <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
                   </Tooltip>
                 </Stack>
@@ -796,7 +796,7 @@ export default function ClusterSidecard({
                                 width: 1.5,
                               },
                             },
-                            hovertemplate: `${model}<br>Quality Δ: %{x:.${decimals}f}<br>Frequency: %{y:.${decimals}f}<extra></extra>`,
+                            hovertemplate: `${model}<br>Quality Impact: %{x:.${decimals}f}<br>Frequency: %{y:.${decimals}f}<extra></extra>`,
                             error_x: errorX,
                             error_y: errorY,
                             showlegend: false, // Legend is now shown globally at the top
@@ -875,7 +875,7 @@ export default function ClusterSidecard({
                                 height: 300,
                                 margin: { l: 60, r: 10, t: 2, b: 50 },
                                 xaxis: {
-                                  title: { text: 'Quality Δ', standoff: 15 },
+                                  title: { text: 'Quality Impact', standoff: 15 },
                                   tickformat: `.${decimals}f`,
                                   zeroline: true,
                                   zerolinecolor: '#374151',

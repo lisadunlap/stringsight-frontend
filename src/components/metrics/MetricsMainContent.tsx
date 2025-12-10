@@ -53,6 +53,11 @@ interface MetricsMainContentProps {
   availableBehaviorTypes?: string[];
   /** Whether confidence intervals are present in the data */
   hasConfidenceIntervals?: boolean;
+  /**
+   * Global per-metric absolute score ranges used for normalizing quality deltas.
+   * Keys are base metric names (e.g., "win_rate") as exposed in `qualityMetrics`.
+   */
+  scoreRanges?: Record<string, { min: number; max: number }>;
 }
 
 export function MetricsMainContent({
@@ -72,6 +77,7 @@ export function MetricsMainContent({
   onFiltersChange,
   availableBehaviorTypes,
   hasConfidenceIntervals,
+  scoreRanges,
 }: MetricsMainContentProps) {
 
   // Normalize group names to standard categories (same as in MetricsTab)
@@ -247,6 +253,7 @@ export function MetricsMainContent({
         availableQualityMetrics={qualityMetrics}
         availableBehaviorTypes={availableBehaviorTypes}
         hasConfidenceIntervals={hasConfidenceIntervals}
+        scoreRanges={scoreRanges}
       />
       <Divider />
 

@@ -1,5 +1,5 @@
 /**
- * QualityDeltaChartAlt - Text-based list visualization for quality delta data.
+ * QualityDeltaChartAlt - Text-based list visualization for quality impact data.
  *
  * Alternative to QualityDeltaChart with:
  * - Compact list format (cluster name + multiple model bars)
@@ -190,7 +190,7 @@ export function QualityDeltaChartAlt({
     return (
       <Box>
         <Alert severity="info">
-          No cluster data available for quality delta analysis.
+          No cluster data available for quality impact analysis.
         </Alert>
       </Box>
     );
@@ -200,7 +200,7 @@ export function QualityDeltaChartAlt({
     return (
       <Box>
         <Alert severity="warning">
-          Please select a quality metric to display quality deltas.
+          Please select a quality metric to display quality impact.
         </Alert>
       </Box>
     );
@@ -230,11 +230,11 @@ export function QualityDeltaChartAlt({
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-        <Typography variant="h6" component="h3">
-          Quality Δ by Cluster
+        <Typography variant="h6" component="h3" title="How much this behavior raises or lowers the overall model score (weighted by frequency).">
+          Quality Impact by Cluster
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {getDisplayName(filters.qualityMetric)} performance vs. model baseline
+          Impact on overall {getDisplayName(filters.qualityMetric)} score vs. the model baseline (weighted by how often this behavior occurs).
         </Typography>
       </Box>
 

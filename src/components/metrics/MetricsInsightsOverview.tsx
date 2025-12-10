@@ -24,6 +24,8 @@ import {
   TableSortLabel,
   Button,
   Menu,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { FrequencyChartAlt } from './charts/FrequencyChartAlt';
@@ -67,6 +69,12 @@ interface MetricsInsightsOverviewProps {
   availableBehaviorTypes?: string[];
   /** Whether confidence intervals are present in the data */
   hasConfidenceIntervals?: boolean;
+  /**
+   * Global per-metric absolute score ranges used to normalize misaligned-pattern
+   * quality impacts (quality_delta). Keys are base metric names, matching entries
+   * in `qualityMetrics`.
+   */
+  scoreRanges?: Record<string, { min: number; max: number }>;
 }
 
 // Normalize group names to standard categories
@@ -127,6 +135,7 @@ export function MetricsInsightsOverview({
   availableQualityMetrics,
   availableBehaviorTypes,
   hasConfidenceIntervals,
+  scoreRanges,
 }: MetricsInsightsOverviewProps) {
   // Debug logging
   console.log('[MetricsInsightsOverview] Rendering with:', {
@@ -252,8 +261,8 @@ export function MetricsInsightsOverview({
       .slice(0, 3); // Show top 3 behaviors
 
     // 3. MISALIGNED PATTERNS
-    // - Negative behaviors with positive quality delta
-    // - Style behaviors with any quality delta (positive or negative)
+    // - Negative behaviors with positive quality impact (quality_delta > 0)
+    // - Style behaviors with any quality impact (positive or negative)
     // Aggregate deltas across all models for each cluster
     // Note: This section requires quality metrics, so skip if none are available
 
@@ -437,6 +446,11 @@ export function MetricsInsightsOverview({
   // Filters dropdown anchor
   const [filtersAnchorEl, setFiltersAnchorEl] = useState<null | HTMLElement>(null);
   const filtersMenuOpen = Boolean(filtersAnchorEl);
+
+  // Controls whether misaligned-pattern bars are scaled to the global score
+  // range for each metric (true) or to the local max delta within the current
+  // view (false). Default to local scaling so behavior matches the original UI.
+  const [useGlobalScoreScale, setUseGlobalScoreScale] = useState<boolean>(false);
 
   const handleFiltersButtonClick = (event: React.MouseEvent<HTMLElement>) => {
     setFiltersAnchorEl(event.currentTarget);
@@ -895,16 +909,57 @@ export function MetricsInsightsOverview({
       {/* 4. MISALIGNED PATTERNS */}
       {activeTab === 'misalignedPatterns' && (
         <Box>
-          <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', maxHeight: '800px' }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2, flexShrink: 0 }}>
-              <WarningAmberIcon sx={{ fontSize: 20, color: 'warning.main' }} />
-              <Typography variant="h6">
-                Misaligned Patterns
-              </Typography>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '800px'
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              justifyContent="space-between"
+              sx={{ mb: 2, flexShrink: 0 }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <WarningAmberIcon sx={{ fontSize: 20, color: 'warning.main' }} />
+                <Typography variant="h6">
+                  Misaligned Patterns
+                </Typography>
+              </Box>
+            <FormControlLabel
+                control={
+                  <Switch
+                    size="small"
+                    checked={useGlobalScoreScale}
+                    onChange={(e) => setUseGlobalScoreScale(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Tooltip
+                    title="When enabled, bar widths reflect how large each quality impact is relative to the full score range for that metric across all conversations. When disabled, bar widths are scaled relative to the largest impact in this view."
+                    arrow
+                    placement="top"
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      Scale bars by global score range
+                    </Typography>
+                  </Tooltip>
+                }
+                sx={{ ml: 2 }}
+              />
             </Stack>
 
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2, flexShrink: 0 }}>
               Negative behaviors that improve metrics, and stylistic behaviors that either improve or worsen metrics. Only shows patterns that are statistically significant.
+              The bar widths reflect <strong>Quality Impact</strong> (attributable impact): how much each behavior raises or lowers the overall model score for a metric, weighted by how often the behavior occurs.
             </Typography>
 
           {qualityMetrics.length === 0 ? (
@@ -941,7 +996,8 @@ export function MetricsInsightsOverview({
               (a, b) => (categoryConfig[a]?.order || 999) - (categoryConfig[b]?.order || 999)
             );
 
-            // Calculate global min and max across all deltas for scaling
+            // Calculate local min and max across all deltas for scaling when
+            // global score ranges are not used.
             const allDeltas = sortedCategories.flatMap(category =>
               groupedPatterns[category].flatMap(pattern =>
                 pattern.metricsImpacted.map(mi => mi.avgDelta)
@@ -949,7 +1005,7 @@ export function MetricsInsightsOverview({
             );
             const minDelta = Math.min(...allDeltas, 0); // Include 0 to ensure scale includes it
             const maxDelta = Math.max(...allDeltas, 0); // Include 0 to ensure scale includes it
-            const deltaRange = Math.max(Math.abs(minDelta), Math.abs(maxDelta));
+            const localDeltaRange = Math.max(Math.abs(minDelta), Math.abs(maxDelta));
 
             // Get all unique metrics across all patterns
             const allMetrics = Array.from(new Set(
@@ -959,6 +1015,38 @@ export function MetricsInsightsOverview({
                 )
               )
             )).sort();
+
+            // Precompute denominators per metric. When global score scaling is
+            // enabled and a score range is available, use that; otherwise fall
+            // back to the local max absolute delta.
+            const metricDenominators: Record<string, number> = {};
+            allMetrics.forEach((metricName) => {
+              if (useGlobalScoreScale && scoreRanges && scoreRanges[metricName]) {
+                const range = scoreRanges[metricName];
+                const span = range && isFinite(range.min) && isFinite(range.max)
+                  ? range.max - range.min
+                  : 0;
+                if (span > 0) {
+                  metricDenominators[metricName] = span;
+                  return;
+                }
+              }
+
+              // Fallback: use local max absolute delta for this metric
+              const deltasForMetric = sortedCategories.flatMap(category =>
+                groupedPatterns[category].flatMap(pattern =>
+                  pattern.metricsImpacted
+                    .filter(mi => mi.metric === metricName)
+                    .map(mi => mi.avgDelta)
+                )
+              );
+              const localMaxAbs = deltasForMetric.length > 0
+                ? Math.max(...deltasForMetric.map(d => Math.abs(d)))
+                : 0;
+              if (localMaxAbs > 0) {
+                metricDenominators[metricName] = localMaxAbs;
+              }
+            });
 
             return (
               <Stack spacing={3}>
@@ -1034,8 +1122,18 @@ export function MetricsInsightsOverview({
                                   const hasData = metricData !== undefined;
                                   const isPositive = hasData && metricData.avgDelta > 0;
                                   const avgDelta = hasData ? metricData.avgDelta : 0;
-                                  // Scale bar width based on global min/max
-                                  const barWidth = hasData && deltaRange > 0 ? (Math.abs(avgDelta) / deltaRange) * 100 : 0;
+                                  // Scale bar width either by global score range (preferred)
+                                  // or by the local max absolute delta when no global range
+                                  // is available or global scaling is disabled.
+                                  let barWidth = 0;
+                                  if (hasData) {
+                                    const denom = useGlobalScoreScale
+                                      ? (metricDenominators[metric] || 0)
+                                      : localDeltaRange;
+                                    if (denom > 0) {
+                                      barWidth = Math.min(100, (Math.abs(avgDelta) / denom) * 100);
+                                    }
+                                  }
 
                                   return (
                                     <Tooltip
@@ -1072,19 +1170,21 @@ export function MetricsInsightsOverview({
                                           )}
                                         </Box>
 
-                                        {/* Metric name */}
+                                        {/* Metric name and numeric impact */}
                                         <Typography
                                           variant="caption"
                                           sx={{
                                             fontSize: '0.75rem',
                                             color: hasData ? 'text.secondary' : 'text.disabled',
-                                            minWidth: 100,
+                                            minWidth: 120,
                                             overflow: 'hidden',
                                             textOverflow: 'ellipsis',
                                             whiteSpace: 'nowrap'
                                           }}
                                         >
-                                          {metric}
+                                          {hasData
+                                            ? `${metric} ${isPositive ? '+' : ''}${avgDelta.toFixed(3)}`
+                                            : metric}
                                         </Typography>
                                       </Box>
                                     </Tooltip>

@@ -5,7 +5,7 @@
  * 1. Frequency (absolute proportion)
  * 2. Frequency Delta (proportion delta with zero line)
  * 3. Quality (absolute quality scores)
- * 4. Quality Delta (quality delta with zero line)
+ * 4. Quality Impact (quality_delta / attributable impact with zero line)
  */
 
 import React from 'react';
@@ -65,7 +65,7 @@ export function ClusterPlotsSection({
           </Box>
         </Box>
 
-        {/* Quality Δ Charts - one per metric */}
+        {/* Quality Impact Charts - one per metric */}
         {qualityMetrics.map((metric) => (
           <Box key={metric} sx={{ width: '100%', mt: 4 }}>
             <Box sx={{ p: 0, height: 520, width: '100%' }}>

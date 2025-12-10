@@ -279,23 +279,6 @@ export function FrequencyChartAlt({
         borderBottom: '1px solid',
         borderColor: 'divider'
       }}>
-        {/* Title and Reset */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="h6" component="h3">
-            All Property Clusters
-          </Typography>
-
-          {/* Reset Button */}
-          <Tooltip title="Reset filters" arrow>
-            <IconButton
-              size="small"
-              onClick={handleReset}
-              sx={{ color: 'text.secondary' }}
-            >
-              <RefreshIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
 
         {/* Filters and Controls Row */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
@@ -379,7 +362,7 @@ export function FrequencyChartAlt({
                 <MenuItem value="frequency">Frequency</MenuItem>
                 <MenuItem value="frequency_delta">Frequency Δ</MenuItem>
                 <MenuItem value="quality">Quality</MenuItem>
-                <MenuItem value="quality_delta">Quality Δ</MenuItem>
+                <MenuItem value="quality_delta">Quality Impact</MenuItem>
               </Select>
             </FormControl>
 

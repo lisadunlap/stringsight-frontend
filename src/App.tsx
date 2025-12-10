@@ -504,8 +504,12 @@ function ExampleFormatTabs() {
             <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model_b</code>,{' '}
             <code style={{ backgroundColor: '#E9D5FF', color: '#9333EA', padding: '2px 4px', borderRadius: '3px' }}>model_a_response</code>,{' '}
             <code style={{ backgroundColor: '#E9D5FF', color: '#9333EA', padding: '2px 4px', borderRadius: '3px' }}>model_b_response</code>,{' '}
+            <code style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: '2px 4px', borderRadius: '3px' }}>winner (optional)</code>
             <br />
-            <em>Note: You can use any column names you want as long as they correspond to the required fields</em>
+            <em>
+              <strong>winner</strong> is a string with the winning model name (e.g. <code>model_a</code>, <code>gpt-4</code>) or a value containing <code>tie</code> for ties.
+              You can also include per-model score columns (e.g. <code>accuracy_a</code>, <code>accuracy_b</code>).
+            </em>
           </Typography>
           <Box sx={{
             backgroundColor: 'white',
@@ -526,17 +530,11 @@ function ExampleFormatTabs() {
               <span style={{ color: '#2563EB', fontWeight: 600 }}>"model_b"</span>
               {': "claude-3",\n    '}
               <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_a_response"</span>
-              {': "ML is a subset of AI that enables systems to learn from data...",\n    '}
+              {': [\n      {"role": "user", "content": "What is machine learning?"},\n      {"role": "assistant", "content": "ML is a subset of AI that enables systems to learn from data..."}\n    ],\n    '}
               <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_b_response"</span>
-              {': "Machine learning involves algorithms that improve through experience...",\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy_a"</span>
-              {': 0.95,\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy_b"</span>
-              {': 0.92,\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness_a"</span>
-              {': 4.5,\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness_b"</span>
-              {': 4.3\n  },\n  {\n    '}
+              {': [\n      {"role": "user", "content": "What is machine learning?"},\n      {"role": "assistant", "content": "Machine learning involves algorithms that improve through experience..."}\n    ],\n    '}
+              <span style={{ color: '#92400E', fontWeight: 600 }}>"winner"</span>
+              {': "gpt-4",\n  },\n  {\n    '}
               <span style={{ color: '#16A34A', fontWeight: 600 }}>"prompt"</span>
               {': "Explain quantum computing",\n    '}
               <span style={{ color: '#2563EB', fontWeight: 600 }}>"model_a"</span>
@@ -544,17 +542,11 @@ function ExampleFormatTabs() {
               <span style={{ color: '#2563EB', fontWeight: 600 }}>"model_b"</span>
               {': "claude-3",\n    '}
               <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_a_response"</span>
-              {': "Quantum computing uses quantum bits...",\n    '}
+              {': [\n      {"role": "user", "content": "Explain quantum computing"},\n      {"role": "assistant", "content": "Quantum computing uses quantum bits..."}\n    ],\n    '}
               <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_b_response"</span>
-              {': "QC leverages quantum mechanical phenomena...",\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy_a"</span>
-              {': 0.88,\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy_b"</span>
-              {': 0.91,\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness_a"</span>
-              {': 4.0,\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness_b"</span>
-              {': 4.6\n  }\n]'}
+              {': [\n      {"role": "user", "content": "Explain quantum computing"},\n      {"role": "assistant", "content": "QC leverages quantum mechanical phenomena..."}\n    ],\n    '}
+              <span style={{ color: '#92400E', fontWeight: 600 }}>"winner"</span>
+              {': "claude-3"\n  }\n]'}
             </Box>
           </Box>
         </Box>
@@ -592,17 +584,13 @@ function ExampleFormatTabs() {
               <span style={{ color: '#2563EB', fontWeight: 600 }}>"model"</span>
               {': "gpt-4-vision",\n    '}
               <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_response"</span>
-              {': [\n      {\n        "role": "user",\n        "content": [\n          {"type": "text", "text": "What is in this image?"},\n          {"type": "image_url", "image_url": {"url": "https://example.com/image1.jpg"}}\n        ]\n      },\n      {\n        "role": "assistant",\n        "content": "This image shows a cat sitting on a windowsill."\n      }\n    ],\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"accuracy"</span>
-              {': 0.95\n  },\n  {\n    '}
+              {': [\n      {\n        "role": "user",\n        "content": [\n          {"type": "text", "text": "What is in this image?"},\n          {"type": "image_url", "image_url": {"url": "https://example.com/image1.jpg"}}\n        ]\n      },\n      {\n        "role": "assistant",\n        "content": "This image shows a cat sitting on a windowsill."\n      }\n    ]\n  },\n  {\n    '}
               <span style={{ color: '#16A34A', fontWeight: 600 }}>"prompt"</span>
               {': "Compare these two charts",\n    '}
               <span style={{ color: '#2563EB', fontWeight: 600 }}>"model"</span>
               {': "claude-3-opus",\n    '}
               <span style={{ color: '#9333EA', fontWeight: 600 }}>"model_response"</span>
-              {': [\n      {\n        "role": "user",\n        "content": [\n          {"type": "text", "text": "Compare these two charts"},\n          {"type": "image_url", "image_url": {"url": "https://example.com/chart1.png"}},\n          {"type": "image_url", "image_url": {"url": "https://example.com/chart2.png"}}\n        ]\n      },\n      {\n        "role": "assistant",\n        "content": "The first chart shows exponential growth while the second shows linear progression..."\n      },\n      {\n        "role": "user",\n        "content": "Which one is better for investment?"\n      },\n      {\n        "role": "assistant",\n        "content": "Based on the trends, the exponential growth pattern suggests..."\n      }\n    ],\n    '}
-              <span style={{ color: '#EA580C', fontWeight: 600 }}>"helpfulness"</span>
-              {': 4.8\n  }\n]'}
+              {': [\n      {\n        "role": "user",\n        "content": [\n          {"type": "text", "text": "Compare these two charts"},\n          {"type": "image_url", "image_url": {"url": "https://example.com/chart1.png"}},\n          {"type": "image_url", "image_url": {"url": "https://example.com/chart2.png"}}\n        ]\n      },\n      {\n        "role": "assistant",\n        "content": "The first chart shows exponential growth while the second shows linear progression..."\n      },\n      {\n        "role": "user",\n        "content": "Which one is better for investment?"\n      },\n      {\n        "role": "assistant",\n        "content": "Based on the trends, the exponential growth pattern suggests..."\n      }\n    ]\n  }\n]'}
             </Box>
           </Box>
         </Box>

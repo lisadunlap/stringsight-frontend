@@ -1,8 +1,9 @@
 /**
- * QualityDeltaChart - Quality delta by cluster.
- * 
- * Shows grouped bars by model displaying how much better/worse each model
- * performs in each cluster compared to its overall baseline. Includes zero line.
+ * QualityDeltaChart - Quality impact (attributable impact) by cluster.
+ *
+ * Shows grouped bars by model displaying how much each behavior raises or lowers
+ * the overall model score for the selected metric (weighted by how often the
+ * behavior occurs). Includes a zero line.
  */
 
 import React, { useMemo } from 'react';
@@ -206,7 +207,7 @@ export function QualityDeltaChart({
     return (
       <Box sx={{ height }}>
         <Alert severity="info">
-          No cluster data available for quality delta analysis.
+          No cluster data available for quality impact analysis.
         </Alert>
       </Box>
     );
@@ -216,7 +217,7 @@ export function QualityDeltaChart({
     return (
       <Box sx={{ height }}>
         <Alert severity="warning">
-          Please select a quality metric to display quality deltas.
+          Please select a quality metric to display quality impact.
         </Alert>
       </Box>
     );
@@ -251,12 +252,17 @@ export function QualityDeltaChart({
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-        <Typography variant="h6" component="h3">
-          Quality Δ by Cluster
-        </Typography>
+        <Tooltip
+          title="How much this behavior raises or lowers the overall model score (weighted by frequency)."
+          arrow
+        >
+          <Typography variant="h6" component="h3">
+            Quality Impact by Cluster
+          </Typography>
+        </Tooltip>
         <Typography variant="body2" color="text.secondary">
-          {getDisplayName(filters.qualityMetric)} performance vs. model baseline
-          {showCI && ' (with confidence intervals)'}
+          Impact on overall {getDisplayName(filters.qualityMetric)} score vs. the model baseline
+          {showCI && ' (weighted by frequency, with confidence intervals)'}
         </Typography>
       </Box>
       
@@ -264,7 +270,7 @@ export function QualityDeltaChart({
         data={plotData}
         height={height}
         showZeroLine={true}
-        yAxisLabel={`${getDisplayName(filters.qualityMetric)} Δ`}
+        yAxisLabel={`${getDisplayName(filters.qualityMetric)} Quality Impact`}
         layout={{
           barmode: 'group',
           bargap: 0.2,
