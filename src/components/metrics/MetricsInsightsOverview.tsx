@@ -290,12 +290,6 @@ export function MetricsInsightsOverview({
 
           if (typeof delta !== 'number' || !isFinite(delta)) return;
 
-          // For negative behaviors: only include if delta > 0 (positive impact)
-          // For stylistic behaviors: include any delta (positive or negative)
-          const shouldInclude = isNegative ? delta > 0 : true;
-
-          if (!shouldInclude) return;
-
           // Apply significance filter if enabled
           if (filters.significanceOnly && !significant) return;
 
@@ -318,16 +312,33 @@ export function MetricsInsightsOverview({
       });
 
       // Convert to array and compute average deltas
-      // Only include metrics where at least one model showed significant impact
+      // Only include metrics where:
+      // 1. At least one model showed significant impact
+      // 2. All models agree on the sign (all >= 0 or all <= 0)
+      // 3. For negative behaviors: all deltas must be > 0 (positive impact)
+      // 4. For stylistic behaviors: can be any sign (as long as all agree)
       misalignedMap.forEach((data, cluster) => {
         const metricsImpacted: { metric: string; avgDelta: number; significant: boolean }[] = [];
+        const isNegative = data.category === 'negative_critical' || data.category === 'negative_non_critical';
 
         data.metricDeltas.forEach((metricData, metric) => {
           const avgDelta = metricData.deltas.reduce((sum, d) => sum + d, 0) / metricData.deltas.length;
           const anySig = metricData.significances.some(s => s);
 
-          // Only include this metric if at least one model had a significant impact
-          if (anySig) {
+          // Check if all deltas have the same sign (all non-negative or all non-positive)
+          const allNonNegative = metricData.deltas.every(d => d >= 0);
+          const allNonPositive = metricData.deltas.every(d => d <= 0);
+          const sameSigns = allNonNegative || allNonPositive;
+
+          // For negative behaviors: only include if all deltas are positive (improving quality)
+          // For stylistic behaviors: include any direction as long as all agree
+          const meetsDirectionCriteria = isNegative ? allNonNegative && metricData.deltas.some(d => d > 0) : true;
+
+          // Only include this metric if:
+          // 1. At least one model had a significant impact
+          // 2. All models agree on the sign
+          // 3. Meets direction criteria (positive for negative behaviors, any for stylistic)
+          if (anySig && sameSigns && meetsDirectionCriteria) {
             metricsImpacted.push({
               metric,
               avgDelta,

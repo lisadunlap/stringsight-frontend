@@ -506,10 +506,7 @@ function ExampleFormatTabs() {
             <code style={{ backgroundColor: '#E9D5FF', color: '#9333EA', padding: '2px 4px', borderRadius: '3px' }}>model_b_response</code>,{' '}
             <code style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: '2px 4px', borderRadius: '3px' }}>winner (optional)</code>
             <br />
-            <em>
-              <strong>winner</strong> is a string with the winning model name (e.g. <code>model_a</code>, <code>gpt-4</code>) or a value containing <code>tie</code> for ties.
-              You can also include per-model score columns (e.g. <code>accuracy_a</code>, <code>accuracy_b</code>).
-            </em>
+            <em>Note: You can use any column names you want as long as they correspond to the required fields</em>
           </Typography>
           <Box sx={{
             backgroundColor: 'white',
@@ -4127,7 +4124,7 @@ function App() {
                     <strong>The prompt/task identifier</strong> - any identifier for the specific task (can be the actual prompt or a unique ID)
                   </li>
                   <li>
-                    <strong>The model response</strong> - can be in OpenAI format (multi-turn conversations), a single string (agentic traces, reasoning chains), or your own custom format. Note: strings and custom formats will appear as single-turn traces.
+                    <strong>The model response</strong> - can be in OpenAI format (multi-turn conversations, multimodal supported), a single string (agentic traces, reasoning chains), or your own custom format. Note: strings and custom formats will appear as single-turn traces.
                   </li>
                 </Box>
 
