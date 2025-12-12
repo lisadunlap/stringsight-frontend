@@ -179,11 +179,21 @@ function transformRowsForBackend(
       }
 
       // Convert score_a/score_b to scores array
-      if (row.score_a !== undefined && row.score_b !== undefined) {
+      // Only include scores if they exist and are non-empty objects
+      const hasScoreA = row.score_a !== undefined &&
+                        row.score_a !== null &&
+                        typeof row.score_a === 'object' &&
+                        Object.keys(row.score_a).length > 0;
+      const hasScoreB = row.score_b !== undefined &&
+                        row.score_b !== null &&
+                        typeof row.score_b === 'object' &&
+                        Object.keys(row.score_b).length > 0;
+
+      if (hasScoreA && hasScoreB) {
         transformed.scores = [row.score_a, row.score_b];
-      } else if (row.score_a !== undefined) {
+      } else if (hasScoreA) {
         transformed.scores = [row.score_a];
-      } else if (row.score_b !== undefined) {
+      } else if (hasScoreB) {
         transformed.scores = [row.score_b];
       }
 
@@ -208,7 +218,11 @@ function transformRowsForBackend(
       }
 
       // Rename score to scores
-      if (row.score !== undefined) {
+      // Only include score if it exists and is a non-empty object
+      if (row.score !== undefined &&
+          row.score !== null &&
+          typeof row.score === 'object' &&
+          Object.keys(row.score).length > 0) {
         transformed.scores = row.score;
       }
 
@@ -1119,6 +1133,16 @@ export default function PropertyExtractionPanel({
         scoresKeys: body.operationalRows[0]?.scores && typeof body.operationalRows[0].scores === 'object'
           ? Object.keys(body.operationalRows[0].scores)
           : 'N/A',
+        scoresIsArray: Array.isArray(body.operationalRows[0]?.scores),
+        rowsWithScores: body.operationalRows.filter((r: any) => r.scores).length,
+        rowsWithNonEmptyScores: body.operationalRows.filter((r: any) => {
+          const scores = r.scores;
+          if (!scores) return false;
+          if (Array.isArray(scores)) {
+            return scores.some((s: any) => s && typeof s === 'object' && Object.keys(s).length > 0);
+          }
+          return typeof scores === 'object' && Object.keys(scores).length > 0;
+        }).length,
         method: body.method,
         model_column_map: body.model_column_map,
         hasScoreColumns: !!(body as any).score_columns,

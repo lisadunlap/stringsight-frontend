@@ -699,7 +699,7 @@ export default function ClusterSidecard({
               <Box sx={{ mb: 1 }}>
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0 }}>
                   <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Impact vs Frequency</Typography>
-                  <Tooltip title="How much this behavior raises or lowers the overall model score (weighted by frequency).">
+                  <Tooltip title="The delta in quality between conversations containing this behavior vs quality of all conversations.">
                     <IconButton size="small"><InfoOutlinedIcon sx={{ fontSize: 16 }} /></IconButton>
                   </Tooltip>
                 </Stack>

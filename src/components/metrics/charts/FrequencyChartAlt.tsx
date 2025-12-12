@@ -201,6 +201,14 @@ export function FrequencyChartAlt({
 
     // Apply sorting
     const sortedClusterData = [...filteredClusterData].sort((a, b) => {
+      // Always put outliers at the bottom
+      const aIsOutlier = a.cluster.startsWith('Outliers') || a.cluster.startsWith('Outlier');
+      const bIsOutlier = b.cluster.startsWith('Outliers') || b.cluster.startsWith('Outlier');
+
+      // If one is an outlier and the other isn't, non-outlier comes first
+      if (aIsOutlier && !bIsOutlier) return 1;
+      if (!aIsOutlier && bIsOutlier) return -1;
+
       const clusterA = clusterGroups[a.cluster] || [];
       const clusterB = clusterGroups[b.cluster] || [];
 

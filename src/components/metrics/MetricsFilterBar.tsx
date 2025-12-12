@@ -98,7 +98,7 @@ export function MetricsFilterBar({
         pt: variant === 'menu' ? 1 : 0,
       }}
     >
-      {/* First Row: Model, Metric, Behavior Type Selection */}
+      {/* First Row: Model Selection */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         {/* Model Selection */}
         <Box sx={{ minWidth: 200, flex: '0 0 auto' }}>
@@ -127,36 +127,6 @@ export function MetricsFilterBar({
             </Select>
           </FormControl>
         </Box>
-
-        {/* Behavior Type Selection */}
-        {availableBehaviorTypes.length > 0 && (
-          <Box sx={{ minWidth: 180, flex: '0 0 auto' }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Behavior Types</InputLabel>
-              <Select
-                multiple
-                value={filters.selectedBehaviorTypes || []}
-                onChange={(e) => {
-                  const value = typeof e.target.value === 'string' ? e.target.value.split(',') : (e.target.value as string[]);
-                  updateFilters({ selectedBehaviorTypes: value });
-                }}
-                input={<OutlinedInput label="Behavior Types" />}
-                renderValue={(selected) => {
-                  const count = (selected as string[]).length;
-                  return count > 0 ? `${count} selected` : 'All';
-                }}
-                MenuProps={{ PaperProps: { style: { maxHeight: 320 } } }}
-              >
-                {availableBehaviorTypes.map((behaviorType) => (
-                  <MenuItem key={behaviorType} value={behaviorType}>
-                    <Checkbox checked={(filters.selectedBehaviorTypes || []).indexOf(behaviorType) > -1} />
-                    <ListItemText primary={getBehaviorTypeLabel(behaviorType)} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        )}
       </Box>
 
       {/* Second Row: Toggles */}

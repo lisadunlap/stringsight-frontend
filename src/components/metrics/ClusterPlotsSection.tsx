@@ -1,6 +1,6 @@
 /**
  * ClusterPlotsSection - Four types of cluster visualization charts.
- * 
+ *
  * Renders the four chart types specified in METRICS_README.md:
  * 1. Frequency (absolute proportion)
  * 2. Frequency Delta (proportion delta with zero line)

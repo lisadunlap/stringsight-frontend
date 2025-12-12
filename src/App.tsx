@@ -124,11 +124,21 @@ function transformRowsForBackend(
       }
 
       // Convert score_a/score_b to scores array
-      if (row.score_a !== undefined && row.score_b !== undefined) {
+      // Only include scores if they exist and are non-empty objects
+      const hasScoreA = row.score_a !== undefined &&
+                        row.score_a !== null &&
+                        typeof row.score_a === 'object' &&
+                        Object.keys(row.score_a).length > 0;
+      const hasScoreB = row.score_b !== undefined &&
+                        row.score_b !== null &&
+                        typeof row.score_b === 'object' &&
+                        Object.keys(row.score_b).length > 0;
+
+      if (hasScoreA && hasScoreB) {
         transformed.scores = [row.score_a, row.score_b];
-      } else if (row.score_a !== undefined) {
+      } else if (hasScoreA) {
         transformed.scores = [row.score_a];
-      } else if (row.score_b !== undefined) {
+      } else if (hasScoreB) {
         transformed.scores = [row.score_b];
       }
 
@@ -155,7 +165,11 @@ function transformRowsForBackend(
       }
 
       // Rename score to scores
-      if (row.score !== undefined) {
+      // Only include score if it exists and is a non-empty object
+      if (row.score !== undefined &&
+          row.score !== null &&
+          typeof row.score === 'object' &&
+          Object.keys(row.score).length > 0) {
         transformed.scores = row.score;
       }
 
@@ -1205,18 +1219,24 @@ function App() {
             if (!metrics) metrics = {};
             metrics.model_cluster_scores = scores;
             console.log(`✅ Loaded ${scores.length} model_cluster_scores from ${file.name}`);
-          } else if (name === 'cluster_scores_df.jsonl') {
-            const lines = text.split('\n').filter(l => l.trim());
-            const scores = lines.map(line => JSON.parse(line));
+          } else if (name === 'cluster_scores_df.jsonl' || name === 'cluster_scores.json') {
             if (!metrics) metrics = {};
-            metrics.cluster_scores = scores;
-            console.log(`✅ Loaded ${scores.length} cluster_scores from ${file.name}`);
-          } else if (name === 'model_scores_df.jsonl') {
-            const lines = text.split('\n').filter(l => l.trim());
-            const scores = lines.map(line => JSON.parse(line));
+            if (name.endsWith('.jsonl')) {
+              const lines = text.split('\n').filter(l => l.trim());
+              metrics.cluster_scores = lines.map(line => JSON.parse(line));
+            } else {
+              metrics.cluster_scores = JSON.parse(text);
+            }
+            console.log(`✅ Loaded ${Array.isArray(metrics.cluster_scores) ? metrics.cluster_scores.length : 'N/A'} cluster_scores from ${file.name}`);
+          } else if (name === 'model_scores_df.jsonl' || name === 'model_scores.json') {
             if (!metrics) metrics = {};
-            metrics.model_scores = scores;
-            console.log(`✅ Loaded ${scores.length} model_scores from ${file.name}`);
+            if (name.endsWith('.jsonl')) {
+              const lines = text.split('\n').filter(l => l.trim());
+              metrics.model_scores = lines.map(line => JSON.parse(line));
+            } else {
+              metrics.model_scores = JSON.parse(text);
+            }
+            console.log(`✅ Loaded ${Array.isArray(metrics.model_scores) ? metrics.model_scores.length : 'N/A'} model_scores from ${file.name}`);
           } else {
             console.log(`⚠️ Skipping unrecognized file: ${file.name}`);
           }
@@ -1311,7 +1331,7 @@ function App() {
       // Load or compute metrics and enrich clusters
       // Skip loading clusters only if this is bundled demo data loaded for tutorial (isDemoSession = true)
       if (clusters.length > 0 && !isLoadingBundledDemo) {
-        if (Object.keys(metrics).length > 0) {
+        if (metrics && Object.keys(metrics).length > 0) {
           // Use pre-computed metrics if available
           const normalizedMetrics = normalizeMetricsColumnNames(metrics);
           console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
@@ -1401,7 +1421,7 @@ function App() {
 
       // Switch to appropriate view based on loaded data
       // For bundled demo data, stay on data tab to let user follow the tutorial
-      if (!isLoadingBundledDemo && clusters.length > 0 && Object.keys(metrics).length > 0) {
+      if (!isLoadingBundledDemo && clusters.length > 0 && metrics && Object.keys(metrics).length > 0) {
         setActiveSection('metrics');
         console.log('📊 Switched to Metrics view');
       } else if (!isLoadingBundledDemo && clusters.length > 0) {
@@ -1564,18 +1584,24 @@ function App() {
             if (!metrics) metrics = {};
             metrics.model_cluster_scores = scores;
             console.log(`✅ Loaded ${scores.length} model_cluster_scores from ${file.name}`);
-          } else if (name === 'cluster_scores_df.jsonl') {
-            const lines = text.split('\n').filter(l => l.trim());
-            const scores = lines.map(line => JSON.parse(line));
+          } else if (name === 'cluster_scores_df.jsonl' || name === 'cluster_scores.json') {
             if (!metrics) metrics = {};
-            metrics.cluster_scores = scores;
-            console.log(`✅ Loaded ${scores.length} cluster_scores from ${file.name}`);
-          } else if (name === 'model_scores_df.jsonl') {
-            const lines = text.split('\n').filter(l => l.trim());
-            const scores = lines.map(line => JSON.parse(line));
+            if (name.endsWith('.jsonl')) {
+              const lines = text.split('\n').filter(l => l.trim());
+              metrics.cluster_scores = lines.map(line => JSON.parse(line));
+            } else {
+              metrics.cluster_scores = JSON.parse(text);
+            }
+            console.log(`✅ Loaded ${Array.isArray(metrics.cluster_scores) ? metrics.cluster_scores.length : 'N/A'} cluster_scores from ${file.name}`);
+          } else if (name === 'model_scores_df.jsonl' || name === 'model_scores.json') {
             if (!metrics) metrics = {};
-            metrics.model_scores = scores;
-            console.log(`✅ Loaded ${scores.length} model_scores from ${file.name}`);
+            if (name.endsWith('.jsonl')) {
+              const lines = text.split('\n').filter(l => l.trim());
+              metrics.model_scores = lines.map(line => JSON.parse(line));
+            } else {
+              metrics.model_scores = JSON.parse(text);
+            }
+            console.log(`✅ Loaded ${Array.isArray(metrics.model_scores) ? metrics.model_scores.length : 'N/A'} model_scores from ${file.name}`);
           } else {
             console.log(`⚠️ Skipping unrecognized file: ${file.name}`);
           }
@@ -2115,6 +2141,15 @@ function App() {
       }
 
       // Build score dictionaries per selected columns (backend contract)
+      if (index === 0) {
+        console.log('🔧 DEBUG: Processing scores for first row', {
+          scoreColsSelected: mapping.scoreCols,
+          scoreColsCount: mapping.scoreCols.length,
+          method: mapping.method,
+          rowHasScoreColumns: mapping.scoreCols.map(col => ({ col, value: row[col], type: typeof row[col] }))
+        });
+      }
+
       if (mapping.scoreCols.length > 0) {
         const toNumber = (v: any): number | undefined => {
           if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
@@ -3465,6 +3500,14 @@ function App() {
 
       console.log('📊 resultsMetrics set:', normalizedMetrics.model_scores?.length || 0, 'model_scores');
       setResultsMetrics(normalizedMetrics);
+    } else {
+      console.error('❌ NO METRICS IN CLUSTERING RESPONSE!', {
+        hasData: !!data,
+        hasMetrics: !!data.metrics,
+        hasClusters: !!data.clusters,
+        clustersCount: data.clusters?.length || 0,
+        dataKeys: data ? Object.keys(data) : []
+      });
     }
   }, []);
 
@@ -3690,15 +3733,22 @@ function App() {
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {resultsError && (
-        <Box sx={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1500 }}>
-          <Box sx={{
-            px: 2, py: 1, borderRadius: 1, border: '1px solid', borderColor: 'error.light',
-            backgroundColor: '#FEF2F2', color: '#7F1D1D', display: 'flex', alignItems: 'center', gap: 2
-          }}>
-            <Typography variant="body2" sx={{ fontWeight: 700 }}>Error</Typography>
+        <Box sx={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1500, maxWidth: '800px', width: '90%' }}>
+          <Alert
+            severity="error"
+            onClose={() => setResultsError(null)}
+            sx={{
+              boxShadow: 3,
+              '& .MuiAlert-message': {
+                width: '100%',
+                wordBreak: 'break-word',
+                overflow: 'auto',
+                maxHeight: '300px'
+              }
+            }}
+          >
             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{resultsError}</Typography>
-            <Button size="small" variant="outlined" onClick={() => setResultsError(null)} sx={{ ml: 'auto' }}>Dismiss</Button>
-          </Box>
+          </Alert>
         </Box>
       )}
       <AppBar position="fixed" ref={appBarRef}>

@@ -2,9 +2,9 @@
  * MetricsInsightsOverview - High-level behavioral insights dashboard.
  *
  * Displays:
- * 1. Common Failures (negative behaviors where at least one model has >5% frequency, with model frequency bars)
+ * 1. Common Failures (negative behaviors where at least one model has >4% frequency, with model frequency bars)
  * 2. Unique Stylistic Behaviors (top 3 per model where delta > 0, showing freq and delta)
- * 3. Misaligned Patterns (negative behaviors with positive quality delta, or stylistic behaviors with significant quality impact)
+ * 3. Impact on Metrics (negative behaviors with positive quality delta, or stylistic behaviors with significant quality impact)
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -36,7 +36,7 @@ import { ClusterLabel } from '../ClusterLabel';
 import { MetricsFilterBar } from './MetricsFilterBar';
 
 // Threshold for displaying common failures (show any pattern where at least one model has > this frequency)
-const COMMON_FAILURE_MIN_FREQUENCY = 0.05; // 5%
+const COMMON_FAILURE_MIN_FREQUENCY = 0.04; // 4%
 
 // Model color palette (matches FrequencyChartAlt)
 const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
@@ -183,6 +183,11 @@ export function MetricsInsightsOverview({
     });
 
     const commonFailures: CommonFailure[] = Array.from(clusterGroups.entries())
+      .filter(([cluster]) => {
+        // Exclude outliers from Common Failures tab
+        const isOutlier = cluster.startsWith('Outliers') || cluster.startsWith('Outlier');
+        return !isOutlier;
+      })
       .map(([cluster, { category, rows }]) => {
         // Create a map of existing model data
         const modelDataMap = new Map(rows.map(r => [
@@ -260,9 +265,10 @@ export function MetricsInsightsOverview({
       })
       .slice(0, 3); // Show top 3 behaviors
 
-    // 3. MISALIGNED PATTERNS
-    // - Negative behaviors with positive quality impact (quality_delta > 0)
-    // - Style behaviors with any quality impact (positive or negative)
+    // 3. IMPACT ON METRICS
+    // - Negative behaviors that improve quality (positive delta)
+    // - Positive behaviors that worsen quality (negative delta)
+    // - Stylistic behaviors with any significant impact
     // Aggregate deltas across all models for each cluster
     // Note: This section requires quality metrics, so skip if none are available
 
@@ -276,11 +282,10 @@ export function MetricsInsightsOverview({
       filteredData.forEach(row => {
         const group = normalizeGroup(row.metadata?.group);
 
-        // Check if this is a negative or style behavior (NOT positive)
+        // Categorize the behavior type
         const isNegative = group === 'negative_critical' || group === 'negative_non_critical';
+        const isPositive = group === 'positive';
         const isStylistic = group === 'style';
-
-        if (!isNegative && !isStylistic) return;
 
         qualityMetrics.forEach(metric => {
           const qualityDeltaKey = `quality_delta_${metric}`;
@@ -293,6 +298,7 @@ export function MetricsInsightsOverview({
           // Apply significance filter if enabled
           if (filters.significanceOnly && !significant) return;
 
+          // Store all deltas for now, we'll filter by direction later
           if (!misalignedMap.has(row.cluster)) {
             misalignedMap.set(row.cluster, {
               category: group,
@@ -315,11 +321,16 @@ export function MetricsInsightsOverview({
       // Only include metrics where:
       // 1. At least one model showed significant impact
       // 2. All models agree on the sign (all >= 0 or all <= 0)
-      // 3. For negative behaviors: all deltas must be > 0 (positive impact)
-      // 4. For stylistic behaviors: can be any sign (as long as all agree)
+      // 3. The impact direction is interesting:
+      //    - Negative behaviors with positive impact (improving quality)
+      //    - Positive behaviors with negative impact (worsening quality)
+      //    - Stylistic behaviors with any impact
       misalignedMap.forEach((data, cluster) => {
         const metricsImpacted: { metric: string; avgDelta: number; significant: boolean }[] = [];
+
         const isNegative = data.category === 'negative_critical' || data.category === 'negative_non_critical';
+        const isPositive = data.category === 'positive';
+        const isStylistic = data.category === 'style';
 
         data.metricDeltas.forEach((metricData, metric) => {
           const avgDelta = metricData.deltas.reduce((sum, d) => sum + d, 0) / metricData.deltas.length;
@@ -330,15 +341,37 @@ export function MetricsInsightsOverview({
           const allNonPositive = metricData.deltas.every(d => d <= 0);
           const sameSigns = allNonNegative || allNonPositive;
 
-          // For negative behaviors: only include if all deltas are positive (improving quality)
-          // For stylistic behaviors: include any direction as long as all agree
-          const meetsDirectionCriteria = isNegative ? allNonNegative && metricData.deltas.some(d => d > 0) : true;
+          // Debug logging
+          if (!sameSigns && metricData.deltas.length > 1) {
+            console.log(`[MetricsInsightsOverview] Different signs detected for cluster "${cluster}", metric "${metric}":`, {
+              deltas: metricData.deltas,
+              allNonNegative,
+              allNonPositive,
+              category: data.category
+            });
+          }
+
+          // Determine if this is an interesting/counterintuitive pattern:
+          // - Negative behaviors should have positive impact (improving quality)
+          // - Positive behaviors should have negative impact (worsening quality)
+          // - Stylistic behaviors can have any impact
+          let isInteresting = false;
+          if (isNegative && allNonNegative && metricData.deltas.some(d => d > 0)) {
+            // Negative behavior improving quality - interesting!
+            isInteresting = true;
+          } else if (isPositive && allNonPositive && metricData.deltas.some(d => d < 0)) {
+            // Positive behavior worsening quality - interesting!
+            isInteresting = true;
+          } else if (isStylistic) {
+            // Stylistic behaviors are always interesting if significant
+            isInteresting = true;
+          }
 
           // Only include this metric if:
           // 1. At least one model had a significant impact
           // 2. All models agree on the sign
-          // 3. Meets direction criteria (positive for negative behaviors, any for stylistic)
-          if (anySig && sameSigns && meetsDirectionCriteria) {
+          // 3. The pattern is interesting (counterintuitive or stylistic)
+          if (anySig && sameSigns && isInteresting) {
             metricsImpacted.push({
               metric,
               avgDelta,
@@ -347,7 +380,9 @@ export function MetricsInsightsOverview({
           }
         });
 
-        if (metricsImpacted.length > 0) {
+        // Exclude outliers from Impact on Metrics tab
+        const isOutlier = cluster.startsWith('Outliers') || cluster.startsWith('Outlier');
+        if (metricsImpacted.length > 0 && !isOutlier) {
           misalignedPatterns.push({
             cluster,
             category: data.category,
@@ -440,13 +475,13 @@ export function MetricsInsightsOverview({
       ];
     }
     
-    // Otherwise show all tabs
+    // Otherwise show all tabs with All Clusters first
     return [
-      { key: 'commonFailures', label: 'Common Failures' },
       { key: 'allClusters', label: 'All Clusters' },
+      { key: 'commonFailures', label: 'Common Failures' },
       { key: 'modelComparison', label: 'Model Comparison' },
       // { key: 'uniqueBehaviors', label: 'Unique Stylistic Behaviors' }, // Temporarily removed
-      { key: 'misalignedPatterns', label: 'Misaligned Patterns' }
+      { key: 'misalignedPatterns', label: 'Impact on Metrics' }
     ];
   }, [hasBehaviorTypes]);
 
@@ -460,8 +495,8 @@ export function MetricsInsightsOverview({
 
   // Controls whether misaligned-pattern bars are scaled to the global score
   // range for each metric (true) or to the local max delta within the current
-  // view (false). Default to local scaling so behavior matches the original UI.
-  const [useGlobalScoreScale, setUseGlobalScoreScale] = useState<boolean>(false);
+  // view (false). Default to global scaling.
+  const [useGlobalScoreScale, setUseGlobalScoreScale] = useState<boolean>(true);
 
   const handleFiltersButtonClick = (event: React.MouseEvent<HTMLElement>) => {
     setFiltersAnchorEl(event.currentTarget);
@@ -941,7 +976,7 @@ export function MetricsInsightsOverview({
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <WarningAmberIcon sx={{ fontSize: 20, color: 'warning.main' }} />
                 <Typography variant="h6">
-                  Misaligned Patterns
+                  Impact on Metrics
                 </Typography>
               </Box>
             <FormControlLabel
@@ -969,13 +1004,13 @@ export function MetricsInsightsOverview({
             </Stack>
 
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2, flexShrink: 0 }}>
-              Negative behaviors that improve metrics, and stylistic behaviors that either improve or worsen metrics. Only shows patterns that are statistically significant.
-              The bar widths reflect <strong>Quality Impact</strong> (attributable impact): how much each behavior raises or lowers the overall model score for a metric, weighted by how often the behavior occurs.
+              Shows counterintuitive patterns: negative behaviors that improve quality, positive behaviors that worsen quality, and stylistic behaviors with significant impact.
+              The bar widths reflect <strong>Quality Impact</strong> (attributable impact): the delta in quality between conversations containing each behavior vs quality of all conversations.
             </Typography>
 
           {qualityMetrics.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              No quality metrics available. Misaligned patterns require quality metrics to be computed.
+              No quality metrics available. 
             </Typography>
           ) : insights.misalignedPatterns.length === 0 ? (
             <Typography variant="body2" color="text.secondary">

@@ -119,13 +119,10 @@ export function MetricsTab({
 
     // Server now always returns JSONL format (array of objects)
     const allModelClusterScores = resultsData.model_cluster_scores || [];
-    
-    // Filter out outlier clusters (case-insensitive check for cluster names starting with "outliers")
-    const modelClusterScores = allModelClusterScores.filter((row: any) => {
-      const clusterName = row.cluster ? String(row.cluster).toLowerCase() : '';
-      return !clusterName.startsWith('outliers');
-    });
-    
+
+    // Include all clusters (including outliers)
+    const modelClusterScores = allModelClusterScores;
+
     // Extract models, clusters, and groups
     const models = [...new Set(modelClusterScores.map((row: any) => row.model))].sort();
     const clusters = [...new Set(modelClusterScores.map((row: any) => row.cluster))];

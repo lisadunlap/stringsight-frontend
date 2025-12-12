@@ -230,11 +230,11 @@ export function QualityDeltaChartAlt({
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-        <Typography variant="h6" component="h3" title="How much this behavior raises or lowers the overall model score (weighted by frequency).">
+        <Typography variant="h6" component="h3" title="The delta in quality between conversations containing this behavior vs quality of all conversations.">
           Quality Impact by Cluster
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Impact on overall {getDisplayName(filters.qualityMetric)} score vs. the model baseline (weighted by how often this behavior occurs).
+          Impact on overall {getDisplayName(filters.qualityMetric)} score vs. the model baseline.
         </Typography>
       </Box>
 

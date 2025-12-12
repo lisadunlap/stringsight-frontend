@@ -15,6 +15,21 @@ export const API_BASE = (import.meta as any).env?.VITE_BACKEND || (globalThis as
 try { console.debug("[stringsight] API_BASE:", API_BASE); } catch { }
 
 /**
+ * Format error response text. Attempts to parse JSON and extract "detail" field if present.
+ */
+export function formatErrorMessage(errorText: string): string {
+  try {
+    const parsed = JSON.parse(errorText);
+    if (parsed && typeof parsed.detail === 'string') {
+      return parsed.detail;
+    }
+  } catch {
+    // Not JSON, return as-is
+  }
+  return errorText;
+}
+
+/**
  * Check backend health endpoint. Returns true if reachable and ok.
  */
 export async function checkBackendHealth(): Promise<boolean> {
@@ -37,7 +52,7 @@ export async function detectAndValidate(file: File): Promise<DetectResponse> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`detect-and-validate failed: ${res.status} ${text}`);
+    throw new Error(formatErrorMessage(text));
   }
   return res.json();
 }
@@ -51,7 +66,7 @@ export async function readPath(path: string): Promise<{ data: any[]; method: Met
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path })
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -70,7 +85,7 @@ export async function listPath(path: string): Promise<{
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path })
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -94,14 +109,14 @@ export async function resultsLoad(resultsDir: string): Promise<{
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path: resultsDir })
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
 // DataFrame ops
 export async function dfSelect(body: { rows: any[]; include?: Record<string, any[]>; exclude?: Record<string, any[]>; }) {
   const res = await fetch(`${API_BASE}/df/select`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -121,7 +136,7 @@ export async function dfGroupPreview(body: { rows: any[]; by: string; numeric_co
   if (!res.ok) {
     const errorText = await res.text();
     console.log('🔴 dfGroupPreview: Error response:', errorText);
-    throw new Error(errorText);
+    throw new Error(formatErrorMessage(errorText));
   }
 
   const result = await res.json();
@@ -133,7 +148,7 @@ export async function dfGroupPreview(body: { rows: any[]; by: string; numeric_co
 
 export async function dfCustom(body: { rows: any[]; code: string; sample_size?: number; }) {
   const res = await fetch(`${API_BASE}/df/custom`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -144,7 +159,7 @@ export async function dfCustom(body: { rows: any[]; code: string; sample_size?: 
 
 export async function getPrompts(): Promise<{ prompts: { name: string; label: string; has_task_description: boolean; preview: string; default_task_description_single?: string | null; default_task_description_sbs?: string | null; }[] }> {
   const res = await fetch(`${API_BASE}/prompts`);
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -156,7 +171,7 @@ export async function getPromptText(name: string, task_description?: string | nu
   if (method) params.set('method', method);
   const url = `${API_BASE}/prompt-text?${params.toString()}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -176,7 +191,7 @@ export async function extractSingle(body: {
   return_debug?: boolean;
 }) {
   const res = await fetch(`${API_BASE}/extract/single`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -198,7 +213,7 @@ export async function extractBatch(body: {
   sample_size?: number;
 }) {
   const res = await fetch(`${API_BASE}/extract/batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -229,7 +244,7 @@ export async function extractJobStart(body: {
     },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json() as Promise<{ job_id: string }>;
 }
 
@@ -260,13 +275,13 @@ export async function pipelineJobStart(body: {
     },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json() as Promise<{ job_id: string }>;
 }
 
 export async function extractJobStatus(job_id: string) {
   const res = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}`);
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json() as Promise<{
     id: string;
     status: string;
@@ -281,7 +296,7 @@ export async function extractJobResult(job_id: string) {
   const res = await fetch(`${API_BASE}/api/v1/jobs/${encodeURIComponent(job_id)}/results`);
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`Failed to fetch results: ${errorText}`);
+    throw new Error(formatErrorMessage(errorText));
   }
   return res.json() as Promise<{ properties: any[]; result_path: string; count: number }>;
 }
@@ -302,7 +317,7 @@ export async function sendDemoEmail(body: {
     },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -313,7 +328,7 @@ export async function sendDemoEmail(body: {
 
 export async function getEmbeddingModels(): Promise<{ models: string[] }> {
   const res = await fetch(`${API_BASE}/embedding-models`);
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
 }
 
@@ -336,7 +351,7 @@ export async function runClustering(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json() as Promise<{
     clusters: any[];
     total_conversations_by_model?: Record<string, number>;
@@ -360,7 +375,7 @@ export async function recomputeClusterMetrics(body: {
   metrics_kwargs?: { compute_confidence_intervals?: boolean; bootstrap_samples?: number };
 }) {
   const res = await fetch(`${API_BASE}/cluster/metrics`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json() as Promise<{
     clusters: any[];
     total_conversations_by_model?: Record<string, number>;
@@ -388,7 +403,7 @@ export async function startClusterJob(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json() as Promise<{
     job_id: string;
     state: string;
@@ -401,7 +416,7 @@ export async function startClusterJob(body: {
  */
 export async function getClusterJobStatus(jobId: string) {
   const res = await fetch(`${API_BASE}/cluster/job/status/${jobId}`);
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json() as Promise<{
     job_id: string;
     status: string;
@@ -415,7 +430,7 @@ export async function getClusterJobStatus(jobId: string) {
  */
 export async function getClusterJobResult(jobId: string) {
   const res = await fetch(`${API_BASE}/cluster/job/result/${jobId}`);
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json() as Promise<{
     job_id: string;
     result: {

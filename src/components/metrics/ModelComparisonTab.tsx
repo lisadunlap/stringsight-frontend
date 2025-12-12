@@ -79,6 +79,10 @@ export function ModelComparisonTab({
     const modelCardsMap = new Map<string, ModelCardBehavior[]>();
 
     filteredData.forEach(row => {
+      // Exclude outliers from Model Comparison tab
+      const isOutlier = row.cluster.startsWith('Outliers') || row.cluster.startsWith('Outlier');
+      if (isOutlier) return;
+
       const group = normalizeGroup(row.metadata?.group);
 
       // Must have positive frequency delta

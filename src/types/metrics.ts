@@ -122,9 +122,9 @@ export interface MetricsFilters {
 /**
  * Sorting options for metrics data.
  */
-export type MetricsSortOption = 
+export type MetricsSortOption =
   | "proportion_desc"
-  | "proportion_asc" 
+  | "proportion_asc"
   | "proportion_delta_desc"
   | "proportion_delta_asc"
   | "quality_desc"
@@ -147,7 +147,7 @@ export interface ModelCardData {
 /**
  * Plot type for metrics visualizations.
  */
-export type MetricsPlotType = 
+export type MetricsPlotType =
   | "frequency"        // Absolute proportion
   | "frequency_delta"  // Proportion delta (with zero line)
   | "quality"          // Absolute quality
@@ -214,10 +214,10 @@ export type ExtractQualityMetric<T extends string> =
 /**
  * Helper type to extract quality delta metric names.
  */
-export type ExtractQualityDeltaMetric<T extends string> = 
-  T extends `quality_delta_${infer Metric}` 
-    ? Metric extends `${infer M}_ci_${string}` 
-      ? M 
+export type ExtractQualityDeltaMetric<T extends string> =
+  T extends `quality_delta_${infer Metric}`
+    ? Metric extends `${infer M}_ci_${string}`
+      ? M
       : Metric extends `${infer M}_significant`
       ? never  // Skip significance columns
       : Metric

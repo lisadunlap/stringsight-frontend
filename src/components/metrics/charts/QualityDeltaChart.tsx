@@ -7,7 +7,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { Box, Typography, Alert } from '@mui/material';
+import { Box, Typography, Alert, Tooltip } from '@mui/material';
 import { PlotlyChartBase, getModelColor, truncateLabel, createHoverTemplate } from './PlotlyChartBase';
 import { getDisplayName, getOriginalMetricName, sanitizeMetricName } from '../utils/metricUtils';
 import type { ModelClusterRow, MetricsFilters } from '../../../types/metrics';
@@ -127,7 +127,7 @@ export function QualityDeltaChart({
         const deltaValue = typeof nested === 'number' && isFinite(nested)
           ? nested
           : (typeof flat1 === 'number' && isFinite(flat1) ? flat1 : (typeof flat2 === 'number' && isFinite(flat2) ? flat2 : 0));
-        
+
         return {
           cluster,
           qualityDelta: deltaValue,
@@ -164,11 +164,11 @@ export function QualityDeltaChart({
           const delta = deltas[i];
           const significant = modelData[i].significant;
           return createHoverTemplate(
-            cluster, 
-            delta, 
-            `${getDisplayName(filters.qualityMetric)} Δ`, 
+            cluster,
+            delta,
+            `${getDisplayName(filters.qualityMetric)} Δ`,
             3
-          ) + 
+          ) +
           `<br>Conversations: ${modelData[i].size}` +
           (significant ? '<br><b>Significant</b>' : '');
         })
@@ -178,15 +178,15 @@ export function QualityDeltaChart({
       if (showCI && modelData.some(d => d.ciLower !== undefined && d.ciUpper !== undefined)) {
         // For delta charts, error bars extend from the delta value (which can be negative)
         // Don't use Math.max(0, ...) since delta values and CIs can be negative
-        const arrayminus = modelData.map(d => 
-          (d.ciLower !== undefined && d.qualityDelta !== undefined) ? 
+        const arrayminus = modelData.map(d =>
+          (d.ciLower !== undefined && d.qualityDelta !== undefined) ?
             Math.abs(d.qualityDelta - d.ciLower) : 0
         );
-        const arrayplus = modelData.map(d => 
-          (d.ciUpper !== undefined && d.qualityDelta !== undefined) ? 
+        const arrayplus = modelData.map(d =>
+          (d.ciUpper !== undefined && d.qualityDelta !== undefined) ?
             Math.abs(d.ciUpper - d.qualityDelta) : 0
         );
-        
+
         trace.error_y = {
           type: 'data',
           symmetric: false,
@@ -228,7 +228,7 @@ export function QualityDeltaChart({
       return (
         <Box sx={{ height }}>
           <Alert severity="info">
-            No significant quality differences found for "{getDisplayName(filters.qualityMetric)}". 
+            No significant quality differences found for "{getDisplayName(filters.qualityMetric)}".
             Try disabling the significance filter.
           </Alert>
         </Box>
@@ -237,7 +237,7 @@ export function QualityDeltaChart({
     return (
       <Box sx={{ height }}>
         <Alert severity="warning">
-          No data available for quality metric "{getDisplayName(filters.qualityMetric)}". 
+          No data available for quality metric "{getDisplayName(filters.qualityMetric)}".
           Try selecting a different metric or adjusting filters.
         </Alert>
       </Box>
@@ -253,7 +253,7 @@ export function QualityDeltaChart({
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
         <Tooltip
-          title="How much this behavior raises or lowers the overall model score (weighted by frequency)."
+          title="The delta in quality between conversations containing this behavior vs quality of all conversations."
           arrow
         >
           <Typography variant="h6" component="h3">
@@ -262,10 +262,10 @@ export function QualityDeltaChart({
         </Tooltip>
         <Typography variant="body2" color="text.secondary">
           Impact on overall {getDisplayName(filters.qualityMetric)} score vs. the model baseline
-          {showCI && ' (weighted by frequency, with confidence intervals)'}
+          {showCI && ' (with confidence intervals)'}
         </Typography>
       </Box>
-      
+
       <PlotlyChartBase
         data={plotData}
         height={height}

@@ -157,9 +157,19 @@ export function MetricsMainContent({
     }, {} as Record<string, any>);
     
     // Sort clusters by the same metric as rows, then take topN
+    // Always put outliers at the bottom
     const sortedClusters = Object.values(clusterStats).sort((a, b) => {
+      // Check if either cluster is an outlier
+      const aIsOutlier = a.cluster.startsWith('Outliers') || a.cluster.startsWith('Outlier');
+      const bIsOutlier = b.cluster.startsWith('Outliers') || b.cluster.startsWith('Outlier');
+
+      // If one is an outlier and the other isn't, non-outlier comes first
+      if (aIsOutlier && !bIsOutlier) return 1;
+      if (!aIsOutlier && bIsOutlier) return -1;
+
+      // Otherwise, sort by the metric
       let aVal: number, bVal: number;
-      
+
       // Use same sorting logic but applied to cluster-level stats
       switch (filters.sortBy) {
         case 'proportion_desc':
@@ -178,7 +188,7 @@ export function MetricsMainContent({
           bVal = b.maxProportion;
           break;
       }
-      
+
       const ascending = filters.sortBy.includes('_asc');
       return ascending ? aVal - bVal : bVal - aVal;
     });
