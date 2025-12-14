@@ -266,7 +266,6 @@ export async function pipelineJobStart(body: {
   assign_outliers?: boolean;
   score_columns?: string[];
   output_dir?: string | null;
-  email?: string | null;
 }) {
   const res = await fetch(`${API_BASE}/api/v1/jobs/pipeline`, {
     method: 'POST',
@@ -304,21 +303,6 @@ export async function extractJobResult(job_id: string) {
 export async function extractJobCancel(job_id: string) {
   // Not yet implemented in backend
   throw new Error("Not implemented");
-}
-
-export async function sendDemoEmail(body: {
-  email: string;
-  method: 'single_model' | 'side_by_side';
-}) {
-  const res = await fetch(`${API_BASE}/api/v1/jobs/email-demo`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
-  return res.json();
 }
 
 
@@ -395,7 +379,6 @@ export async function startClusterJob(body: {
   model_column_map?: Record<string, string>;
   output_dir?: string | null;
   sample_size?: number;
-  email?: string;
   metrics_kwargs?: { compute_confidence_intervals?: boolean; bootstrap_samples?: number };
 }) {
   const res = await fetch(`${API_BASE}/cluster/job/start`, {

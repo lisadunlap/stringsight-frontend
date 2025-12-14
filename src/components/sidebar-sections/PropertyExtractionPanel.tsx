@@ -26,7 +26,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, sendDemoEmail, startClusterJob, getClusterJobStatus, getClusterJobResult } from '../../lib/api';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, startClusterJob, getClusterJobStatus, getClusterJobResult } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
@@ -388,7 +388,6 @@ export default function PropertyExtractionPanel({
   const [matchingModel, setMatchingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : 'gpt-4.1-mini');
   const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
   const [currentStage, setCurrentStage] = React.useState<'extraction' | 'clustering' | null>(null);
-  const [email, setEmail] = React.useState<string>('');
 
   // Controls whether the main control panel is expanded or collapsed.
   // Initially expanded; will auto-collapse after "Run on all traces".
@@ -1015,21 +1014,6 @@ export default function PropertyExtractionPanel({
           onClustersUpdated(res);
         }
 
-        // Send email if provided
-        if (email) {
-          try {
-            onBatchStatus?.(0.9, 'clustering', 'clustering', `Sending email to ${email}...`);
-            await sendDemoEmail({
-              email: email,
-              method: method === 'side_by_side' ? 'side_by_side' : 'single_model'
-            });
-            console.log('Demo email sent successfully');
-          } catch (emailErr) {
-            console.error('Failed to send demo email:', emailErr);
-            // Don't fail the whole process if email fails
-          }
-        }
-
         onBatchStatus?.(1, 'done', 'clustering', 'Clustering complete');
       } catch (e) {
         console.error('Demo clustering failed:', e);
@@ -1116,7 +1100,6 @@ export default function PropertyExtractionPanel({
         model_column_map: modelColumnMap,
         output_dir: outputDir,
         sample_size: demoSampleSize || sampleSize || undefined,
-        email: email || undefined,
         // Enable confidence intervals for metrics
         metrics_kwargs: {
           compute_confidence_intervals: true,
@@ -1146,7 +1129,6 @@ export default function PropertyExtractionPanel({
         method: body.method,
         model_column_map: body.model_column_map,
         hasScoreColumns: !!(body as any).score_columns,
-        email: body.email,
       });
 
       // Start clustering job (non-blocking)
@@ -1548,26 +1530,6 @@ export default function PropertyExtractionPanel({
               </AccordionDetails>
             </Accordion>
           </Box>
-
-          {/* Email Notification */}
-          {/* Temporarily disabled
-          {import.meta.env.VITE_DEMO === 'true' && (
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                Notifications
-              </Typography>
-              <TextField
-                size="small"
-                label="Email (optional)"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter email for job completion notification"
-                fullWidth
-                helperText="Receive an email with results when the job completes"
-              />
-            </Box>
-          )}
-          */}
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column', mt: 3 }}>
