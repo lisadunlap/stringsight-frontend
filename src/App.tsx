@@ -1224,19 +1224,39 @@ function App() {
             if (name.endsWith('.jsonl')) {
               const lines = text.split('\n').filter(l => l.trim());
               metrics.cluster_scores = lines.map(line => JSON.parse(line));
+              console.log(`✅ Loaded ${metrics.cluster_scores.length} cluster_scores from ${file.name}`);
             } else {
-              metrics.cluster_scores = JSON.parse(text);
+              // Skip .json version if .jsonl exists or if file is empty/corrupted
+              if (text.trim().length === 0) {
+                console.log(`⚠️ Skipping empty ${file.name}`);
+              } else {
+                try {
+                  metrics.cluster_scores = JSON.parse(text);
+                  console.log(`✅ Loaded ${Array.isArray(metrics.cluster_scores) ? metrics.cluster_scores.length : 'N/A'} cluster_scores from ${file.name}`);
+                } catch (e) {
+                  console.warn(`⚠️ Failed to parse ${file.name}, skipping:`, e);
+                }
+              }
             }
-            console.log(`✅ Loaded ${Array.isArray(metrics.cluster_scores) ? metrics.cluster_scores.length : 'N/A'} cluster_scores from ${file.name}`);
           } else if (name === 'model_scores_df.jsonl' || name === 'model_scores.json') {
             if (!metrics) metrics = {};
             if (name.endsWith('.jsonl')) {
               const lines = text.split('\n').filter(l => l.trim());
               metrics.model_scores = lines.map(line => JSON.parse(line));
+              console.log(`✅ Loaded ${metrics.model_scores.length} model_scores from ${file.name}`);
             } else {
-              metrics.model_scores = JSON.parse(text);
+              // Skip .json version if .jsonl exists or if file is empty/corrupted
+              if (text.trim().length === 0) {
+                console.log(`⚠️ Skipping empty ${file.name}`);
+              } else {
+                try {
+                  metrics.model_scores = JSON.parse(text);
+                  console.log(`✅ Loaded ${Array.isArray(metrics.model_scores) ? metrics.model_scores.length : 'N/A'} model_scores from ${file.name}`);
+                } catch (e) {
+                  console.warn(`⚠️ Failed to parse ${file.name}, skipping:`, e);
+                }
+              }
             }
-            console.log(`✅ Loaded ${Array.isArray(metrics.model_scores) ? metrics.model_scores.length : 'N/A'} model_scores from ${file.name}`);
           } else {
             console.log(`⚠️ Skipping unrecognized file: ${file.name}`);
           }
@@ -1330,30 +1350,40 @@ function App() {
 
       // Load or compute metrics and enrich clusters
       // Skip loading clusters only if this is bundled demo data loaded for tutorial (isDemoSession = true)
+
+      // Load metrics first (even if no clusters), then handle clusters separately
+      let normalizedMetrics = null;
+      if (metrics && Object.keys(metrics).length > 0 && !isLoadingBundledDemo) {
+        normalizedMetrics = normalizeMetricsColumnNames(metrics);
+        console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
+        console.log('✅ Model cluster scores count:', normalizedMetrics.model_cluster_scores?.length || 0);
+
+        // Enrich model_cluster_scores with cluster metadata (meta.group) if clusters are available
+        if (normalizedMetrics.model_cluster_scores && clusters.length > 0) {
+          normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+            normalizedMetrics.model_cluster_scores,
+            clusters
+          );
+          console.log('✅ Enriched model_cluster_scores with cluster metadata');
+        }
+
+        setResultsMetrics(normalizedMetrics);
+        console.log('✅ setResultsMetrics called with:', {
+          model_cluster_scores: normalizedMetrics.model_cluster_scores?.length || 0,
+          cluster_scores: normalizedMetrics.cluster_scores?.length || 0,
+          model_scores: normalizedMetrics.model_scores?.length || 0
+        });
+      }
+
+      // Handle clusters
       if (clusters.length > 0 && !isLoadingBundledDemo) {
-        if (metrics && Object.keys(metrics).length > 0) {
-          // Use pre-computed metrics if available
-          const normalizedMetrics = normalizeMetricsColumnNames(metrics);
-          console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
-
-          // Enrich model_cluster_scores with cluster metadata (meta.group)
-          if (normalizedMetrics.model_cluster_scores) {
-            normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
-              normalizedMetrics.model_cluster_scores,
-              clusters
-            );
-          }
-
-          setResultsMetrics(normalizedMetrics);
-
-          if (normalizedMetrics.model_cluster_scores) {
-            const enrichedClusters = enrichClustersWithQualityData(
-              clusters,
-              normalizedMetrics.model_cluster_scores
-            );
-            setClusters(ensureExamplesArray(enrichedClusters));
-            console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with pre-computed metrics)`);
-          }
+        if (normalizedMetrics && normalizedMetrics.model_cluster_scores) {
+          const enrichedClusters = enrichClustersWithQualityData(
+            clusters,
+            normalizedMetrics.model_cluster_scores
+          );
+          setClusters(ensureExamplesArray(enrichedClusters));
+          console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with pre-computed metrics)`);
         } else if (conversations.length > 0 && properties.length > 0) {
           // Compute metrics on-the-fly from raw data
           console.log('🔢 Computing metrics on-the-fly from conversations + properties + clusters');
@@ -1589,19 +1619,39 @@ function App() {
             if (name.endsWith('.jsonl')) {
               const lines = text.split('\n').filter(l => l.trim());
               metrics.cluster_scores = lines.map(line => JSON.parse(line));
+              console.log(`✅ Loaded ${metrics.cluster_scores.length} cluster_scores from ${file.name}`);
             } else {
-              metrics.cluster_scores = JSON.parse(text);
+              // Skip .json version if .jsonl exists or if file is empty/corrupted
+              if (text.trim().length === 0) {
+                console.log(`⚠️ Skipping empty ${file.name}`);
+              } else {
+                try {
+                  metrics.cluster_scores = JSON.parse(text);
+                  console.log(`✅ Loaded ${Array.isArray(metrics.cluster_scores) ? metrics.cluster_scores.length : 'N/A'} cluster_scores from ${file.name}`);
+                } catch (e) {
+                  console.warn(`⚠️ Failed to parse ${file.name}, skipping:`, e);
+                }
+              }
             }
-            console.log(`✅ Loaded ${Array.isArray(metrics.cluster_scores) ? metrics.cluster_scores.length : 'N/A'} cluster_scores from ${file.name}`);
           } else if (name === 'model_scores_df.jsonl' || name === 'model_scores.json') {
             if (!metrics) metrics = {};
             if (name.endsWith('.jsonl')) {
               const lines = text.split('\n').filter(l => l.trim());
               metrics.model_scores = lines.map(line => JSON.parse(line));
+              console.log(`✅ Loaded ${metrics.model_scores.length} model_scores from ${file.name}`);
             } else {
-              metrics.model_scores = JSON.parse(text);
+              // Skip .json version if .jsonl exists or if file is empty/corrupted
+              if (text.trim().length === 0) {
+                console.log(`⚠️ Skipping empty ${file.name}`);
+              } else {
+                try {
+                  metrics.model_scores = JSON.parse(text);
+                  console.log(`✅ Loaded ${Array.isArray(metrics.model_scores) ? metrics.model_scores.length : 'N/A'} model_scores from ${file.name}`);
+                } catch (e) {
+                  console.warn(`⚠️ Failed to parse ${file.name}, skipping:`, e);
+                }
+              }
             }
-            console.log(`✅ Loaded ${Array.isArray(metrics.model_scores) ? metrics.model_scores.length : 'N/A'} model_scores from ${file.name}`);
           } else {
             console.log(`⚠️ Skipping unrecognized file: ${file.name}`);
           }
@@ -1692,28 +1742,39 @@ function App() {
         console.log(`✅ Loaded ${properties.length} properties`);
       }
 
+      // Load metrics first (even if no clusters), then handle clusters separately
+      let normalizedMetrics = null;
+      if (Object.keys(metrics || {}).length > 0) {
+        normalizedMetrics = normalizeMetricsColumnNames(metrics);
+        console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
+        console.log('✅ Model cluster scores count:', normalizedMetrics.model_cluster_scores?.length || 0);
+
+        // Enrich model_cluster_scores with cluster metadata (meta.group) if clusters are available
+        if (normalizedMetrics.model_cluster_scores && clusters.length > 0) {
+          normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+            normalizedMetrics.model_cluster_scores,
+            clusters
+          );
+          console.log('✅ Enriched model_cluster_scores with cluster metadata');
+        }
+
+        setResultsMetrics(normalizedMetrics);
+        console.log('✅ setResultsMetrics called with:', {
+          model_cluster_scores: normalizedMetrics.model_cluster_scores?.length || 0,
+          cluster_scores: normalizedMetrics.cluster_scores?.length || 0,
+          model_scores: normalizedMetrics.model_scores?.length || 0
+        });
+      }
+
+      // Handle clusters
       if (clusters.length > 0) {
-        if (Object.keys(metrics || {}).length > 0) {
-          const normalizedMetrics = normalizeMetricsColumnNames(metrics);
-          console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
-
-          if (normalizedMetrics.model_cluster_scores) {
-            normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
-              normalizedMetrics.model_cluster_scores,
-              clusters
-            );
-          }
-
-          setResultsMetrics(normalizedMetrics);
-
-          if (normalizedMetrics.model_cluster_scores) {
-            const enrichedClusters = enrichClustersWithQualityData(
-              clusters,
-              normalizedMetrics.model_cluster_scores
-            );
-            setClusters(ensureExamples(enrichedClusters));
-            console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with pre-computed metrics)`);
-          }
+        if (normalizedMetrics && normalizedMetrics.model_cluster_scores) {
+          const enrichedClusters = enrichClustersWithQualityData(
+            clusters,
+            normalizedMetrics.model_cluster_scores
+          );
+          setClusters(ensureExamples(enrichedClusters));
+          console.log(`✅ Loaded ${enrichedClusters.length} clusters (enriched with pre-computed metrics)`);
         } else if (conversations.length > 0 && properties.length > 0) {
           console.log('🔢 Computing metrics on-the-fly from conversations + properties + clusters');
           console.log('🔢 Data available:', {
