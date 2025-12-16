@@ -320,8 +320,7 @@ export function MetricsInsightsOverview({
       // Convert to array and compute average deltas
       // Only include metrics where:
       // 1. At least one model showed significant impact
-      // 2. All models agree on the sign (all >= 0 or all <= 0)
-      // 3. The impact direction is interesting:
+      // 2. The aggregated impact direction is interesting:
       //    - Negative behaviors with positive impact (improving quality)
       //    - Positive behaviors with negative impact (worsening quality)
       //    - Stylistic behaviors with any impact
@@ -337,29 +336,34 @@ export function MetricsInsightsOverview({
           const anySig = metricData.significances.some(s => s);
 
           // Check if all deltas have the same sign (all non-negative or all non-positive)
+          // This is now used only for debugging; mixed-sign metrics are allowed.
           const allNonNegative = metricData.deltas.every(d => d >= 0);
           const allNonPositive = metricData.deltas.every(d => d <= 0);
           const sameSigns = allNonNegative || allNonPositive;
 
-          // Debug logging
+          // Debug logging for mixed-sign metrics
           if (!sameSigns && metricData.deltas.length > 1) {
-            console.log(`[MetricsInsightsOverview] Different signs detected for cluster "${cluster}", metric "${metric}":`, {
-              deltas: metricData.deltas,
-              allNonNegative,
-              allNonPositive,
-              category: data.category
-            });
+            console.log(
+              `[MetricsInsightsOverview] Mixed-sign deltas for cluster "${cluster}", metric "${metric}":`,
+              {
+                deltas: metricData.deltas,
+                allNonNegative,
+                allNonPositive,
+                category: data.category
+              }
+            );
           }
 
-          // Determine if this is an interesting/counterintuitive pattern:
+          // Determine if this is an interesting/counterintuitive pattern based on
+          // the aggregated impact direction:
           // - Negative behaviors should have positive impact (improving quality)
           // - Positive behaviors should have negative impact (worsening quality)
           // - Stylistic behaviors can have any impact
           let isInteresting = false;
-          if (isNegative && allNonNegative && metricData.deltas.some(d => d > 0)) {
+          if (isNegative && avgDelta > 0) {
             // Negative behavior improving quality - interesting!
             isInteresting = true;
-          } else if (isPositive && allNonPositive && metricData.deltas.some(d => d < 0)) {
+          } else if (isPositive && avgDelta < 0) {
             // Positive behavior worsening quality - interesting!
             isInteresting = true;
           } else if (isStylistic) {
@@ -369,9 +373,8 @@ export function MetricsInsightsOverview({
 
           // Only include this metric if:
           // 1. At least one model had a significant impact
-          // 2. All models agree on the sign
-          // 3. The pattern is interesting (counterintuitive or stylistic)
-          if (anySig && sameSigns && isInteresting) {
+          // 2. The aggregated pattern is interesting (counterintuitive or stylistic)
+          if (anySig && isInteresting) {
             metricsImpacted.push({
               metric,
               avgDelta,

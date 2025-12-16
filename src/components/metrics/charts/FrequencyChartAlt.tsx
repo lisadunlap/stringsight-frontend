@@ -215,20 +215,40 @@ export function FrequencyChartAlt({
       // Get average values across all models for sorting
       const getAvgProportion = (rows: ModelClusterRow[]) => {
         if (rows.length === 0) return 0;
-        return rows.reduce((sum, r) => sum + r.proportion, 0) / rows.length;
+        return rows.reduce((sum, r) => sum + (r.proportion || 0), 0) / rows.length;
       };
 
       const getMaxAbsProportionDelta = (rows: ModelClusterRow[]) => {
         if (rows.length === 0) return 0;
-        return Math.max(...rows.map(r => Math.abs(r.proportion_delta)));
+        const values = rows
+          .map(r => (typeof r.proportion_delta === 'number' && isFinite(r.proportion_delta) ? Math.abs(r.proportion_delta) : 0))
+          .filter(v => v !== 0);
+        if (!values.length) return 0;
+        return Math.max(...values);
       };
 
       const getAvgQuality = (rows: ModelClusterRow[]) => {
         if (rows.length === 0) return 0;
         const qualityMetric = filters.qualityMetric;
         if (!qualityMetric) return 0;
-        const values = rows.map(r => r.quality?.[qualityMetric] || 0).filter(v => v !== 0);
-        if (values.length === 0) return 0;
+
+        const values: number[] = [];
+        for (const r of rows) {
+          // Prefer nested quality object when present
+          const nested = r.quality?.[qualityMetric];
+          if (typeof nested === 'number' && isFinite(nested)) {
+            values.push(nested);
+            continue;
+          }
+
+          // Fallback to flattened quality_<metric> key from backend JSONL
+          const flat = (r as unknown as Record<string, any>)[`quality_${qualityMetric}`];
+          if (typeof flat === 'number' && isFinite(flat)) {
+            values.push(flat);
+          }
+        }
+
+        if (!values.length) return 0;
         return values.reduce((sum, v) => sum + v, 0) / values.length;
       };
 
@@ -236,8 +256,24 @@ export function FrequencyChartAlt({
         if (rows.length === 0) return 0;
         const qualityMetric = filters.qualityMetric;
         if (!qualityMetric) return 0;
-        const values = rows.map(r => Math.abs(r.quality_delta?.[qualityMetric] || 0));
-        if (values.length === 0) return 0;
+
+        const values: number[] = [];
+        for (const r of rows) {
+          // Prefer nested quality_delta object when present
+          const nested = r.quality_delta?.[qualityMetric];
+          if (typeof nested === 'number' && isFinite(nested)) {
+            values.push(Math.abs(nested));
+            continue;
+          }
+
+          // Fallback to flattened quality_delta_<metric> key from backend JSONL
+          const flat = (r as unknown as Record<string, any>)[`quality_delta_${qualityMetric}`];
+          if (typeof flat === 'number' && isFinite(flat)) {
+            values.push(Math.abs(flat));
+          }
+        }
+
+        if (!values.length) return 0;
         return Math.max(...values);
       };
 
