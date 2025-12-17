@@ -35,9 +35,6 @@ import { computeOverallProportion, computeGlobalQualityDelta } from './metricsUt
 import { ClusterLabel } from '../ClusterLabel';
 import { MetricsFilterBar } from './MetricsFilterBar';
 
-// Threshold for displaying common failures (show any pattern where at least one model has > this frequency)
-const COMMON_FAILURE_MIN_FREQUENCY = 0.04; // 4%
-
 // Model color palette (matches FrequencyChartAlt)
 const MODEL_COLORS = ['#5B8FF9', '#FF9845', '#5AD8A6', '#F46649', '#9270CA'];
 
@@ -165,7 +162,7 @@ export function MetricsInsightsOverview({
     // Get all unique models from the filtered data
     const allModels = [...new Set(filteredData.map(row => row.model))].sort();
 
-    // 1. COMMON FAILURES - Negative behaviors where at least one model has >COMMON_FAILURE_MIN_FREQUENCY
+    // 1. COMMON FAILURES - All negative behaviors
     const negativeRows = filteredData.filter(row => {
       const group = normalizeGroup(row.metadata?.group);
       return group === 'negative_critical' || group === 'negative_non_critical';
@@ -223,10 +220,6 @@ export function MetricsInsightsOverview({
           globalQualityDelta,
           avgProportion
         };
-      })
-      .filter(failure => {
-        // Only show failures where at least one model has > COMMON_FAILURE_MIN_FREQUENCY
-        return failure.modelFrequencies.some(mf => mf.proportion > COMMON_FAILURE_MIN_FREQUENCY);
       })
       .sort((a, b) => b.totalSize - a.totalSize);
 

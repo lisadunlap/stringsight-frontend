@@ -387,7 +387,7 @@ function ExampleFormatTabs() {
           '& .MuiTab-root': {
             textTransform: 'none',
             fontWeight: 500,
-            fontSize: '0.875rem'
+            fontSize: '1rem'
           }
         }}
       >
@@ -400,11 +400,11 @@ function ExampleFormatTabs() {
       {/* Conversation Format Example */}
       {tabValue === 0 && (
         <Box>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '1rem' }}>
             <strong>Multi-turn conversations</strong> using OpenAI format with <code>role</code> and <code>content</code> fields.
             Supports tool calls and multimodal inputs.
           </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '1rem', fontWeight: 500 }}>
             <strong>Fields:</strong>{' '}
             <code style={{ backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 4px', borderRadius: '3px' }}>prompt</code>,{' '}
             <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model</code>,{' '}
@@ -419,7 +419,7 @@ function ExampleFormatTabs() {
             borderRadius: 1,
             p: 1.5,
             fontFamily: 'monospace',
-            fontSize: '0.75rem',
+            fontSize: '0.875rem',
             overflow: 'auto',
             whiteSpace: 'pre-wrap'
           }}>
@@ -453,10 +453,10 @@ function ExampleFormatTabs() {
       {/* Simple Response Format Example */}
       {tabValue === 1 && (
         <Box>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '1rem' }}>
             <strong>Single string responses</strong> for agentic traces, terminal outputs, or any custom formatted traces. If the model response input is a json object (not in OAI format), we convert it to a string.
           </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '1rem', fontWeight: 500 }}>
             <strong>Fields:</strong>{' '}
             <code style={{ backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 4px', borderRadius: '3px' }}>prompt</code>,{' '}
             <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model</code>,{' '}
@@ -471,7 +471,7 @@ function ExampleFormatTabs() {
             borderRadius: 1,
             p: 1.5,
             fontFamily: 'monospace',
-            fontSize: '0.75rem',
+            fontSize: '0.875rem',
             overflow: 'auto',
             whiteSpace: 'pre-wrap'
           }}>
@@ -505,13 +505,13 @@ function ExampleFormatTabs() {
       {/* Side-by-Side Format Example */}
       {tabValue === 2 && (
         <Box>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '1rem' }}>
             <strong>Head-to-head model comparisons</strong> with pre-paired responses. Use for A/B testing, arena-style battles, or preference evaluations.
           </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '1rem' }}>
             <strong style={{ textDecoration: 'underline' }}>Alternative:</strong> You can also upload data in conversation or custom format (with <code>prompt</code>, <code>model</code>, <code>model_response</code>, <code>score</code>) and select which models to compare in the UI by changing "Comparison Method" to "Side-by-Side" in the Column Selector.
           </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '1rem', fontWeight: 500 }}>
             <strong>Fields:</strong>{' '}
             <code style={{ backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 4px', borderRadius: '3px' }}>prompt</code>,{' '}
             <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model_a</code>,{' '}
@@ -528,7 +528,7 @@ function ExampleFormatTabs() {
             borderRadius: 1,
             p: 1.5,
             fontFamily: 'monospace',
-            fontSize: '0.75rem',
+            fontSize: '0.875rem',
             overflow: 'auto',
             whiteSpace: 'pre-wrap'
           }}>
@@ -566,10 +566,10 @@ function ExampleFormatTabs() {
       {/* Image Format Example */}
       {tabValue === 3 && (
         <Box>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem' }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '1rem' }}>
             <strong>Multi-turn conversations with images</strong> using OpenAI format. Include image URLs in the <code>content</code> field using the multimodal message format.
           </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5, fontSize: '1rem', fontWeight: 500 }}>
             <strong>Fields:</strong>{' '}
             <code style={{ backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 4px', borderRadius: '3px' }}>prompt</code>,{' '}
             <code style={{ backgroundColor: '#DBEAFE', color: '#2563EB', padding: '2px 4px', borderRadius: '3px' }}>model</code>,{' '}
@@ -584,7 +584,7 @@ function ExampleFormatTabs() {
             borderRadius: 1,
             p: 1.5,
             fontFamily: 'monospace',
-            fontSize: '0.75rem',
+            fontSize: '0.875rem',
             overflow: 'auto',
             whiteSpace: 'pre-wrap'
           }}>
@@ -4174,9 +4174,9 @@ function App() {
                 </Box>
               </Box>
 
-              <Typography variant="body2" sx={{ color: 'text.primary' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
-              <Typography variant="body2" sx={{ color: 'text.primary' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
-              <Typography variant="body2" sx={{ color: 'text.primary' }}>3) Click Done to load your table and explore</Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary', fontSize: '1rem' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary', fontSize: '1rem' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary', fontSize: '1rem' }}>3) Click Done to load your table and explore</Typography>
 
               <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
                 <img
@@ -4219,15 +4219,15 @@ function App() {
               )}
 
               <Box sx={{ mt: 2, mb: 1 }}>
-                <Typography variant="subtitle1" sx={{ color: '#374151', fontWeight: 600, mb: 1 }}>What data format should I use?</Typography>
-                <Typography variant="body2" sx={{ color: '#374151', mb: 1.5, fontSize: '0.875rem' }}>
+                <Typography variant="subtitle1" sx={{ color: '#374151', fontWeight: 600, mb: 1, fontSize: '1.1rem' }}>What data format should I use?</Typography>
+                <Typography variant="body2" sx={{ color: '#374151', mb: 1.5, fontSize: '1rem' }}>
                   StringSight accepts <strong>.jsonl</strong>, <strong>.json</strong>, or <strong>.csv</strong> files with the following:
                 </Typography>
 
-                <Typography variant="body2" sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', mb: 0.5 }}>
+                <Typography variant="body2" sx={{ color: '#374151', fontWeight: 600, fontSize: '1rem', mb: 0.5 }}>
                   Required:
                 </Typography>
-                <Box component="ol" sx={{ color: '#374151', fontSize: '0.875rem', ml: 3, mb: 1.5, pl: 0 }}>
+                <Box component="ol" sx={{ color: '#374151', fontSize: '1rem', ml: 3, mb: 1.5, pl: 0 }}>
                   <li>
                     <strong>The prompt/task identifier</strong> - any identifier for the specific task (can be the actual prompt or a unique ID)
                   </li>
@@ -4236,10 +4236,10 @@ function App() {
                   </li>
                 </Box>
 
-                <Typography variant="body2" sx={{ color: '#374151', fontWeight: 600, fontSize: '0.875rem', mb: 0.5 }}>
+                <Typography variant="body2" sx={{ color: '#374151', fontWeight: 600, fontSize: '1rem', mb: 0.5 }}>
                   Optional:
                 </Typography>
-                <Box component="ol" start={3} sx={{ color: '#374151', fontSize: '0.875rem', ml: 3, mb: 1.5, pl: 0 }}>
+                <Box component="ol" start={3} sx={{ color: '#374151', fontSize: '1rem', ml: 3, mb: 1.5, pl: 0 }}>
                   <li>
                     <strong>Model name</strong> - include if analyzing multiple models, methods, or prompts (e.g., model name, agent scaffolding, prompt variant)
                   </li>
@@ -4248,7 +4248,7 @@ function App() {
                   </li>
                 </Box>
 
-                <Typography variant="body2" sx={{ color: '#374151', mb: 2, fontSize: '0.875rem', fontStyle: 'italic' }}>
+                <Typography variant="body2" sx={{ color: '#374151', mb: 2, fontSize: '1rem', fontStyle: 'italic' }}>
                   You can name these columns whatever you want and assign them during upload.
                 </Typography>
 

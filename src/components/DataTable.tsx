@@ -200,7 +200,7 @@ const DataTable = React.memo(function DataTable({
                     sx={{
                       color: '#374151',
                       fontWeight: 700,
-                      fontSize: 12,
+                      fontSize: 14,
                       letterSpacing: 0.4,
                       cursor: onSort ? 'pointer' : 'default',
                       '&:hover': onSort ? { backgroundColor: '#F9FAFB' } : {},
@@ -227,7 +227,7 @@ const DataTable = React.memo(function DataTable({
                     return (
                       <TableCell
                         key={c.id}
-                        sx={{ borderBottom: '1px solid #E5E7EB', ...(c.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {}) }}
+                        sx={{ borderBottom: '1px solid #E5E7EB', fontSize: 14, ...(c.column.id === 'prompt' ? { width: 420, maxWidth: 420 } : {}) }}
                         data-tutorial-id={isResponseCell ? 'demo-model-response-column' : undefined}
                       >
                         <Box sx={c.column.id === 'prompt' ? { maxWidth: 420, wordBreak: 'break-all', overflowWrap: 'anywhere', whiteSpace: 'normal' } : undefined}>
