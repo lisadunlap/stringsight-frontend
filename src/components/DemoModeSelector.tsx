@@ -35,11 +35,11 @@ export default function DemoModeSelector({
       fullWidth
     >
       <DialogTitle>
-        Analyze Airline Customer Service Data
+        Analyze Customer Service Data
       </DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          We will analyze GPT-4o and Claude Sonnet 3.5 on TauBench, a benchmark that simulates a customer service agent for airlines. First, let's select how we want to analyze this data.
+          We will analyze GPT-4o and Claude Sonnet 3.5 on TauBench, a benchmark that simulates a customer service agent. First, let's select how we want to analyze this data.
         </Typography>
 
         <Box sx={{ display: 'flex', gap: 2 }}>
