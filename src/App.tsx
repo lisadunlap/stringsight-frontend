@@ -700,7 +700,6 @@ function App() {
     selectedBehaviorTypes: [],
     qualityMetric: '',
     sortBy: 'proportion_delta_desc',
-    topN: 5,
     significanceOnly: false,
     showCI: false,
   });
@@ -727,7 +726,6 @@ function App() {
         selectedBehaviorTypes: [], // Will be auto-populated by onDataProcessed to exclude 'positive'
         qualityMetric: '',
         sortBy: 'proportion_delta_desc',
-        topN: 5,
         significanceOnly: false,
         showCI: false,
       });
@@ -3150,7 +3148,6 @@ function App() {
               selectedBehaviorTypes: [],
               qualityMetric: '', // Not needed for grouped chart
               sortBy: 'proportion_delta_desc',
-              topN: 5,
               significanceOnly: false,
               showCI: false,
             }}
@@ -3649,9 +3646,9 @@ function App() {
         updates.selectedMetrics = data.availableQualityMetrics;
       }
 
-      // Set default behavior types: all except 'positive'
+      // Set default behavior types: include all types (including positive)
       if (prev.selectedBehaviorTypes.length === 0 && data.availableBehaviorTypes && data.availableBehaviorTypes.length > 0) {
-        updates.selectedBehaviorTypes = data.availableBehaviorTypes.filter(bt => bt !== 'positive');
+        updates.selectedBehaviorTypes = data.availableBehaviorTypes;
       }
 
       return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;

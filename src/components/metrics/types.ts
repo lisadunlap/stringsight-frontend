@@ -19,7 +19,6 @@ export interface ChartConfig {
   plotType: MetricsPlotType;
   qualityMetric?: string;
   showCI: boolean;
-  topN: number;
   models: string[];
   height?: number;
   width?: number;

@@ -110,18 +110,8 @@ export function QualityChart({
       return groups;
     }, {} as Record<string, ModelClusterRow[]>);
 
-    // Use pre-computed top clusters, or fall back to extracting from data
-    const clustersToShow = topClusters || (() => {
-      const seenClusters = new Set<string>();
-      const localTopClusters: string[] = [];
-      for (const row of dataWithQuality) {
-        if (!seenClusters.has(row.cluster) && localTopClusters.length < filters.topN) {
-          seenClusters.add(row.cluster);
-          localTopClusters.push(row.cluster);
-        }
-      }
-      return localTopClusters;
-    })();
+    // Use pre-computed clusters, or fall back to extracting all unique clusters from data
+    const clustersToShow = topClusters || [...new Set(dataWithQuality.map(row => row.cluster))];
     
     // Get all models that should appear (from original filters, not just filtered data)
     // This ensures we show all selected models even if they have zero values

@@ -282,11 +282,6 @@ export function MetricsInsightsOverview({
       filteredData.forEach(row => {
         const group = normalizeGroup(row.metadata?.group);
 
-        // Categorize the behavior type
-        const isNegative = group === 'negative_critical' || group === 'negative_non_critical';
-        const isPositive = group === 'positive';
-        const isStylistic = group === 'style';
-
         qualityMetrics.forEach(metric => {
           const qualityDeltaKey = `quality_delta_${metric}`;
           const significantKey = `quality_delta_${metric}_significant`;

@@ -27,7 +27,15 @@ import {
 import { MetricsMainContent } from './MetricsMainContent';
 import { MetricsOverviewBanner } from './MetricsOverviewBanner';
 import { MetricsFilterBar } from './MetricsFilterBar';
-import type { MetricsFilters, MetricsSummary, ModelClusterPayload, ModelBenchmarkPayload, ModelClusterRow } from '../../types/metrics';
+import type {
+  MetricsFilters,
+  MetricsSummary,
+  ModelClusterPayload,
+  ModelBenchmarkPayload,
+  ModelClusterRow,
+  ClusterScoresPayload,
+  ClusterScoreRow,
+} from '../../types/metrics';
 
 interface MetricScoreRange {
   /** Minimum observed absolute score for this metric across all conversations/models. */
@@ -109,6 +117,7 @@ export function MetricsTab({
         summary: null as MetricsSummary | null,
         modelClusterData: null as ModelClusterPayload | null,
         benchmarkData: null as ModelBenchmarkPayload | null,
+        clusterScores: null as ClusterScoresPayload | null,
         qualityMetrics: [] as string[],
         availableGroups: [] as string[],
         isLoading: false,
@@ -119,6 +128,19 @@ export function MetricsTab({
 
     // Server now always returns JSONL format (array of objects)
     const allModelClusterScores = resultsData.model_cluster_scores || [];
+
+    // Handle both array format (from .jsonl) and dict format (from .json)
+    let allClusterScores: ClusterScoreRow[] = [];
+    if (Array.isArray(resultsData.cluster_scores)) {
+      allClusterScores = resultsData.cluster_scores;
+    } else if (resultsData.cluster_scores && typeof resultsData.cluster_scores === 'object') {
+      // Convert dict format to array: { "cluster_name": {...}, ... } -> [{ cluster: "cluster_name", ... }, ...]
+      allClusterScores = Object.entries(resultsData.cluster_scores).map(([clusterName, scoreData]: [string, any]) => ({
+        cluster: clusterName,
+        ...scoreData
+      }));
+      console.log(`[MetricsTab] Converted cluster_scores dict to array (${allClusterScores.length} clusters)`);
+    }
 
     // Include all clusters (including outliers)
     const modelClusterScores = allModelClusterScores;
@@ -218,7 +240,8 @@ export function MetricsTab({
 
     const allRowsForScores: any[] = [
       ...benchmarkRows,
-      ...modelClusterScores
+      ...modelClusterScores,
+      ...allClusterScores
     ];
 
     const getAbsoluteScore = (row: any, metricName: string): number | undefined => {
@@ -283,10 +306,19 @@ export function MetricsTab({
       data: Array.isArray(resultsData.model_scores) ? resultsData.model_scores : []
     } : undefined;
 
+    // Process cluster-level aggregate scores if available
+    const clusterScoresPayload: ClusterScoresPayload | null = allClusterScores.length > 0 ? {
+      source: 'json' as const,
+      clusters,
+      quality_metrics: Array.from(qualityMetrics),
+      data: allClusterScores
+    } : null;
+
     return {
       summary,
       modelClusterData,
       benchmarkData,
+      clusterScores: clusterScoresPayload,
       qualityMetrics: Array.from(qualityMetrics),
       availableGroups: Array.from(groups),
       availableBehaviorTypes: Array.from(behaviorTypes).sort(),
@@ -301,6 +333,7 @@ export function MetricsTab({
     summary,
     modelClusterData, 
     benchmarkData,
+    clusterScores,
     qualityMetrics,
     availableGroups,
     availableBehaviorTypes,

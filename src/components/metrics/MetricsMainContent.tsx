@@ -26,13 +26,16 @@ import type {
   ModelClusterPayload,
   ModelBenchmarkPayload,
   MetricsSummary,
-  ModelClusterRow
+  ModelClusterRow,
+  ClusterScoresPayload,
 } from '../../types/metrics';
 
 interface MetricsMainContentProps {
   filters: MetricsFilters;
   modelClusterData: ModelClusterPayload;
   benchmarkData?: ModelBenchmarkPayload;
+  /** Cluster-level aggregate scores across all models */
+  clusterScores?: ClusterScoresPayload | null;
   qualityMetrics: string[];
   summary?: MetricsSummary;
   /** Controls visibility of sections; default true for all when omitted */
@@ -64,6 +67,7 @@ export function MetricsMainContent({
   filters,
   modelClusterData,
   benchmarkData,
+  clusterScores,
   qualityMetrics,
   summary,
   showBenchmark = true,
@@ -133,75 +137,14 @@ export function MetricsMainContent({
       });
     }
 
-    // Save the base filtered data (before topN filtering) for BehaviorMapOverview
+    // Save the base filtered data for BehaviorMapOverview
     const baseFiltered = filtered;
 
-    // STEP 1: Find top N clusters globally (before applying topN row limit)
-    // Group by cluster and compute ranking metric
-    const clusterStats = filtered.reduce((acc, row) => {
-      if (!acc[row.cluster]) {
-        acc[row.cluster] = { 
-          cluster: row.cluster, 
-          maxProportion: 0, 
-          maxSize: 0,
-          totalSize: 0,
-          models: new Set()
-        };
-      }
-      const stats = acc[row.cluster];
-      stats.maxProportion = Math.max(stats.maxProportion, row.proportion || 0);
-      stats.maxSize = Math.max(stats.maxSize, row.size || 0);
-      stats.totalSize += row.size || 0;
-      stats.models.add(row.model);
-      return acc;
-    }, {} as Record<string, any>);
+    // Get all unique cluster names from filtered data (no topN limit)
+    const allClusterNames = [...new Set(filtered.map(row => row.cluster))];
     
-    // Sort clusters by the same metric as rows, then take topN
-    // Always put outliers at the bottom
-    const sortedClusters = Object.values(clusterStats).sort((a, b) => {
-      // Check if either cluster is an outlier
-      const aIsOutlier = a.cluster.startsWith('Outliers') || a.cluster.startsWith('Outlier');
-      const bIsOutlier = b.cluster.startsWith('Outliers') || b.cluster.startsWith('Outlier');
-
-      // If one is an outlier and the other isn't, non-outlier comes first
-      if (aIsOutlier && !bIsOutlier) return 1;
-      if (!aIsOutlier && bIsOutlier) return -1;
-
-      // Otherwise, sort by the metric
-      let aVal: number, bVal: number;
-
-      // Use same sorting logic but applied to cluster-level stats
-      switch (filters.sortBy) {
-        case 'proportion_desc':
-        case 'proportion_asc':
-          aVal = a.maxProportion;
-          bVal = b.maxProportion;
-          break;
-        case 'size_desc':
-        case 'size_asc':
-          aVal = a.totalSize;
-          bVal = b.totalSize;
-          break;
-        default:
-          // For other metrics, fall back to max proportion
-          aVal = a.maxProportion;
-          bVal = b.maxProportion;
-          break;
-      }
-
-      const ascending = filters.sortBy.includes('_asc');
-      return ascending ? aVal - bVal : bVal - aVal;
-    });
-    
-    const topClusterNames = sortedClusters.slice(0, filters.topN).map(c => c.cluster);
-    
-    // STEP 2: Filter data to only include top clusters
-    const clusterFiltered = filtered.filter(row => 
-      topClusterNames.includes(row.cluster)
-    );
-    
-    // STEP 3: Sort rows within the filtered clusters
-    clusterFiltered.sort((a, b) => {
+    // Sort rows by the selected metric
+    filtered.sort((a, b) => {
       const getSortValue = (row: typeof a, sortBy: string): number => {
         switch (sortBy) {
           case 'proportion_desc':
@@ -234,8 +177,8 @@ export function MetricsMainContent({
     });
     
     return {
-      filteredData: clusterFiltered,
-      topClusters: topClusterNames,
+      filteredData: filtered,
+      topClusters: allClusterNames,
       baseFilteredData: baseFiltered
     };
   }, [modelClusterData.data, filters]);

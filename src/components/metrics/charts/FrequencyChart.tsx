@@ -54,10 +54,8 @@ export function FrequencyChart({
       return groups;
     }, {} as Record<string, ModelClusterRow[]>);
 
-    // Use pre-computed top clusters, or fall back to extracting from data
-    const clustersToShow = topClusters || [
-      ...new Set(filteredData.map(row => row.cluster))
-    ].slice(0, filters.topN);
+    // Use pre-computed clusters, or fall back to extracting all unique clusters from data
+    const clustersToShow = topClusters || [...new Set(filteredData.map(row => row.cluster))];
     
     // Get all models that should appear (from original filters, not just filtered data)
     // This ensures we show all selected models even if they have zero values

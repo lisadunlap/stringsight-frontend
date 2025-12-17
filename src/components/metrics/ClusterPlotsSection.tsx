@@ -47,7 +47,7 @@ export function ClusterPlotsSection({
         Cluster Analysis
       </Typography>
       <Typography variant="body2" color="text.secondary" gutterBottom>
-        Showing top {filters.topN} clusters, sorted by {filters.sortBy.replace('_', ' ')}
+        Sorted by {filters.sortBy.replace('_', ' ')}
         {showCI && ' (with confidence intervals)'}
       </Typography>
 

@@ -121,18 +121,8 @@ export function QualityDeltaChartAlt({
       return groups;
     }, {} as Record<string, ModelClusterRow[]>);
 
-    // Use pre-computed top clusters
-    const clustersToShow = topClusters || (() => {
-      const seenClusters = new Set<string>();
-      const localTopClusters: string[] = [];
-      for (const row of finalData) {
-        if (!seenClusters.has(row.cluster) && localTopClusters.length < filters.topN) {
-          seenClusters.add(row.cluster);
-          localTopClusters.push(row.cluster);
-        }
-      }
-      return localTopClusters;
-    })();
+    // Use pre-computed clusters, or fall back to extracting all unique clusters from data
+    const clustersToShow = topClusters || [...new Set(finalData.map(row => row.cluster))];
 
     // Get all models
     const allModels = filters.selectedModels.length > 0

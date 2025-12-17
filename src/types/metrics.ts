@@ -57,6 +57,26 @@ export interface ModelBenchmarkRow {
   proportion_ci_mean?: number;
 }
 
+/**
+ * Cluster-level aggregate metrics (aggregated across all models).
+ *
+ * Expected backend/normalized columns:
+ * - cluster: string (cluster label)
+ * - cluster_id: number
+ * - size: total properties across all models
+ * - proportion: fraction of all conversations with this behavior
+ * - quality_<metric>: absolute quality scores per metric
+ * - quality_delta_<metric>: attributable impact per metric (optional)
+ */
+export interface ClusterScoreRow {
+  cluster: string;
+  cluster_id?: number;
+  size?: number;
+  proportion?: number;
+  // Allow arbitrary additional fields for dynamic metric columns
+  [key: string]: unknown;
+}
+
 // API response payloads
 
 /**
@@ -77,6 +97,16 @@ export interface ModelClusterPayload {
 export interface ModelBenchmarkPayload {
   data: ModelBenchmarkRow[];
   models: string[];
+  quality_metrics: string[];
+  source: "jsonl" | "json" | "computed" | "none";
+}
+
+/**
+ * Aggregated cluster-level metrics payload.
+ */
+export interface ClusterScoresPayload {
+  data: ClusterScoreRow[];
+  clusters: string[];
   quality_metrics: string[];
   source: "jsonl" | "json" | "computed" | "none";
 }
@@ -112,7 +142,6 @@ export interface MetricsFilters {
   selectedMetrics: string[];  // Selected quality metrics to display
   selectedGroups: string[];  // Based on metadata.group values
   selectedBehaviorTypes: string[];  // Normalized behavior types (negative_critical, negative_non_critical, positive, style)
-  topN: number;
   sortBy: MetricsSortOption;
   significanceOnly: boolean;
   qualityMetric: string;
@@ -160,7 +189,6 @@ export interface ChartConfig {
   plotType: MetricsPlotType;
   qualityMetric?: string;
   showCI: boolean;
-  topN: number;
   models: string[];
 }
 

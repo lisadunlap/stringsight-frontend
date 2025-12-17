@@ -203,35 +203,6 @@ export function MetricsControlPanel({
         </FormControl>
       )}
 
-      {/* Top-N Slider */}
-      <Box sx={{ mb: 3 }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-          <Typography variant="subtitle2">
-            Top N Clusters
-          </Typography>
-          <Tooltip title="Number of top clusters to display">
-            <IconButton size="small">
-              <InfoIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-        <Slider
-          value={filters.topN}
-          onChange={(_, newValue) => updateFilters({ topN: newValue as number })}
-          min={1}
-          max={50}
-          step={1}
-          marks={[
-            { value: 1, label: '1' },
-            { value: 15, label: '15' },
-            { value: 30, label: '30' },
-            { value: 50, label: '50' }
-          ]}
-          valueLabelDisplay="auto"
-          sx={{ px: 1 }}
-        />
-      </Box>
-
       <Divider sx={{ my: 2 }} />
 
       {/* Significance Toggle */}

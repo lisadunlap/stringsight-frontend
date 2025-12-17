@@ -76,7 +76,7 @@ export function TopClustersSummary({ data, filters, onNavigateToCluster }: TopCl
           default:
             return (b.proportion_delta || 0) - (a.proportion_delta || 0);
         }
-      }).slice(0, Math.max(1, filters.topN || 5));
+      });
       return { model, rows: sorted };
     }).filter(m => m.rows.length > 0);
 
