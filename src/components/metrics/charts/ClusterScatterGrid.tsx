@@ -23,6 +23,7 @@ import React, { useMemo } from 'react';
 import { Box, Typography, Alert } from '@mui/material';
 import { PlotlyChartBase, getModelColor } from './PlotlyChartBase';
 import { getDisplayName, getOriginalMetricName, sanitizeMetricName } from '../utils/metricUtils';
+import { getModelDisplayName } from '../../../lib/normalize';
 import type { ModelClusterRow, MetricsFilters } from '../../../types/metrics';
 // @ts-ignore - Plotly types issue
 import type { Data } from 'plotly.js-dist-min';
@@ -214,7 +215,7 @@ export function ClusterScatterGrid({
 
       const category = normalizeGroup(row.metadata?.group);
       const alignment = isAligned(frequencyDelta, qualityDelta, category);
-      const modelShortName = row.model.split('/').pop() || row.model;
+      const modelShortName = getModelDisplayName(row.model);
       const clusterShort = row.cluster.length > 50
         ? row.cluster.substring(0, 47) + '...'
         : row.cluster;

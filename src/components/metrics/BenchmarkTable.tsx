@@ -19,6 +19,7 @@ import {
   Tooltip,
   IconButton
 } from '@mui/material';
+import { getModelDisplayName } from '../../lib/normalize';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useReactTable, getCoreRowModel, getSortedRowModel, flexRender, createColumnHelper } from '@tanstack/react-table';
@@ -44,7 +45,7 @@ export function BenchmarkTable({ data, qualityMetrics, showCI = false }: Benchma
         header: 'Model',
         cell: info => {
           const fullName = info.getValue();
-          const shortName = fullName.split('/').pop() || fullName;
+          const shortName = getModelDisplayName(fullName);
           return (
             <Tooltip title={fullName} placement="top">
               <Typography

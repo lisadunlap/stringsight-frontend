@@ -18,9 +18,11 @@ import {
   Checkbox,
   ListItemText,
   OutlinedInput,
+  Chip
 } from '@mui/material';
-import type { 
-  MetricsFilters, 
+import { getModelDisplayName } from '../../lib/normalize';
+import type {
+  MetricsFilters,
   MetricsSortOption
 } from '../../types/metrics';
 import { getDisplayName } from './utils/metricUtils';
@@ -121,7 +123,7 @@ export function MetricsFilterBar({
               {availableModels.map((model) => (
                 <MenuItem key={model} value={model}>
                   <Checkbox checked={filters.selectedModels.indexOf(model) > -1} />
-                  <ListItemText primary={model.split('/').pop() || model} />
+                  <ListItemText primary={getModelDisplayName(model)} />
                 </MenuItem>
               ))}
             </Select>

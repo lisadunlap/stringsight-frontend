@@ -12,6 +12,7 @@ import React, { useMemo } from 'react';
 import { Box, Typography, Alert, Stack, Paper, Chip } from '@mui/material';
 import { getModelColor } from './PlotlyChartBase';
 import { getDisplayName, getOriginalMetricName, sanitizeMetricName } from '../utils/metricUtils';
+import { getModelDisplayName } from '../../../lib/normalize';
 import type { ModelClusterRow, MetricsFilters } from '../../../types/metrics';
 import { ClusterLabel } from '../../ClusterLabel';
 
@@ -148,7 +149,7 @@ export function QualityDeltaChartAlt({
 
         return {
           model,
-          modelShortName: model.split('/').pop() || model,
+          modelShortName: getModelDisplayName(model),
           qualityDelta: deltaValue,
           ciLower: showCI ? (
             row?.quality_delta_ci?.[originalMetric]?.lower ||

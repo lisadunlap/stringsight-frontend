@@ -10,6 +10,7 @@ import React, { useMemo } from 'react';
 import { Box, Typography, Alert, Tooltip } from '@mui/material';
 import { PlotlyChartBase, getModelColor, truncateLabel, createHoverTemplate } from './PlotlyChartBase';
 import { getDisplayName, getOriginalMetricName, sanitizeMetricName } from '../utils/metricUtils';
+import { getModelDisplayName } from '../../../lib/normalize';
 import type { ModelClusterRow, MetricsFilters } from '../../../types/metrics';
 
 interface QualityDeltaChartProps {
@@ -142,7 +143,7 @@ export function QualityDeltaChart({
 
       const trace: any = {
         type: 'bar',
-        name: model.split('/').pop() || model, // Short model name for legend
+        name: getModelDisplayName(model),
         x: clusterLabels,
         y: deltas,
         marker: {

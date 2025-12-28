@@ -14,6 +14,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
 import type { ModelClusterRow, MetricsFilters, MetricsSummary } from '../../../types/metrics';
 import { computeOverallProportion, computeGlobalQualityDelta } from '../metricsUtils';
+import { getModelDisplayName } from '../../../lib/normalize';
 import { ClusterLabel } from '../../ClusterLabel';
 
 // Model color palette (matches MetricsInsightsOverview)
@@ -163,7 +164,7 @@ export function FrequencyChartAlt({
 
         return {
           model,
-          modelShortName: model.split('/').pop() || model,
+          modelShortName: getModelDisplayName(model),
           proportion,
           ciLower: showCI ? row?.proportion_ci_lower : undefined,
           ciUpper: showCI ? row?.proportion_ci_upper : undefined,

@@ -178,7 +178,7 @@ export async function getPromptText(name: string, task_description?: string | nu
 export async function extractSingle(body: {
   row: Record<string, any>;
   method?: 'single_model' | 'side_by_side';
-  system_prompt?: string;
+  system_prompt?: string;  // Can be a prompt name ("default", "agent") or a literal prompt string
   task_description?: string | null;
   model_name?: string;
   temperature?: number;
@@ -224,7 +224,7 @@ export async function extractBatch(body: {
 export async function extractJobStart(body: {
   rows: Record<string, any>[];
   method?: 'single_model' | 'side_by_side';
-  system_prompt?: string;
+  system_prompt?: string;  // Can be a prompt name ("default", "agent") or a literal prompt string
   task_description?: string | null;
   model_name?: string;
   temperature?: number;
@@ -427,5 +427,46 @@ export async function getClusterJobResult(jobId: string) {
       };
     };
     result_path?: string;
+  }>;
+}
+
+// ----------------------------
+// Fixed Taxonomy Labeling API
+// ----------------------------
+
+/**
+ * Run fixed-taxonomy labeling pipeline (label() function from backend)
+ * Only supports single_model method. Each taxonomy label becomes a cluster via DummyClusterer.
+ */
+export async function runLabel(body: {
+  rows: Record<string, any>[];
+  taxonomy: Record<string, string>;
+  model_name?: string;
+  temperature?: number;
+  top_p?: number;
+  max_tokens?: number;
+  max_workers?: number;
+  sample_size?: number;
+  score_columns?: string[];
+  method?: 'single_model';
+  output_dir?: string | null;
+  metrics_kwargs?: { compute_confidence_intervals?: boolean; bootstrap_samples?: number };
+}) {
+  const res = await fetch(`${API_BASE}/label/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
+  return res.json() as Promise<{
+    properties: any[];
+    clusters: any[];
+    metrics?: {
+      model_cluster_scores: any[];
+      cluster_scores: any[];
+      model_scores: any[];
+    };
+    total_conversations_by_model?: Record<string, number>;
+    total_unique_conversations?: number;
   }>;
 }

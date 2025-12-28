@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Typography, Button, Stack, Chip, Tooltip, IconButton, Fade, Paper } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { FormControl, InputLabel, Select, MenuItem, TextField, Checkbox, ListItemText, OutlinedInput } from '@mui/material';
+import { getModelDisplayName } from '../lib/normalize';
 import { ClusterLabel } from './ClusterLabel';
 import ClustersOverviewBanner from './ClustersOverviewBanner';
 import { retroColors } from '../theme';
@@ -533,7 +534,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         // Build model bars for this cluster
         const modelBars = modelsToShow.map(model => {
           const proportion = proportionByModel[model] || 0;
-          const modelShortName = model.split('/').pop() || model;
+          const modelShortName = getModelDisplayName(model);
           const color = getModelColor(model, allModels);
           
           // Use size directly from the enriched data

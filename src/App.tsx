@@ -2715,10 +2715,46 @@ function App() {
       const query = dataSearchQuery.toLowerCase().trim();
       filteredRows = currentRows.filter(row => {
         // Search across all text columns
-        return allowedColumns.some(col => {
+        const matchesVisibleColumns = allowedColumns.some(col => {
           const value = row[col];
           return value != null && String(value).toLowerCase().includes(query);
         });
+
+        if (matchesVisibleColumns) return true;
+
+        // Also search through response text (even though they're not displayed in columns)
+        const searchResponseText = (responseValue: any): boolean => {
+          if (!responseValue) return false;
+
+          // Handle OpenAI message format: array of {role, content}
+          if (Array.isArray(responseValue)) {
+            return responseValue.some(msg => {
+              if (msg && typeof msg === 'object' && msg.content) {
+                return String(msg.content).toLowerCase().includes(query);
+              }
+              return String(msg).toLowerCase().includes(query);
+            });
+          }
+
+          // Handle plain string responses
+          if (typeof responseValue === 'string') {
+            return responseValue.toLowerCase().includes(query);
+          }
+
+          return false;
+        };
+
+        // Check all response fields based on method
+        if (method === 'single_model' && row.model_response) {
+          if (searchResponseText(row.model_response)) return true;
+        }
+
+        if (method === 'side_by_side') {
+          if (row.model_a_response && searchResponseText(row.model_a_response)) return true;
+          if (row.model_b_response && searchResponseText(row.model_b_response)) return true;
+        }
+
+        return false;
       });
     }
 
@@ -2769,7 +2805,7 @@ function App() {
     });
 
     return result;
-  }, [currentRows, sortColumn, sortDirection, dataSearchQuery, allowedColumns]);
+  }, [currentRows, sortColumn, sortDirection, dataSearchQuery, allowedColumns, method]);
 
   // Memoize expensive data overview calculations using sorted data
   const dataOverview = useMemo(() => {

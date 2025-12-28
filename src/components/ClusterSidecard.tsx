@@ -695,7 +695,11 @@ export default function ClusterSidecard({
           {/* Plots */}
           <Box sx={{ mb: 0.5 }}>
             {/* Scatter plots: Quality Impact vs Frequency (one per metric) */}
-            {perModelProps && Object.keys(perModelProps).length > 0 && qualityDeltaByModel && Object.keys(qualityDeltaByModel).length > 0 && (
+            {perModelProps && Object.keys(perModelProps).length > 0 && qualityDeltaByModel && Object.keys(qualityDeltaByModel).length > 0 && (() => {
+              const models = Object.keys(qualityDeltaByModel);
+              const metricKeys = Array.from(new Set(models.flatMap(m => Object.keys(qualityDeltaByModel[m] || {}))));
+              return metricKeys.length > 0;
+            })() && (
               <Box sx={{ mb: 1 }}>
                 <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0 }}>
                   <Typography variant="subtitle2" sx={{ color: '#334155' }}>Quality Impact vs Frequency</Typography>

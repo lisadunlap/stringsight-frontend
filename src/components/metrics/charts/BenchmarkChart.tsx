@@ -10,6 +10,7 @@ import React, { useMemo } from 'react';
 import { Box, Typography, Alert, Grid } from '@mui/material';
 import { PlotlyChartBase, getModelColor } from './PlotlyChartBase';
 import { sanitizeMetricName, getDisplayName } from '../utils/metricUtils';
+import { getModelDisplayName } from '../../../lib/normalize';
 import type { ModelBenchmarkRow, MetricsFilters } from '../../../types/metrics';
 
 interface BenchmarkChartProps {
@@ -67,7 +68,7 @@ export function BenchmarkChart({
         const ciUpper = modelRow[ciUpperKey as keyof ModelBenchmarkRow] as number | undefined;
 
         // Get short model name for display
-        const shortName = model.split('/').pop() || model;
+        const shortName = getModelDisplayName(model);
         const displayName = shortName.length > 25 ? shortName.substring(0, 22) + '...' : shortName;
 
         // Create bar trace for this model

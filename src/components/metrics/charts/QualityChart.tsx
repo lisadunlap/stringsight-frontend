@@ -9,6 +9,7 @@ import React, { useMemo } from 'react';
 import { Box, Typography, Alert } from '@mui/material';
 import { PlotlyChartBase, getModelColor, truncateLabel, createHoverTemplate } from './PlotlyChartBase';
 import { getDisplayName, getOriginalMetricName, sanitizeMetricName } from '../utils/metricUtils';
+import { getModelDisplayName } from '../../../lib/normalize';
 import type { ModelClusterRow, MetricsFilters } from '../../../types/metrics';
 
 interface QualityChartProps {
@@ -153,7 +154,7 @@ export function QualityChart({
 
       const trace: any = {
         type: 'bar',
-        name: model.split('/').pop() || model, // Short model name for legend
+        name: getModelDisplayName(model),
         x: clusterLabels,
         y: qualities,
         marker: {

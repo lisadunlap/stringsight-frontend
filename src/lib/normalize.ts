@@ -1,5 +1,13 @@
 export type Method = "single_model" | "side_by_side" | "unknown";
 
+/**
+ * Get display name for a model. Returns the full model name as-is.
+ * This replaces the old pattern of .split('/').pop() which truncated model names.
+ */
+export function getModelDisplayName(model: string): string {
+  return model;
+}
+
 // Flatten score dictionaries into scalar columns: score_* (single), score_{modelA}_*, score_{modelB}_* (sbs)
 export function flattenScores(rows: Record<string, any>[], method: Method, modelNames?: { modelA?: string; modelB?: string }) {
   console.log('🔄 DEBUG flattenScores called:', { rowCount: rows.length, method, sampleRow: rows[0] });

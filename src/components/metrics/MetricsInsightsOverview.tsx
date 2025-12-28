@@ -27,6 +27,7 @@ import {
   FormControlLabel,
   Switch,
 } from '@mui/material';
+import { getModelDisplayName } from '../../lib/normalize';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { FrequencyChartAlt } from './charts/FrequencyChartAlt';
 import { ModelComparisonTab } from './ModelComparisonTab';
@@ -397,7 +398,7 @@ export function MetricsInsightsOverview({
       allModels
     };
   }, [data, filters, qualityMetrics]);
-  const shortModelName = (model: string) => model.split('/').pop() || model;
+  const shortModelName = (model: string) => getModelDisplayName(model);
 
   console.log('[MetricsInsightsOverview] Component rendering with insights:', {
     commonFailures: insights.commonFailures.length,

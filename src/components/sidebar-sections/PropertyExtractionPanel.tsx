@@ -13,6 +13,8 @@ import {
   MenuItem,
   Select,
   FormControl,
+  FormControlLabel,
+  Switch,
   InputLabel,
   Dialog,
   DialogTitle,
@@ -26,7 +28,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, startClusterJob, getClusterJobStatus, getClusterJobResult } from '../../lib/api';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, startClusterJob, getClusterJobStatus, getClusterJobResult, runLabel } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
@@ -358,6 +360,12 @@ export default function PropertyExtractionPanel({
     () => (localStorage.getItem('stringsight.taskDescriptionEdited') === 'true') || false
   );
   const [resolvedPrompt, setResolvedPrompt] = React.useState<string>('');
+  const [useCustomSystemPrompt, setUseCustomSystemPrompt] = React.useState<boolean>(
+    () => (localStorage.getItem('stringsight.useCustomSystemPrompt') === 'true') || false
+  );
+  const [customSystemPrompt, setCustomSystemPrompt] = React.useState<string>(
+    () => localStorage.getItem('stringsight.customSystemPrompt') || ''
+  );
 
   // Demo mode detection
   const isDemoMode = !!demoSampleSize;
@@ -388,6 +396,12 @@ export default function PropertyExtractionPanel({
   const [matchingModel, setMatchingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : 'gpt-4.1-mini');
   const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
   const [currentStage, setCurrentStage] = React.useState<'extraction' | 'clustering' | null>(null);
+
+  // Label mode state
+  const [labelMode, setLabelMode] = React.useState<'extract' | 'label'>('extract');
+  const [taxonomy, setTaxonomy] = React.useState<Record<string, string>>({});
+  const [taxonomyJsonInput, setTaxonomyJsonInput] = React.useState<string>('');
+  const [taxonomyError, setTaxonomyError] = React.useState<string | null>(null);
 
   // Controls whether the main control panel is expanded or collapsed.
   // Initially expanded; will auto-collapse after "Run on all traces".
@@ -461,8 +475,14 @@ export default function PropertyExtractionPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPromptMeta?.name, selectedPromptMeta?.has_task_description]);
 
-  // Resolve prompt text when selection changes
+  // Resolve prompt text when selection changes (only if not using custom system prompt)
   React.useEffect(() => {
+    if (useCustomSystemPrompt) {
+      // When using custom system prompt, use the custom prompt instead
+      setResolvedPrompt(customSystemPrompt);
+      return;
+    }
+
     let mounted = true;
     (async () => {
       try {
@@ -478,7 +498,7 @@ export default function PropertyExtractionPanel({
       }
     })();
     return () => { mounted = false; };
-  }, [selectedPrompt, canTaskDescribe, taskDescription, method]);
+  }, [selectedPrompt, canTaskDescribe, taskDescription, method, useCustomSystemPrompt, customSystemPrompt]);
 
   // Highlight task description inside resolved prompt (visual only)
   const highlightedResolvedPrompt = React.useMemo(() => {
@@ -574,8 +594,11 @@ export default function PropertyExtractionPanel({
       const body: any = {
         row: sanitizedRow,
         method,
-        system_prompt: selectedPrompt,
-        task_description: canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription : undefined,
+        // When using custom system prompt, send it as a literal string in system_prompt field
+        // The backend's get_system_prompt() function will treat it as a literal if it's not a known alias
+        system_prompt: useCustomSystemPrompt ? customSystemPrompt : selectedPrompt,
+        // Only include task_description when NOT using custom prompt (custom prompt is already complete)
+        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription : undefined,
         model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
@@ -586,13 +609,21 @@ export default function PropertyExtractionPanel({
 
       console.log('[PropertyExtraction] Making API call with:', {
         method,
-        system_prompt: selectedPrompt,
+        useCustomSystemPrompt,
+        system_prompt_type: useCustomSystemPrompt ? 'custom (literal string)' : `template (${selectedPrompt})`,
+        system_prompt_length: body.system_prompt?.length || 0,
+        task_description: body.task_description,
         model_name: body.model_name,
         hasRow: !!body.row,
         rowKeys: Object.keys(body.row),
         row_question_id: body.row?.question_id,
         row___index: body.row?.__index,
       });
+
+      if (useCustomSystemPrompt) {
+        console.log('[PropertyExtraction] Using CUSTOM system prompt (first 200 chars):',
+          body.system_prompt?.substring(0, 200) + '...');
+      }
 
       // DEMO MODE INTERCEPTION: Load cached properties for the selected row
       if (isDemoMode && (uploadedFileName === 'taubench_airline' || uploadedFileName === 'taubench_airline_sbs')) {
@@ -864,8 +895,11 @@ export default function PropertyExtractionPanel({
       const extractBody = {
         rows,
         method,
-        system_prompt: selectedPrompt,
-        task_description: canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription : undefined,
+        // When using custom system prompt, send it as a literal string in system_prompt field
+        // The backend's get_system_prompt() function will treat it as a literal if it's not a known alias
+        system_prompt: useCustomSystemPrompt ? customSystemPrompt : selectedPrompt,
+        // Only include task_description when NOT using custom prompt (custom prompt is already complete)
+        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription : undefined,
         model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
@@ -1219,6 +1253,150 @@ export default function PropertyExtractionPanel({
     }
   }
 
+  // Validate and parse taxonomy JSON input
+  function validateTaxonomy() {
+    setTaxonomyError(null);
+    try {
+      const parsed = JSON.parse(taxonomyJsonInput);
+
+      // Validate structure
+      if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+        setTaxonomyError('Taxonomy must be a JSON object (not an array)');
+        return;
+      }
+
+      // Check for at least one label
+      const keys = Object.keys(parsed);
+      if (keys.length === 0) {
+        setTaxonomyError('Taxonomy must contain at least one label');
+        return;
+      }
+
+      // Validate all values are strings
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value !== 'string') {
+          setTaxonomyError(`Value for "${key}" must be a string (description)`);
+          return;
+        }
+        if ((value as string).trim().length === 0) {
+          setTaxonomyError(`Description for "${key}" cannot be empty`);
+          return;
+        }
+      }
+
+      // Success - update taxonomy state
+      setTaxonomy(parsed);
+      setTaxonomyError(null);
+    } catch (e: any) {
+      setTaxonomyError(`Invalid JSON: ${e?.message || String(e)}`);
+    }
+  }
+
+  // Run fixed-taxonomy labeling
+  async function handleRunLabel() {
+    // Validate inputs
+    if (Object.keys(taxonomy).length === 0) {
+      setErrorMsg('Please define a taxonomy first');
+      return;
+    }
+
+    if (method !== 'single_model') {
+      setErrorMsg('Fixed taxonomy labeling only supports single_model method. Your data appears to be in side_by_side format.');
+      return;
+    }
+
+    const operationalRows = getOperationalRows();
+    if (!operationalRows || operationalRows.length === 0) {
+      setErrorMsg('No data available for labeling');
+      return;
+    }
+
+    // Collapse panel and close trace
+    setPanelExpanded(false);
+    onCloseTrace?.();
+
+    setBusy(true);
+    setCurrentStage('extraction');
+    setErrorMsg(null);
+
+    try {
+      onBatchStart?.();
+      onBatchStatus?.(0, 'processing', 'extraction', 'Running fixed-taxonomy labeling...');
+
+      // Transform rows to backend format (same as extraction endpoints)
+      const transformedRows = transformRowsForBackend(operationalRows, method);
+
+      const outputDir = generateOutputDir();
+
+      // Extract score column names from the first row
+      const scoreColumns: string[] = [];
+      if (operationalRows.length > 0) {
+        const firstRow = operationalRows[0];
+        if (firstRow.score && typeof firstRow.score === 'object') {
+          scoreColumns.push(...Object.keys(firstRow.score));
+        }
+      }
+
+      const body = {
+        rows: transformedRows,
+        taxonomy: taxonomy,
+        model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
+        temperature: 0.0, // Fixed for labeling (deterministic)
+        top_p: topP,
+        max_tokens: maxTokens,
+        max_workers: maxWorkers,
+        sample_size: demoSampleSize || sampleSize || undefined,
+        score_columns: scoreColumns.length > 0 ? scoreColumns : undefined,
+        method: 'single_model' as const,
+        output_dir: outputDir,
+        metrics_kwargs: {
+          compute_confidence_intervals: true,
+          bootstrap_samples: 100,
+        },
+      };
+
+      console.log('[Label] Starting labeling job with taxonomy:', Object.keys(taxonomy));
+      console.log('[Label] Score columns:', scoreColumns);
+      console.log('[Label] First row sample:', transformedRows[0]);
+
+      const res = await runLabel(body);
+
+      console.log('[Label] Labeling complete. Properties:', res.properties?.length, 'Clusters:', res.clusters?.length);
+
+      // Update properties immediately
+      if (onBatchLoaded && res.properties) {
+        onBatchLoaded(res.properties);
+      }
+
+      // Scroll to properties
+      setTimeout(() => {
+        if (onScrollToProperties) {
+          onScrollToProperties();
+        }
+      }, 300);
+
+      // Update clusters and metrics
+      if (onClustersUpdated) {
+        onClustersUpdated({
+          clusters: res.clusters || [],
+          metrics: res.metrics,
+          total_conversations_by_model: res.total_conversations_by_model,
+          total_unique_conversations: res.total_unique_conversations,
+        });
+      }
+
+      onBatchStatus?.(1, 'done', 'clustering', 'Labeling complete');
+      onBatchDone?.();
+    } catch (error) {
+      console.error('Labeling failed:', error);
+      setErrorMsg(`Labeling failed: ${String(error)}`);
+      onBatchStatus?.(0, 'error', 'extraction', `Labeling failed: ${String(error)}`);
+    } finally {
+      setBusy(false);
+      setCurrentStage(null);
+    }
+  }
+
   const methodValid = method === 'single_model' || method === 'side_by_side';
 
   return (
@@ -1278,6 +1456,157 @@ export default function PropertyExtractionPanel({
           {/* <Typography variant="body2" sx={{ color: 'primary.main', mb: 1, textAlign: 'center', fontWeight: 500 }}>
             Label interesting behaviors from your traces. Click 'Label Trace at Row 0' to see an example.
           </Typography> */}
+
+          {/* Mode Toggle: Extract vs Label */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
+              Extraction Mode
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant={labelMode === 'extract' ? 'contained' : 'outlined'}
+                onClick={() => setLabelMode('extract')}
+                disabled={busy || clusteringBusy}
+                fullWidth
+                size="small"
+                sx={{
+                  textTransform: 'none',
+                  borderRadius: 2,
+                  ...(labelMode === 'extract' && {
+                    boxShadow: 1,
+                  }),
+                }}
+              >
+                Open-ended Extraction
+              </Button>
+              <Button
+                variant={labelMode === 'label' ? 'contained' : 'outlined'}
+                onClick={() => setLabelMode('label')}
+                disabled={busy || clusteringBusy}
+                fullWidth
+                size="small"
+                sx={{
+                  textTransform: 'none',
+                  borderRadius: 2,
+                  ...(labelMode === 'label' && {
+                    boxShadow: 1,
+                  }),
+                }}
+              >
+                Fixed Taxonomy Labeling
+              </Button>
+            </Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+              {labelMode === 'extract'
+                ? 'LLM discovers properties from traces based on your task description'
+                : 'LLM assigns traces to predefined taxonomy labels (single_model only)'}
+            </Typography>
+          </Box>
+
+          {/* Fixed Taxonomy Labeling Section */}
+          {labelMode === 'label' && (
+            <Box sx={{ mb: 3 }}>
+              <Accordion defaultExpanded>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography variant="subtitle2">Taxonomy Definition</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={2}>
+                    {method !== 'single_model' && (
+                      <Box sx={{ p: 2, bgcolor: '#FEF3C7', borderRadius: 1, border: '1px solid #F59E0B' }}>
+                        <Typography variant="body2" sx={{ color: '#92400E', fontWeight: 500 }}>
+                          Warning: Fixed taxonomy labeling only supports single_model method. Your data appears to be in {method} format.
+                        </Typography>
+                      </Box>
+                    )}
+
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                          Taxonomy JSON
+                        </Typography>
+                        <Tooltip
+                          title='Define labels as {"label_name": "description"}. Each label will become a cluster. Example: {"refusal": "Does the model refuse the request?", "reward_hacking": "Does the agent show reward hacking?"}'
+                          arrow
+                          placement="top"
+                        >
+                          <InfoOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'help' }} />
+                        </Tooltip>
+                      </Box>
+                      <TextField
+                        multiline
+                        rows={6}
+                        fullWidth
+                        placeholder={'{\n  "refusal": "Does the model refuse the request?",\n  "reward_hacking": "Does the agent show reward hacking?"\n}'}
+                        value={taxonomyJsonInput}
+                        onChange={(e) => setTaxonomyJsonInput(e.target.value)}
+                        error={!!taxonomyError}
+                        helperText={taxonomyError || 'Paste or type your taxonomy as JSON'}
+                        sx={{
+                          '& .MuiInputBase-root': {
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                            fontSize: '0.85rem',
+                          }
+                        }}
+                      />
+                    </Box>
+
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={validateTaxonomy}
+                        fullWidth
+                      >
+                        Validate Taxonomy
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => {
+                          setTaxonomyJsonInput('');
+                          setTaxonomy({});
+                          setTaxonomyError(null);
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    </Box>
+
+                    {Object.keys(taxonomy).length > 0 && (
+                      <Box sx={{ p: 2, bgcolor: '#F0F9FF', borderRadius: 1, border: '1px solid #3B82F6' }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: '#1E40AF', display: 'block', mb: 1 }}>
+                          Taxonomy validated: {Object.keys(taxonomy).length} labels defined
+                        </Typography>
+                        {Object.entries(taxonomy).map(([label, desc]) => (
+                          <Box key={label} sx={{ mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#1E40AF' }}>
+                              {label}:
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#1E40AF', ml: 0.5 }}>
+                              {desc}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+
+                    <Button
+                      variant="contained"
+                      onClick={handleRunLabel}
+                      disabled={busy || clusteringBusy || Object.keys(taxonomy).length === 0 || method !== 'single_model'}
+                      fullWidth
+                    >
+                      Run Fixed Taxonomy Labeling ({sampleSize || getAllRows().length} traces)
+                    </Button>
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
+            </Box>
+          )}
+
+          {/* Open-ended Extraction Section */}
+          {labelMode === 'extract' && (
           <Box>
             <Stack spacing={2} data-tutorial-id="extract-properties-trace">
               <Autocomplete
@@ -1373,9 +1702,7 @@ export default function PropertyExtractionPanel({
 
               {/* Resolved system prompt moved to Advanced settings below */}
             </Stack>
-          </Box>
 
-          {/* Results folder - outside advanced settings */}
           <Box sx={{ mt: 3 }}>
             <TextField
               size="small"
@@ -1427,42 +1754,106 @@ export default function PropertyExtractionPanel({
                           <Typography variant="subtitle2">Full system prompt</Typography>
                         </AccordionSummary>
                         <AccordionDetails>
-                          <Box sx={{
-                            p: 2,
-                            border: '1px dashed',
-                            borderColor: 'divider',
-                            borderRadius: 1,
-                            backgroundColor: 'background.default'
-                          }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
-                              </Typography>
-                              <IconButton
-                                size="small"
-                                onClick={() => setPromptFullscreen(true)}
-                                sx={{ ml: 1 }}
-                                title="Expand to full screen"
-                              >
-                                <FullscreenIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                            <Box sx={{
-                              p: 1.5,
-                              border: '1px solid',
-                              borderColor: 'divider',
-                              borderRadius: 1,
-                              backgroundColor: '#FFFFFF',
-                              maxHeight: 280,
-                              overflow: 'auto',
-                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
-                              fontSize: 12,
-                              whiteSpace: 'pre-wrap',
-                              lineHeight: 1.6,
-                            }}>
-                              {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
-                            </Box>
-                          </Box>
+                          <Stack spacing={2}>
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={useCustomSystemPrompt}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setUseCustomSystemPrompt(checked);
+                                    localStorage.setItem('stringsight.useCustomSystemPrompt', String(checked));
+
+                                    // When enabling custom prompt for the first time, initialize with current resolved prompt
+                                    if (checked && !customSystemPrompt) {
+                                      setCustomSystemPrompt(resolvedPrompt);
+                                      localStorage.setItem('stringsight.customSystemPrompt', resolvedPrompt);
+                                    }
+                                  }}
+                                />
+                              }
+                              label={
+                                <Typography variant="body2">
+                                  Use custom system prompt
+                                </Typography>
+                              }
+                            />
+
+                            {useCustomSystemPrompt ? (
+                              <Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                    Custom system prompt (editable)
+                                  </Typography>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => setPromptFullscreen(true)}
+                                    sx={{ ml: 1 }}
+                                    title="Expand to full screen"
+                                  >
+                                    <FullscreenIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                                <TextField
+                                  value={customSystemPrompt}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setCustomSystemPrompt(val);
+                                    localStorage.setItem('stringsight.customSystemPrompt', val);
+                                  }}
+                                  multiline
+                                  fullWidth
+                                  minRows={8}
+                                  maxRows={15}
+                                  variant="outlined"
+                                  sx={{
+                                    '& .MuiInputBase-root': {
+                                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                                      fontSize: 12,
+                                      lineHeight: 1.6,
+                                    }
+                                  }}
+                                />
+                              </Box>
+                            ) : (
+                              <Box sx={{
+                                p: 2,
+                                border: '1px dashed',
+                                borderColor: 'divider',
+                                borderRadius: 1,
+                                backgroundColor: 'background.default'
+                              }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                    Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
+                                  </Typography>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => setPromptFullscreen(true)}
+                                    sx={{ ml: 1 }}
+                                    title="Expand to full screen"
+                                  >
+                                    <FullscreenIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                                <Box sx={{
+                                  p: 1.5,
+                                  border: '1px solid',
+                                  borderColor: 'divider',
+                                  borderRadius: 1,
+                                  backgroundColor: '#FFFFFF',
+                                  maxHeight: 280,
+                                  overflow: 'auto',
+                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                                  fontSize: 12,
+                                  whiteSpace: 'pre-wrap',
+                                  lineHeight: 1.6,
+                                }}>
+                                  {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
+                                </Box>
+                              </Box>
+                            )}
+                          </Stack>
                         </AccordionDetails>
                       </Accordion>
                     </Stack>
@@ -1531,7 +1922,7 @@ export default function PropertyExtractionPanel({
             </Accordion>
           </Box>
 
-          {/* Action Buttons */}
+          {/* Action Buttons for Extract mode */}
           <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column', mt: 3 }}>
             {busy && (
               <Box sx={{ width: '100%', mb: 1 }}>
@@ -1573,6 +1964,8 @@ export default function PropertyExtractionPanel({
                 : `Label and Cluster All Traces (${getAllRows().length})`}
             </Button>
           </Box>
+          </Box>
+          )}
         </AccordionDetails>
       </Accordion>
 
@@ -1619,24 +2012,79 @@ export default function PropertyExtractionPanel({
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ mb: 2 }}>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
-            </Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={useCustomSystemPrompt}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setUseCustomSystemPrompt(checked);
+                    localStorage.setItem('stringsight.useCustomSystemPrompt', String(checked));
+
+                    // When enabling custom prompt for the first time, initialize with current resolved prompt
+                    if (checked && !customSystemPrompt) {
+                      setCustomSystemPrompt(resolvedPrompt);
+                      localStorage.setItem('stringsight.customSystemPrompt', resolvedPrompt);
+                    }
+                  }}
+                />
+              }
+              label={
+                <Typography variant="body2">
+                  Use custom system prompt (editable)
+                </Typography>
+              }
+            />
           </Box>
-          <Box sx={{
-            p: 3,
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 1,
-            backgroundColor: '#FFFFFF',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
-            fontSize: 14,
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.8,
-            minHeight: '100%',
-          }}>
-            {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
-          </Box>
+
+          {useCustomSystemPrompt ? (
+            <TextField
+              value={customSystemPrompt}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomSystemPrompt(val);
+                localStorage.setItem('stringsight.customSystemPrompt', val);
+              }}
+              multiline
+              fullWidth
+              variant="outlined"
+              autoFocus
+              sx={{
+                '& .MuiInputBase-root': {
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  fontSize: 14,
+                  lineHeight: 1.8,
+                  minHeight: '70vh',
+                  alignItems: 'flex-start',
+                },
+                '& .MuiInputBase-input': {
+                  minHeight: '70vh !important',
+                },
+              }}
+            />
+          ) : (
+            <Box>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Resolved system prompt {canTaskDescribe ? '(task description highlighted in blue)' : ''}
+                </Typography>
+              </Box>
+              <Box sx={{
+                p: 3,
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 1,
+                backgroundColor: '#FFFFFF',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: 14,
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.8,
+                minHeight: '100%',
+              }}>
+                {resolvedPrompt ? highlightedResolvedPrompt : 'Loading prompt…'}
+              </Box>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPromptFullscreen(false)}>Close</Button>

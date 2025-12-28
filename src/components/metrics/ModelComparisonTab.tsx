@@ -12,6 +12,7 @@ import {
   Chip,
   Slider
 } from '@mui/material';
+import { getModelDisplayName } from '../../lib/normalize';
 import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
 import { ClusterLabel } from '../ClusterLabel';
 
@@ -120,7 +121,7 @@ export function ModelComparisonTab({
     return { cards, allModels };
   }, [data, filters, minDelta]);
 
-  const shortModelName = (model: string) => model.split('/').pop() || model;
+  const shortModelName = (model: string) => getModelDisplayName(model);
 
   if (!data.length) {
     return (

@@ -8,6 +8,7 @@
 import React, { useMemo } from 'react';
 import { Box, Typography, Alert } from '@mui/material';
 import { PlotlyChartBase, getModelColor, truncateLabel, createHoverTemplate } from './PlotlyChartBase';
+import { getModelDisplayName } from '../../../lib/normalize';
 import type { ModelClusterRow, MetricsFilters } from '../../../types/metrics';
 
 interface FrequencyChartProps {
@@ -83,7 +84,7 @@ export function FrequencyChart({
 
       const trace: any = {
         type: 'bar',
-        name: model.split('/').pop() || model, // Short model name for legend
+        name: getModelDisplayName(model),
         x: clusterLabels,
         y: proportions,
         marker: {

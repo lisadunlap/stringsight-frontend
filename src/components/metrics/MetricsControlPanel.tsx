@@ -30,12 +30,13 @@ import {
   Tooltip,
   IconButton
 } from '@mui/material';
+import { getModelDisplayName } from '../../lib/normalize';
 import InfoIcon from '@mui/icons-material/Info';
 import TuneIcon from '@mui/icons-material/Tune';
-import type { 
-  MetricsFilters, 
-  MetricsSortOption, 
-  MetricsSummary 
+import type {
+  MetricsFilters,
+  MetricsSortOption,
+  MetricsSummary
 } from '../../types/metrics';
 import { getDisplayName } from './utils/metricUtils';
 
@@ -126,7 +127,7 @@ export function MetricsControlPanel({
                 <Chip
                   {...props}
                   key={option}
-                  label={option.split('/').pop() || option} // Show just model name
+                  label={getModelDisplayName(option)}
                   size="small"
                   variant="outlined"
                 />

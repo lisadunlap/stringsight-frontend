@@ -13,6 +13,7 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
+import { getModelDisplayName } from '../../lib/normalize';
 import ArrowRightAltIcon from '@mui/icons-material/ArrowRightAlt';
 import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
 import { ClusterLabel } from '../ClusterLabel';
@@ -124,7 +125,7 @@ export function TopClustersSummary({ data, filters, onNavigateToCluster }: TopCl
         {grouped.map(({ model, rows }) => (
           <Paper key={model} elevation={1} sx={{ p: 2 }}>
             <Typography variant="subtitle1" sx={{ mb: 1 }} title={model}>
-              {(model.split('/').pop() || model)}
+              {getModelDisplayName(model)}
             </Typography>
             <List dense disablePadding>
               {rows.map((row) => {
