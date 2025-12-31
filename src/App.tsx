@@ -27,7 +27,6 @@ import SideBySideTrace from "./components/SideBySideTrace";
 import FormattedCell from "./components/FormattedCell";
 import FilterSummary from "./components/FilterSummary";
 import PropertyTraceHeader from "./components/PropertyTraceHeader";
-// import BenchmarkChart from "./components/BenchmarkChart";
 import DataTabBenchmarkTable from "./components/metrics/DataTabBenchmarkTable";
 
 import PropertiesTab from "./components/PropertiesTab";

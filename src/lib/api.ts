@@ -58,38 +58,6 @@ export async function detectAndValidate(file: File): Promise<DetectResponse> {
 }
 
 /**
- * Read a file from the server (for server-side file browsing)
- */
-export async function readPath(path: string): Promise<{ data: any[]; method: Method }> {
-  const res = await fetch(`${API_BASE}/read-path`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path })
-  });
-  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
-  return res.json();
-}
-
-/**
- * List directory contents on the server
- */
-export async function listPath(path: string): Promise<{
-  files: string[];
-  dirs: string[];
-  parent: string | null;
-  current: string;
-  error?: string;
-}> {
-  const res = await fetch(`${API_BASE}/list-path`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path })
-  });
-  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
-  return res.json();
-}
-
-/**
  * Load pre-computed results from a server directory
  */
 export async function resultsLoad(resultsDir: string): Promise<{
