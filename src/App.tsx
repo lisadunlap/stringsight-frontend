@@ -4611,24 +4611,50 @@ function App() {
         ModalProps={{ keepMounted: true }}
       >
         <>
+          {/* Always show header with close and download buttons */}
+          <Box sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            backgroundColor: '#FFFFFF',
+            pb: 1,
+            pt: 1,
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+            mb: 2
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton onClick={() => {
+                setDrawerOpen(false);
+                setSelectedTrace(null);
+                setSelectedRow(null);
+                setSelectedEvidence(null);
+                setEvidenceTargetModel(undefined);
+                setSelectedProperty(null);
+              }} size="small">
+                <ArrowBackIcon />
+              </IconButton>
+              <Typography variant="body2">Close</Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<DownloadIcon />}
+                onClick={handleDrawerPrint}
+                sx={{ textTransform: 'none', ml: 'auto' }}
+              >
+                Download PDF
+              </Button>
+            </Box>
+          </Box>
+
           <Box ref={traceContentRef}>
-            {(selectedTrace?.type === "single" || selectedTrace?.type === "sbs") && selectedProperty && (
-              // Property information header when viewing from properties table
+            {selectedProperty && (
+              // Property information when viewing from properties table
               <PropertyTraceHeader
                 selectedRow={selectedRow}
                 selectedProperty={selectedProperty}
                 method={method}
                 evidenceTargetModel={evidenceTargetModel}
-                onBack={() => {
-                  setDrawerOpen(false);
-                  setSelectedTrace(null);
-                  setSelectedRow(null);
-                  setSelectedEvidence(null);
-                  setEvidenceTargetModel(undefined);
-                  setSelectedProperty(null);
-                }}
-                onDownloadPDF={handleDrawerPrint}
-                backLabel="Close"
+                disableNegativeMargin={true}
               />
             )}
             {selectedTrace?.type === "single" && (() => {

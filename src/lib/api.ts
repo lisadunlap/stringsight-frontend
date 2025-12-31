@@ -435,6 +435,19 @@ export async function getClusterJobResult(jobId: string) {
 // ----------------------------
 
 /**
+ * Get the system prompt for fixed-taxonomy labeling
+ */
+export async function getLabelPrompt(taxonomy: Record<string, string>): Promise<{ text: string }> {
+  const res = await fetch(`${API_BASE}/label/prompt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ taxonomy }),
+  });
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
+  return res.json() as Promise<{ text: string }>;
+}
+
+/**
  * Run fixed-taxonomy labeling pipeline (label() function from backend)
  * Only supports single_model method. Each taxonomy label becomes a cluster via DummyClusterer.
  */

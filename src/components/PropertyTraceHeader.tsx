@@ -101,45 +101,10 @@ export default function PropertyTraceHeader({
 
   return (
     <>
-      {/* Sticky header and description - separate from scrollable content */}
+      {/* Property Description and metadata */}
       <Box sx={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-        backgroundColor: '#FFFFFF',
-        pb: 1,
-        pt: 1,
-        mx: disableNegativeMargin ? 0 : -2, // Extend to container edges (negative margin to offset container padding)
-        px: 2, // Restore padding for content
-        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
         mb: 2
       }}>
-        {/* Back button and Download PDF button */}
-        {(onBack || onDownloadPDF) && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            {onBack && (
-              <>
-                <IconButton onClick={onBack} size="small">
-                  <ArrowBackIcon />
-                </IconButton>
-                <Typography variant="body2">{backLabel}</Typography>
-              </>
-            )}
-            {onDownloadPDF && (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<DownloadIcon />}
-                onClick={onDownloadPDF}
-                sx={{ textTransform: 'none', ml: 'auto' }}
-              >
-                Download PDF
-              </Button>
-            )}
-          </Box>
-        )}
-
-
         {/* Property Description */}
         {selectedProperty?.property_description && (
           <Box sx={{
@@ -174,10 +139,6 @@ export default function PropertyTraceHeader({
             </Typography>
           </Box>
         )}
-      </Box>
-
-      {/* Rest of property information - scrollable */}
-      <Box sx={{ mb: 2, px: disableNegativeMargin ? 2 : 0 }}>
 
         {/* Model Field - Show which model this property applies to (side-by-side only) */}
         {shouldShowModelField && (

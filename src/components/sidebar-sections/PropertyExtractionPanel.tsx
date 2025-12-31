@@ -28,7 +28,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, startClusterJob, getClusterJobStatus, getClusterJobResult, runLabel } from '../../lib/api';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, startClusterJob, getClusterJobStatus, getClusterJobResult, runLabel, getLabelPrompt } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
@@ -402,6 +402,7 @@ export default function PropertyExtractionPanel({
   const [taxonomy, setTaxonomy] = React.useState<Record<string, string>>({});
   const [taxonomyJsonInput, setTaxonomyJsonInput] = React.useState<string>('');
   const [taxonomyError, setTaxonomyError] = React.useState<string | null>(null);
+  const [resolvedLabelPrompt, setResolvedLabelPrompt] = React.useState<string>('');
 
   // Controls whether the main control panel is expanded or collapsed.
   // Initially expanded; will auto-collapse after "Run on all traces".
@@ -499,6 +500,28 @@ export default function PropertyExtractionPanel({
     })();
     return () => { mounted = false; };
   }, [selectedPrompt, canTaskDescribe, taskDescription, method, useCustomSystemPrompt, customSystemPrompt]);
+
+  // Fetch label prompt when taxonomy changes
+  React.useEffect(() => {
+    if (Object.keys(taxonomy).length === 0) {
+      setResolvedLabelPrompt('');
+      return;
+    }
+
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await getLabelPrompt(taxonomy);
+        if (mounted) setResolvedLabelPrompt(res.text);
+      } catch (e: any) {
+        if (mounted) {
+          setResolvedLabelPrompt('');
+          console.error('Failed to fetch label prompt:', e);
+        }
+      }
+    })();
+    return () => { mounted = false; };
+  }, [taxonomy]);
 
   // Highlight task description inside resolved prompt (visual only)
   const highlightedResolvedPrompt = React.useMemo(() => {
@@ -1537,7 +1560,7 @@ export default function PropertyExtractionPanel({
                         multiline
                         rows={6}
                         fullWidth
-                        placeholder={'{\n  "refusal": "Does the model refuse the request?",\n  "reward_hacking": "Does the agent show reward hacking?"\n}'}
+                        placeholder={'{\n  "tricked by the user": "The model behaved unsafely or preformed a restricted action due to manipulation by the user",\n  "refusal": "The model refused to follow the users request due to policy constraints",\n  "tool calling": "The model called tools such as API calls"\n}'}
                         value={taxonomyJsonInput}
                         onChange={(e) => setTaxonomyJsonInput(e.target.value)}
                         error={!!taxonomyError}
@@ -1591,11 +1614,84 @@ export default function PropertyExtractionPanel({
                       </Box>
                     )}
 
+                    {/* Advanced Settings for Label Mode */}
+                    <Box sx={{ mt: 2 }}>
+                      <Accordion>
+                        <AccordionSummary
+                          expandIcon={<ExpandMoreIcon />}
+                          sx={{ minHeight: 'auto', py: 0.25, '& .MuiAccordionSummary-content': { margin: '4px 0' } }}
+                        >
+                          <Typography variant="subtitle2">Advanced settings</Typography>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          <Stack spacing={2}>
+                            <TextField
+                              size="small"
+                              label="Property Annotator"
+                              value={isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName}
+                              onChange={(e) => setModelName(e.target.value)}
+                              disabled={isDemoMode}
+                              helperText={isDemoMode ? 'Fixed in demo mode' : undefined}
+                            />
+                            <TextField
+                              size="small"
+                              label="Sample size"
+                              type="number"
+                              value={sampleSize || ''}
+                              onChange={(e) => setSampleSize(e.target.value ? Number(e.target.value) : null)}
+                              placeholder="Leave empty for all prompts"
+                              helperText={sampleSize ? `Will sample ${sampleSize} prompts total` : 'Process all prompts'}
+                            />
+                            <Accordion>
+                              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                <Typography variant="subtitle2">System prompt for labeling</Typography>
+                              </AccordionSummary>
+                              <AccordionDetails>
+                                <Box sx={{
+                                  p: 2,
+                                  border: '1px dashed',
+                                  borderColor: 'divider',
+                                  borderRadius: 1,
+                                  backgroundColor: 'background.default'
+                                }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block' }}>
+                                    {Object.keys(taxonomy).length > 0
+                                      ? 'System prompt that will be used for labeling'
+                                      : 'Define a taxonomy above to see the system prompt'}
+                                  </Typography>
+                                  <Box sx={{
+                                    p: 1.5,
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    borderRadius: 1,
+                                    backgroundColor: '#FFFFFF',
+                                    maxHeight: 280,
+                                    overflow: 'auto',
+                                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                                    fontSize: 12,
+                                    whiteSpace: 'pre-wrap',
+                                    lineHeight: 1.6,
+                                  }}>
+                                    {Object.keys(taxonomy).length > 0 ? (
+                                      resolvedLabelPrompt || 'Loading prompt...'
+                                    ) : (
+                                      'Define and validate a taxonomy above to see the system prompt.'
+                                    )}
+                                  </Box>
+                                </Box>
+                              </AccordionDetails>
+                            </Accordion>
+                          </Stack>
+                        </AccordionDetails>
+                      </Accordion>
+                    </Box>
+
                     <Button
                       variant="contained"
                       onClick={handleRunLabel}
                       disabled={busy || clusteringBusy || Object.keys(taxonomy).length === 0 || method !== 'single_model'}
                       fullWidth
+                      sx={{ mt: 2 }}
                     >
                       Run Fixed Taxonomy Labeling ({sampleSize || getAllRows().length} traces)
                     </Button>
