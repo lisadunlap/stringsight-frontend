@@ -1529,12 +1529,7 @@ export default function PropertyExtractionPanel({
           {/* Fixed Taxonomy Labeling Section */}
           {labelMode === 'label' && (
             <Box sx={{ mb: 3 }}>
-              <Accordion defaultExpanded>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="subtitle2">Taxonomy Definition</Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Stack spacing={2}>
+              <Stack spacing={2}>
                     {method !== 'single_model' && (
                       <Box sx={{ p: 2, bgcolor: '#FEF3C7', borderRadius: 1, border: '1px solid #F59E0B' }}>
                         <Typography variant="body2" sx={{ color: '#92400E', fontWeight: 500 }}>
@@ -1696,8 +1691,6 @@ export default function PropertyExtractionPanel({
                       Run Fixed Taxonomy Labeling ({sampleSize || getAllRows().length} traces)
                     </Button>
                   </Stack>
-                </AccordionDetails>
-              </Accordion>
             </Box>
           )}
 
