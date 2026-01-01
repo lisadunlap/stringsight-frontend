@@ -212,9 +212,16 @@ export function MetricsInsightsOverview({
           ? (modelFrequencies.reduce((s, mf) => s + (mf.proportion || 0), 0) / modelFrequencies.length)
           : undefined;
 
+        // Calculate unique conversation count from proportion_overall * total conversations
+        // This ensures we count each conversation once, not once per model (important for side-by-side)
+        const totalUniqueConversations = summary?.totalConversations;
+        const uniqueConversationCount = (proportionOverall !== undefined && totalUniqueConversations)
+          ? Math.round(proportionOverall * totalUniqueConversations)
+          : rows.reduce((sum, r) => sum + (r.size || 0), 0); // Fallback to sum of sizes if proportion unavailable
+
         return {
           cluster,
-          totalSize: rows.reduce((sum, r) => sum + (r.size || 0), 0),
+          totalSize: uniqueConversationCount,
           modelFrequencies,
           category,
           proportionOverall,
@@ -691,7 +698,7 @@ export function MetricsInsightsOverview({
                     position: 'relative'
                   }}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2 }}>
                     {/* Left side: Model bars with names */}
                     <Stack spacing={0.125} sx={{ minWidth: 220 }}>
                       {failure.modelFrequencies.map(mf => {
@@ -750,7 +757,7 @@ export function MetricsInsightsOverview({
                     </Stack>
 
                     {/* Middle: Cluster name (Markdown-supported) */}
-                    <Box sx={{ flex: 1, minWidth: 0, pr: 10 }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
                       <ClusterLabel
                         text={failure.cluster}
                         typographyProps={{
@@ -763,7 +770,7 @@ export function MetricsInsightsOverview({
                           }
                         }}
                       />
-                      <Stack spacing={0.25} sx={{ color: '#6B7280', fontSize: 13 }}>
+                      <Stack spacing={0.25}>
                         <Typography variant="body2" sx={{ color: '#6B7280', fontSize: 13 }}>
                           {(() => {
                             const percent = typeof failure.proportionOverall === 'number'
@@ -782,11 +789,11 @@ export function MetricsInsightsOverview({
                     </Box>
                   </Box>
 
-                  {/* Severity chip at absolute bottom right - aligned with arrow */}
+                  {/* Severity chip at absolute bottom left */}
                   <Box sx={{
                     position: 'absolute',
                     bottom: 8,
-                    right: 12
+                    left: 12
                   }}>
                     <Chip
                       label={failure.category === 'negative_critical' ? 'Critical' : 'Non-critical'}

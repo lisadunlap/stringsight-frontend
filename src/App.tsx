@@ -4646,16 +4646,18 @@ function App() {
           </Box>
 
           <Box ref={traceContentRef}>
-            {selectedProperty && (
-              // Property information when viewing from properties table
-              <PropertyTraceHeader
-                selectedRow={selectedRow}
-                selectedProperty={selectedProperty}
-                method={method}
-                evidenceTargetModel={evidenceTargetModel}
-                disableNegativeMargin={true}
-              />
-            )}
+            <Box sx={{ px: 2 }}>
+              {selectedProperty && (
+                // Property information when viewing from properties table
+                <PropertyTraceHeader
+                  selectedRow={selectedRow}
+                  selectedProperty={selectedProperty}
+                  method={method}
+                  evidenceTargetModel={evidenceTargetModel}
+                  disableNegativeMargin={true}
+                />
+              )}
+            </Box>
             {selectedTrace?.type === "single" && (() => {
               console.log('[App] Rendering ConversationTrace with highlights:', selectedEvidence);
               return (

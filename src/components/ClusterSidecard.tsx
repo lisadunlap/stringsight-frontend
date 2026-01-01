@@ -417,13 +417,15 @@ export default function ClusterSidecard({
           {/* Content */}
           <Box sx={{ flex: 1, overflow: 'auto', p: 0 }}>
             <Box ref={propertyTracePrintRef}>
-              <PropertyTraceHeader
-                selectedRow={row}
-                selectedProperty={prop}
-                method={method}
-                evidenceTargetModel={(prop as any).model}
-                disableNegativeMargin={true}
-              />
+              <Box sx={{ px: 2, pt: 2 }}>
+                <PropertyTraceHeader
+                  selectedRow={row}
+                  selectedProperty={prop}
+                  method={method}
+                  evidenceTargetModel={(prop as any).model}
+                  disableNegativeMargin={true}
+                />
+              </Box>
               <Box sx={{ p: 2 }}>
 
                 {isSideBySide && messagesA.length > 0 && messagesB.length > 0 ? (

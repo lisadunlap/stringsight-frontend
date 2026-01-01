@@ -570,7 +570,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
               position: 'relative'
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2 }}>
               {/* Left side: Model bars with names */}
               <Stack spacing={0.25} sx={{ minWidth: 220 }}>
                 {modelBars.map(bar => {
@@ -628,7 +628,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
               </Stack>
 
               {/* Middle: Cluster description */}
-              <Box sx={{ flex: 1, minWidth: 0, pr: group ? 10 : 0 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <ClusterLabel
                   text={String(c.label || '')}
                   typographyProps={{
@@ -676,13 +676,13 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
               </Box>
             </Box>
 
-            {/* Category chip at absolute bottom right - aligned with arrow */}
+            {/* Category chip at absolute bottom left */}
             {group && (
               <Box 
                 sx={{
                   position: 'absolute',
                   bottom: 8,
-                  right: 12
+                  left: 12
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
