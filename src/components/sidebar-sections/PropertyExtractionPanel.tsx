@@ -1505,7 +1505,7 @@ export default function PropertyExtractionPanel({
               <Button
                 variant={labelMode === 'label' ? 'contained' : 'outlined'}
                 onClick={() => setLabelMode('label')}
-                disabled={busy || clusteringBusy}
+                disabled={busy || clusteringBusy || method !== 'single_model'}
                 fullWidth
                 size="small"
                 sx={{
