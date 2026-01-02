@@ -698,7 +698,7 @@ export function MetricsInsightsOverview({
                     position: 'relative'
                   }}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                     {/* Left side: Model bars with names */}
                     <Stack spacing={0.125} sx={{ minWidth: 220 }}>
                       {failure.modelFrequencies.map(mf => {
@@ -789,11 +789,11 @@ export function MetricsInsightsOverview({
                     </Box>
                   </Box>
 
-                  {/* Severity chip at absolute bottom left */}
+                  {/* Severity chip at absolute bottom right */}
                   <Box sx={{
                     position: 'absolute',
                     bottom: 8,
-                    left: 12
+                    right: 12
                   }}>
                     <Chip
                       label={failure.category === 'negative_critical' ? 'Critical' : 'Non-critical'}
