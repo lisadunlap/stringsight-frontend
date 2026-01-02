@@ -1,0 +1,145 @@
+Dataset URL Loader Feature - File Structure
+============================================
+
+src/features/dataset-url-loader/
+│
+├── 📄 index.ts                  (165 lines)
+│   └── Public API - All exports for consumers
+│       • Hooks: useDatasetFromUrl, useDatasetLoader
+│       • Functions: loadDataset, listDatasets, etc.
+│       • Types: DatasetConfig, LoadedDataset
+│
+├── 📘 types.ts                  (33 lines)
+│   └── TypeScript interfaces
+│       • DatasetConfig - YAML dataset definition
+│       • DatasetsYaml - Root config structure
+│       • LoadedDataset - Parsed dataset result
+│
+├── ⚛️  useDatasetFromUrl.ts     (124 lines)
+│   └── React hooks
+│       • useDatasetFromUrl() - Auto-load from URL path
+│       • useDatasetLoader() - Manual loading
+│
+├── 📦 datasetLoader.ts          (249 lines)
+│   └── Core loading logic
+│       • loadDataset() - Main entry point
+│       • fetchDatasetsConfig() - Load YAML
+│       • getDatasetConfig() - Get single dataset
+│       • listDatasets() - List all available
+│       • getDatasetNameFromUrl() - Extract from URL
+│
+├── 🗜️  zipLoader.ts              (154 lines)
+│   └── ZIP extraction utilities
+│       • loadDatasetFromZip() - Download & extract
+│       • loadAndExtractZip() - JSZip wrapper
+│       • parseJsonl() - Parse JSONL format
+│       • isZipUrl() - URL detection helper
+│
+├── 📦 package.json              (23 lines)
+│   └── Dependencies manifest
+│       • Dependencies: js-yaml, jszip
+│       • Peer deps: react
+│
+├── 📖 README.md                 (228 lines)
+│   └── Complete feature documentation
+│       • Architecture & usage
+│       • API reference
+│       • Configuration guide
+│       • Troubleshooting
+│
+├── 🚀 MIGRATION.md              (220 lines)
+│   └── Extraction guide
+│       • Step-by-step migration
+│       • Backend requirements
+│       • npm publish workflow
+│
+└── 📊 STRUCTURE.txt             (This file)
+    └── Visual overview
+
+Total: 8 files, ~1,196 lines of code
+
+Dependencies
+============
+
+External:
+  • js-yaml ^4.1.0 - YAML parsing
+  • jszip ^3.10.1 - ZIP extraction
+  • react ^18.0.0 - Hooks (peer)
+
+Internal (none!):
+  ✅ Fully self-contained
+  ✅ No imports from parent app
+  ✅ No StringSight-specific code
+
+Data Flow
+=========
+
+User visits URL
+    ↓
+useDatasetFromUrl hook
+    ↓
+getDatasetNameFromUrl() extracts "telecom"
+    ↓
+fetchDatasetsConfig() loads public/datasets.yaml
+    ↓
+loadDataset("telecom")
+    ↓
+constructFileUrl() → /api/results/zip/telecom_2026-01-02.zip
+    ↓
+loadDatasetFromZip()
+    ↓
+JSZip extracts conversations.jsonl, properties.jsonl, etc.
+    ↓
+Returns LoadedDataset { conversations, properties, clusters, metrics }
+    ↓
+App renders data
+
+Backend Integration
+===================
+
+Required endpoint:
+  GET /results/zip/{filename}
+
+Expected response:
+  Content-Type: application/zip
+  Status: 200 OK
+  Body: ZIP file containing JSONL data
+
+Frontend proxy (Vite):
+  /api/* → http://localhost:8000
+
+ZIP Contents
+============
+
+conversations.jsonl         [Required] Main data
+properties.jsonl            [Optional] Extracted properties  
+clusters.jsonl              [Optional] Cluster assignments
+model_cluster_scores_df.jsonl [Optional] Model-cluster metrics
+cluster_scores_df.jsonl     [Optional] Cluster metrics
+model_scores_df.jsonl       [Optional] Model metrics
+
+Export Checklist
+================
+
+When extracting to separate repo:
+
+[ ] Copy entire dataset-url-loader/ folder
+[ ] Update package.json name and version
+[ ] Add TypeScript config (tsconfig.json)
+[ ] Add tests (__tests__/)
+[ ] Update README with repo URL
+[ ] Remove path aliases (already using relative imports ✓)
+[ ] Add .gitignore, LICENSE
+[ ] npm publish
+[ ] Install in StringSight: npm install @stringsight/dataset-url-loader
+[ ] Update imports in App.tsx
+[ ] Delete old src/hooks/, src/lib/ files
+[ ] Test thoroughly
+
+Rollback Plan
+=============
+
+If issues arise:
+1. npm uninstall @stringsight/dataset-url-loader
+2. Change App.tsx import back to "./features/dataset-url-loader"
+3. Module still works from local folder

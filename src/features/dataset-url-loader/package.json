@@ -1,0 +1,29 @@
+{
+  "name": "@stringsight/dataset-url-loader",
+  "version": "1.0.0",
+  "description": "Isolated feature module for loading datasets from URLs with shareable links",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "files": [
+    "*.ts",
+    "README.md"
+  ],
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "jszip": "^3.10.1"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "keywords": [
+    "dataset",
+    "loader",
+    "url",
+    "zip",
+    "react",
+    "hook"
+  ],
+  "author": "StringSight",
+  "license": "MIT"
+}

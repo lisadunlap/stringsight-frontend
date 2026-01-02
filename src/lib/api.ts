@@ -1,3 +1,4 @@
+
 export type Method = "single_model" | "side_by_side" | null;
 
 export interface DetectResponse {

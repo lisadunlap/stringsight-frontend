@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef, Component } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect, Component } from "react";
 import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton, Tooltip, Alert, FormControl, InputLabel, Select, MenuItem, Switch, Menu } from "@mui/material";
 import DownloadIcon from '@mui/icons-material/Download';
 import CloseIcon from '@mui/icons-material/Close';
@@ -52,6 +52,9 @@ import { EXTERNAL_LINKS } from "./config";
 import { retroColors } from "./theme";
 import DemoModeSelector from "./components/DemoModeSelector";
 import DemoGuidancePopup from "./components/DemoGuidancePopup";
+import { useDatasetFromUrl } from "./features/dataset-url-loader";
+import { DatasetBrowser } from "./components/DatasetBrowser";
+import { CircularProgress } from "@mui/material";
 
 
 
@@ -612,6 +615,9 @@ function ExampleFormatTabs() {
 
 function App() {
 
+  // URL-based dataset loading
+  const { dataset: urlDataset, isLoading: urlLoading, error: urlError, datasetName, availableDatasets } = useDatasetFromUrl();
+
   // Data management layers as suggested
   const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]); // Raw uploaded data
   const [uploadedFileName, setUploadedFileName] = useState<string>(''); // Original file name without extension
@@ -1010,6 +1016,67 @@ function App() {
   }
 
   const tutorial = useTutorial();
+
+  // Load dataset from URL if present
+  React.useEffect(() => {
+    if (urlDataset) {
+      console.log('🎯 Loading dataset from URL:', urlDataset.name);
+      console.log('   Conversations:', urlDataset.conversations?.length || 0);
+      console.log('   Properties:', urlDataset.properties?.length || 0);
+      console.log('   Clusters:', urlDataset.clusters?.length || 0);
+
+      // Reset UI for new data source
+      resetUiStateForNewSource('results');
+
+      // Set the data directly (must happen synchronously after reset)
+      setOriginalRows(urlDataset.conversations);
+      setOperationalRows(urlDataset.conversations);
+      setCurrentRows(urlDataset.conversations);
+      setPropertiesRows(urlDataset.properties);
+      setClusters(urlDataset.clusters);
+      setMethod(urlDataset.config.method);
+      setUploadedFileName(urlDataset.name);
+      setResultsName(urlDataset.name);
+      setIsResultsMode(true);
+
+      // Set metrics if available
+      if (urlDataset.metrics.model_cluster_scores || urlDataset.metrics.cluster_scores || urlDataset.metrics.model_scores) {
+        setResultsMetrics({
+          model_cluster_scores: urlDataset.metrics.model_cluster_scores,
+          cluster_scores: urlDataset.metrics.cluster_scores,
+          model_scores: urlDataset.metrics.model_scores
+        });
+      }
+
+      // Set totals
+      if (urlDataset.total_conversations_by_model) {
+        setTotalConversationsByModel(urlDataset.total_conversations_by_model);
+      }
+      if (urlDataset.total_unique_conversations) {
+        setTotalUniqueConversations(urlDataset.total_unique_conversations);
+      }
+
+      setIsLoadingResults(false);
+      setShowColumnSelector(false); // Results don't need column mapping
+
+      console.log('✅ URL dataset loaded into app state');
+      console.log('   Final currentRows:', urlDataset.conversations?.length || 0);
+    }
+  }, [urlDataset]);
+
+  // DEBUG: Log state changes to diagnose blank UI
+  useEffect(() => {
+    if (currentRows.length > 0 || propertiesRows.length > 0 || clusters.length > 0) {
+      console.log('=== DEBUG: UI State ===');
+      console.log('currentRows.length:', currentRows.length);
+      console.log('propertiesRows.length:', propertiesRows.length);
+      console.log('clusters.length:', clusters.length);
+      console.log('method:', method);
+      console.log('isResultsMode:', isResultsMode);
+      console.log('Sample row:', currentRows[0]);
+      console.log('=======================');
+    }
+  }, [currentRows, propertiesRows, clusters, method, isResultsMode]);
 
   // Handler for dismissing demo guidance popups
   const handleDismissDemoPopup = React.useCallback((section: string) => {
@@ -3823,6 +3890,59 @@ function App() {
     }
   };
 
+  // Handle URL-based loading states
+  if (urlLoading) {
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        minHeight: '100vh',
+        gap: 2,
+        background: '#F9FAFB'
+      }}>
+        <CircularProgress size={60} />
+        <Typography variant="h6" color="text.secondary">
+          Loading dataset: {datasetName}
+        </Typography>
+      </Box>
+    );
+  }
+
+  if (urlError) {
+    return (
+      <Box sx={{ p: 4, maxWidth: 800, mx: 'auto', mt: 8 }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>Failed to load dataset</Typography>
+          <Typography variant="body2">{urlError.message}</Typography>
+        </Alert>
+        
+        {availableDatasets.length > 0 && (
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>Available Datasets:</Typography>
+            <DatasetBrowser 
+              datasets={availableDatasets} 
+              onSelectDataset={(name) => window.location.pathname = `/${name}`}
+            />
+          </Box>
+        )}
+        
+        <Box sx={{ mt: 3 }}>
+          <Button 
+            variant="outlined" 
+            onClick={() => window.location.pathname = '/'}
+          >
+            Go to Home
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Don't show dataset browser at home - let normal app render
+  // Dataset browser can be added as a separate feature later if needed
+  
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {resultsError && (
