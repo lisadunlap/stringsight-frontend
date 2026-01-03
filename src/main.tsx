@@ -6,6 +6,11 @@ import { ThemeProvider, CssBaseline } from '@mui/material'
 import { theme } from './theme'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+// DIAGNOSTIC: This should appear immediately when page loads
+console.log('🚀 StringSight React app initializing...');
+console.log('   URL:', window.location.href);
+console.log('   Timestamp:', new Date().toISOString());
+
 // Create a client for React Query
 const queryClient = new QueryClient({
   defaultOptions: {

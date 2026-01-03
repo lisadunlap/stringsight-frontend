@@ -1018,6 +1018,7 @@ function App() {
   const tutorial = useTutorial();
 
   // Load dataset from URL if present
+  // This follows the EXACT SAME process as "Load Results" (lines 1362-1451)
   React.useEffect(() => {
     if (urlDataset) {
       console.log('🎯 Loading dataset from URL:', urlDataset.name);
@@ -1031,27 +1032,105 @@ function App() {
       // PERFORMANCE: Wrap state updates in startTransition to make them non-blocking
       // This allows the UI to remain responsive while React processes the large dataset
       startTransition(() => {
-        // Set the data directly (must happen synchronously after reset)
-        setOriginalRows(urlDataset.conversations);
-        setOperationalRows(urlDataset.conversations);
-        setCurrentRows(urlDataset.conversations);
-        setPropertiesRows(urlDataset.properties);
-        setClusters(urlDataset.clusters);
-        setMethod(urlDataset.config.method);
+        const conversations = urlDataset.conversations;
+        const properties = urlDataset.properties;
+        const clusters = urlDataset.clusters;
+        const detectedMethod = urlDataset.config.method;
+
+        // Infer columns from data
+        const columns = inferColumns(conversations);
+        console.log('📋 Detected columns:', columns);
+        console.log('🎯 Method:', detectedMethod);
+
+        // Layer 1: originalRows - keep raw format for PropertiesTab enrichment
+        setOriginalRows(conversations);
+        setAvailableColumns(columns);
+
+        // Layer 2: operationalRows - map to backend format with score objects
+        // This matches the "Load Results" flow (lines 1378-1402)
+        const operational = conversations.map((conv, idx) => ({
+          __index: idx,
+          question_id: conv.question_id || String(idx),
+          prompt: conv.prompt,
+
+          // Single model fields
+          ...(conv.model && {
+            model: conv.model,
+            model_response: conv.model_response,
+            score: conv.score  // Already an object in conversation.jsonl
+          }),
+
+          // Side-by-side fields
+          ...(conv.model_a && {
+            model_a: conv.model_a,
+            model_b: conv.model_b,
+            model_a_response: conv.model_a_response,
+            model_b_response: conv.model_b_response,
+            score_a: conv.score_a,  // Already an object
+            score_b: conv.score_b,  // Already an object
+            winner: (conv as any).winner
+          })
+        }));
+
+        console.log('🔧 DEBUG: Setting operationalRows:', {
+          count: operational.length,
+          sampleRow: operational[0],
+          method: detectedMethod,
+          hasScores: operational[0]?.score || operational[0]?.score_a || operational[0]?.score_b
+        });
+        setOperationalRows(operational);
+
+        // Layer 3: currentRows - flatten scores for DataTable display
+        // This matches the "Load Results" flow (lines 1413-1424)
+        const modelNames = detectedMethod === 'side_by_side' && operational.length > 0
+          ? { modelA: operational[0]?.model_a, modelB: operational[0]?.model_b }
+          : undefined;
+
+        const { rows: flattened, columns: flattenedColumns } = flattenScores(operational, detectedMethod, modelNames);
+        console.log('📊 DEBUG: After flattening:', {
+          outputRows: flattened.length,
+          sampleOutputRow: flattened[0],
+          columns: flattenedColumns,
+          scoreColumns: flattenedColumns.filter(c => c.startsWith('score_'))
+        });
+        setCurrentRows(flattened);
+
+        // Set properties (matches Load Results flow line 1434)
+        if (properties.length > 0) {
+          setPropertiesRows(properties);
+          console.log(`✅ Loaded ${properties.length} properties`);
+        }
+
+        // Set metrics (matches Load Results flow lines 1445-1451)
+        if (urlDataset.metrics && Object.keys(urlDataset.metrics).length > 0) {
+          const normalizedMetrics = normalizeMetricsColumnNames(urlDataset.metrics);
+          console.log('✅ Using pre-computed metrics:', Object.keys(normalizedMetrics));
+
+          // Enrich model_cluster_scores with cluster metadata if available
+          if (normalizedMetrics.model_cluster_scores && clusters.length > 0) {
+            normalizedMetrics.model_cluster_scores = enrichModelClusterScoresWithMetadata(
+              normalizedMetrics.model_cluster_scores,
+              clusters
+            );
+          }
+
+          setResultsMetrics(normalizedMetrics);
+        }
+
+        // Load clusters
+        if (clusters.length > 0) {
+          setClusters(clusters);
+          console.log(`✅ Loaded ${clusters.length} clusters`);
+        }
+
+        // Set metadata
+        setMethod(detectedMethod);
         setUploadedFileName(urlDataset.name);
         setResultsName(urlDataset.name);
         setIsResultsMode(true);
+        setShowColumnSelector(false); // Results don't need column mapping
 
-        // Set metrics if available
-        if (urlDataset.metrics.model_cluster_scores || urlDataset.metrics.cluster_scores || urlDataset.metrics.model_scores) {
-          setResultsMetrics({
-            model_cluster_scores: urlDataset.metrics.model_cluster_scores,
-            cluster_scores: urlDataset.metrics.cluster_scores,
-            model_scores: urlDataset.metrics.model_scores
-          });
-        }
-
-        // Set totals
+        // Set totals if available
         if (urlDataset.total_conversations_by_model) {
           setTotalConversationsByModel(urlDataset.total_conversations_by_model);
         }
@@ -1060,10 +1139,9 @@ function App() {
         }
 
         setIsLoadingResults(false);
-        setShowColumnSelector(false); // Results don't need column mapping
 
         console.log('✅ URL dataset loaded into app state');
-        console.log('   Final currentRows:', urlDataset.conversations?.length || 0);
+        console.log('   Final currentRows:', flattened.length);
       });
     }
   }, [urlDataset]);
