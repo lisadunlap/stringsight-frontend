@@ -3,14 +3,20 @@
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/results",
+      "dest": "/index.html"
     },
     {
-      "source": "/:dataset/(.*)",
-      "destination": "/index.html"
+      "src": "/:dataset",
+      "dest": "/index.html"
     },
     {
-      "source": "/:dataset",
-      "destination": "/index.html"
+      "src": "/:dataset/(.*)",
+      "dest": "/index.html"
     }
   ]
 }

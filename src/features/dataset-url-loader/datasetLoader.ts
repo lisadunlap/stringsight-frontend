@@ -137,11 +137,46 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
 
     try {
       // Load all data in parallel using dataset name
+      const endpoints = {
+        conversations: `/api/results/${datasetName}/conversations?limit=1000`,
+        properties: `/api/results/${datasetName}/properties`,
+        clusters: `/api/results/${datasetName}/clusters`,
+        metrics: `/api/results/${datasetName}/metrics`,
+      };
+
+      console.log(`📡 Fetching from endpoints:`, endpoints);
+
       const [conversationsRes, propertiesRes, clustersRes, metricsRes] = await Promise.all([
-        fetch(`/api/results/${datasetName}/conversations?limit=1000`).then(r => r.ok ? r.json() : null),
-        fetch(`/api/results/${datasetName}/properties`).then(r => r.ok ? r.json() : null),
-        fetch(`/api/results/${datasetName}/clusters`).then(r => r.ok ? r.json() : null),
-        fetch(`/api/results/${datasetName}/metrics`).then(r => r.ok ? r.json() : null),
+        fetch(endpoints.conversations).then(async r => {
+          if (!r.ok) {
+            console.error(`❌ Failed to fetch conversations: ${r.status} ${r.statusText}`);
+            console.error(`   URL: ${endpoints.conversations}`);
+            console.error(`   Response:`, await r.text().catch(() => 'Unable to read response'));
+            return null;
+          }
+          return r.json();
+        }),
+        fetch(endpoints.properties).then(async r => {
+          if (!r.ok) {
+            console.warn(`⚠️  Properties not found (optional): ${r.status} ${r.statusText}`);
+            return null;
+          }
+          return r.json();
+        }),
+        fetch(endpoints.clusters).then(async r => {
+          if (!r.ok) {
+            console.warn(`⚠️  Clusters not found (optional): ${r.status} ${r.statusText}`);
+            return null;
+          }
+          return r.json();
+        }),
+        fetch(endpoints.metrics).then(async r => {
+          if (!r.ok) {
+            console.warn(`⚠️  Metrics not found (optional): ${r.status} ${r.statusText}`);
+            return null;
+          }
+          return r.json();
+        }),
       ]);
 
       conversations = conversationsRes?.data || [];
@@ -154,12 +189,20 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
         modelScores = metricsRes.model_scores_df;
       }
 
-      console.log(`⏱️  Loaded via API in ${Math.round(performance.now() - t0)}ms`);
-      console.log(`   Conversations: ${conversations.length} (first 1000 of ${conversationsRes?.total || conversations.length})`);
-      console.log(`   Properties: ${properties.length}`);
-      console.log(`   Clusters: ${clusters.length}`);
+      if (conversations.length === 0) {
+        console.error(`❌ No conversations loaded! Backend may not have this dataset.`);
+        console.error(`   Dataset name: ${datasetName}`);
+        console.error(`   Expected backend endpoint: /api/results/${datasetName}/conversations`);
+      } else {
+        console.log(`⏱️  Loaded via API in ${Math.round(performance.now() - t0)}ms`);
+        console.log(`   Conversations: ${conversations.length} (first 1000 of ${conversationsRes?.total || conversations.length})`);
+        console.log(`   Properties: ${properties.length}`);
+        console.log(`   Clusters: ${clusters.length}`);
+      }
     } catch (error) {
       console.error('❌ Failed to load from API:', error);
+      console.error(`   Dataset name: ${datasetName}`);
+      console.error(`   Make sure backend is running and has this dataset in final_results/`);
     }
   }
 
@@ -168,15 +211,47 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
     console.log(`📁 Loading from folder path: ${datasetConfig.cdn_url}`);
 
     try {
-      // Extract folder name from path and use it as the endpoint
-      // e.g., "/api/results/zip/final_results/medication_qa_2026-01-02" -> use full path
       const folderPath = datasetConfig.cdn_url;
 
+      const endpoints = {
+        conversations: `${folderPath}/conversations.jsonl`,
+        properties: `${folderPath}/properties.jsonl`,
+        clusters: `${folderPath}/clusters.jsonl`,
+        metrics: `${folderPath}/model_cluster_scores_df.jsonl`,
+      };
+
+      console.log(`📡 Fetching from folder:`, endpoints);
+
       const [conversationsRes, propertiesRes, clustersRes, metricsRes] = await Promise.all([
-        fetch(`${folderPath}/conversations.jsonl`).then(r => r.ok ? r.text() : null),
-        fetch(`${folderPath}/properties.jsonl`).then(r => r.ok ? r.text() : null),
-        fetch(`${folderPath}/clusters.jsonl`).then(r => r.ok ? r.text() : null),
-        fetch(`${folderPath}/model_cluster_scores_df.jsonl`).then(r => r.ok ? r.text() : null),
+        fetch(endpoints.conversations).then(async r => {
+          if (!r.ok) {
+            console.error(`❌ Failed to fetch conversations.jsonl: ${r.status} ${r.statusText}`);
+            console.error(`   URL: ${endpoints.conversations}`);
+            return null;
+          }
+          return r.text();
+        }),
+        fetch(endpoints.properties).then(async r => {
+          if (!r.ok) {
+            console.warn(`⚠️  properties.jsonl not found (optional): ${r.status} ${r.statusText}`);
+            return null;
+          }
+          return r.text();
+        }),
+        fetch(endpoints.clusters).then(async r => {
+          if (!r.ok) {
+            console.warn(`⚠️  clusters.jsonl not found (optional): ${r.status} ${r.statusText}`);
+            return null;
+          }
+          return r.text();
+        }),
+        fetch(endpoints.metrics).then(async r => {
+          if (!r.ok) {
+            console.warn(`⚠️  model_cluster_scores_df.jsonl not found (optional): ${r.status} ${r.statusText}`);
+            return null;
+          }
+          return r.text();
+        }),
       ]);
 
       // Parse JSONL files
@@ -193,12 +268,20 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
         modelClusterScores = metricsRes.trim().split('\n').filter(l => l.trim()).map(line => JSON.parse(line));
       }
 
-      console.log(`⏱️  Loaded from folder in ${Math.round(performance.now() - t0)}ms`);
-      console.log(`   Conversations: ${conversations.length}`);
-      console.log(`   Properties: ${properties.length}`);
-      console.log(`   Clusters: ${clusters.length}`);
+      if (conversations.length === 0) {
+        console.error(`❌ No conversations loaded from folder! File may not exist.`);
+        console.error(`   Folder path: ${folderPath}`);
+        console.error(`   Expected file: ${endpoints.conversations}`);
+      } else {
+        console.log(`⏱️  Loaded from folder in ${Math.round(performance.now() - t0)}ms`);
+        console.log(`   Conversations: ${conversations.length}`);
+        console.log(`   Properties: ${properties.length}`);
+        console.log(`   Clusters: ${clusters.length}`);
+      }
     } catch (error) {
       console.error('❌ Failed to load from folder path:', error);
+      console.error(`   Folder path: ${datasetConfig.cdn_url}`);
+      console.error(`   Make sure backend serves JSONL files from this path`);
     }
   }
 
