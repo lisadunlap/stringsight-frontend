@@ -3917,20 +3917,20 @@ function App() {
           <Typography variant="h6" sx={{ mb: 1 }}>Failed to load dataset</Typography>
           <Typography variant="body2">{urlError.message}</Typography>
         </Alert>
-        
+
         {availableDatasets.length > 0 && (
           <Box sx={{ mt: 4 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>Available Datasets:</Typography>
-            <DatasetBrowser 
-              datasets={availableDatasets} 
+            <DatasetBrowser
+              datasets={availableDatasets}
               onSelectDataset={(name) => window.location.pathname = `/${name}`}
             />
           </Box>
         )}
-        
+
         <Box sx={{ mt: 3 }}>
-          <Button 
-            variant="outlined" 
+          <Button
+            variant="outlined"
             onClick={() => window.location.pathname = '/'}
           >
             Go to Home
@@ -3940,8 +3940,21 @@ function App() {
     );
   }
 
-  // Don't show dataset browser at home - let normal app render
-  // Dataset browser can be added as a separate feature later if needed
+  // Show dataset browser ONLY when visiting /results
+  const currentPath = window.location.pathname;
+  const showDatasetBrowser = (currentPath === '/results' || currentPath === '/results/') &&
+                             !urlLoading && availableDatasets.length > 0;
+
+  if (showDatasetBrowser) {
+    return (
+      <Box sx={{ minHeight: '100vh', background: '#F9FAFB' }}>
+        <DatasetBrowser
+          datasets={availableDatasets}
+          onSelectDataset={(name) => window.location.pathname = `/${name}`}
+        />
+      </Box>
+    );
+  }
   
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>

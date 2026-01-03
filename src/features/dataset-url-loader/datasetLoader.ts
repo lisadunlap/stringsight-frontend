@@ -110,19 +110,15 @@ async function loadDatasetFile(
 
 /**
  * Load complete dataset from backend based on configuration
- * Supports ZIP archives from /api/results/zip endpoint
+ * Supports both new paginated API and legacy ZIP files
  */
 export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
   console.log(`🔍 Loading dataset: ${datasetName}`);
+  const t0 = performance.now();
 
   // Fetch configuration
   const datasetConfig = await getDatasetConfig(datasetName);
-
   console.log(`📋 Dataset config:`, datasetConfig);
-
-  // Check if this is a ZIP file
-  const datasetUrl = await constructFileUrl(datasetConfig);
-  const isZip = isZipUrl(datasetUrl);
 
   let conversations: any[] = [];
   let properties: any[] = [];
@@ -131,41 +127,50 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
   let clusterScores: any[] | undefined;
   let modelScores: any[] | undefined;
 
-  if (isZip) {
-    console.log(`📦 Loading from ZIP file: ${datasetUrl}`);
+  // Try new paginated API first (much faster!)
+  if (!datasetConfig.cdn_url || !isZipUrl(datasetConfig.cdn_url)) {
+    console.log(`🚀 Loading from paginated API endpoints...`);
 
-    // Load from ZIP
-    const zipData = await loadDatasetFromZip(datasetUrl, datasetConfig.files);
+    try {
+      // Load all data in parallel
+      const [conversationsRes, propertiesRes, clustersRes, metricsRes] = await Promise.all([
+        fetch(`/api/results/${datasetName}/conversations?limit=1000`).then(r => r.ok ? r.json() : null),
+        fetch(`/api/results/${datasetName}/properties`).then(r => r.ok ? r.json() : null),
+        fetch(`/api/results/${datasetName}/clusters`).then(r => r.ok ? r.json() : null),
+        fetch(`/api/results/${datasetName}/metrics`).then(r => r.ok ? r.json() : null),
+      ]);
+
+      conversations = conversationsRes?.data || [];
+      properties = propertiesRes?.data || [];
+      clusters = clustersRes?.data || [];
+
+      if (metricsRes) {
+        modelClusterScores = metricsRes.model_cluster_scores_df;
+        clusterScores = metricsRes.cluster_scores_df;
+        modelScores = metricsRes.model_scores_df;
+      }
+
+      console.log(`⏱️  Loaded via API in ${Math.round(performance.now() - t0)}ms`);
+      console.log(`   Conversations: ${conversations.length} (first 1000 of ${conversationsRes?.total || conversations.length})`);
+      console.log(`   Properties: ${properties.length}`);
+      console.log(`   Clusters: ${clusters.length}`);
+    } catch (error) {
+      console.error('❌ Failed to load from API, falling back to ZIP:', error);
+      // Fall through to ZIP loading
+    }
+  }
+
+  // Fallback to ZIP if API failed or cdn_url is specified
+  if (conversations.length === 0 && datasetConfig.cdn_url && isZipUrl(datasetConfig.cdn_url)) {
+    console.log(`📦 Loading from ZIP file: ${datasetConfig.cdn_url}`);
+
+    const zipData = await loadDatasetFromZip(datasetConfig.cdn_url, datasetConfig.files);
     conversations = zipData.conversations;
     properties = zipData.properties;
     clusters = zipData.clusters;
     modelClusterScores = zipData.metrics.model_cluster_scores;
     clusterScores = zipData.metrics.cluster_scores;
     modelScores = zipData.metrics.model_scores;
-  } else {
-    console.log(`📂 Loading individual files from: ${datasetUrl}`);
-
-    // Load individual files
-    conversations = await loadDatasetFile(datasetConfig, 'conversation.jsonl', true) || [];
-    properties = await loadDatasetFile(datasetConfig, 'properties.jsonl', false) || [];
-    clusters = await loadDatasetFile(datasetConfig, 'clusters.jsonl', false) || [];
-
-    // Load optional metrics files
-    modelClusterScores = await loadDatasetFile(
-      datasetConfig,
-      'model_cluster_scores_df.jsonl',
-      false
-    ) || undefined;
-    clusterScores = await loadDatasetFile(
-      datasetConfig,
-      'cluster_scores_df.jsonl',
-      false
-    ) || undefined;
-    modelScores = await loadDatasetFile(
-      datasetConfig,
-      'model_scores_df.jsonl',
-      false
-    ) || undefined;
   }
   
   // Calculate totals from conversations
@@ -233,16 +238,24 @@ export async function listDatasets(): Promise<Array<{ name: string; config: Data
  *   /taubench_airline -> taubench_airline
  *   /taubench_airline/ -> taubench_airline
  *   /taubench_airline/some/path -> taubench_airline
+ *   /results -> null (special route for dataset browser)
  */
 export function getDatasetNameFromUrl(): string | null {
   const path = window.location.pathname;
   const segments = path.split('/').filter(s => s.length > 0);
-  
-  // First segment is the dataset name
+
+  // First segment is the dataset name, unless it's a special route
   if (segments.length > 0) {
-    return segments[0];
+    const firstSegment = segments[0];
+
+    // Special routes that are not dataset names
+    if (firstSegment === 'results') {
+      return null;
+    }
+
+    return firstSegment;
   }
-  
+
   return null;
 }
 
