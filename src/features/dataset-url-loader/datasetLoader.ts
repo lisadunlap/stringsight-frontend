@@ -13,7 +13,7 @@ import { loadDatasetFromZip, isZipUrl } from './zipLoader';
 export async function fetchDatasetsConfig(): Promise<DatasetsYaml> {
   const response = await fetch('/datasets.yaml');
   if (!response.ok) {
-    throw new Error(`Failed to fetch datasets.yaml: ${response.statusText}`);
+    throw new Error(`Failed to fetch datasets.yml: ${response.statusText}`);
   }
   const yamlText = await response.text();
   const config = yaml.load(yamlText) as DatasetsYaml;
