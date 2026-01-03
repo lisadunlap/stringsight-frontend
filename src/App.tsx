@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect, Component } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect, Component, startTransition } from "react";
 import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Accordion, AccordionSummary, AccordionDetails, Pagination, Tabs, Tab, LinearProgress, IconButton, Tooltip, Alert, FormControl, InputLabel, Select, MenuItem, Switch, Menu } from "@mui/material";
 import DownloadIcon from '@mui/icons-material/Download';
 import CloseIcon from '@mui/icons-material/Close';
@@ -1028,39 +1028,43 @@ function App() {
       // Reset UI for new data source
       resetUiStateForNewSource('results');
 
-      // Set the data directly (must happen synchronously after reset)
-      setOriginalRows(urlDataset.conversations);
-      setOperationalRows(urlDataset.conversations);
-      setCurrentRows(urlDataset.conversations);
-      setPropertiesRows(urlDataset.properties);
-      setClusters(urlDataset.clusters);
-      setMethod(urlDataset.config.method);
-      setUploadedFileName(urlDataset.name);
-      setResultsName(urlDataset.name);
-      setIsResultsMode(true);
+      // PERFORMANCE: Wrap state updates in startTransition to make them non-blocking
+      // This allows the UI to remain responsive while React processes the large dataset
+      startTransition(() => {
+        // Set the data directly (must happen synchronously after reset)
+        setOriginalRows(urlDataset.conversations);
+        setOperationalRows(urlDataset.conversations);
+        setCurrentRows(urlDataset.conversations);
+        setPropertiesRows(urlDataset.properties);
+        setClusters(urlDataset.clusters);
+        setMethod(urlDataset.config.method);
+        setUploadedFileName(urlDataset.name);
+        setResultsName(urlDataset.name);
+        setIsResultsMode(true);
 
-      // Set metrics if available
-      if (urlDataset.metrics.model_cluster_scores || urlDataset.metrics.cluster_scores || urlDataset.metrics.model_scores) {
-        setResultsMetrics({
-          model_cluster_scores: urlDataset.metrics.model_cluster_scores,
-          cluster_scores: urlDataset.metrics.cluster_scores,
-          model_scores: urlDataset.metrics.model_scores
-        });
-      }
+        // Set metrics if available
+        if (urlDataset.metrics.model_cluster_scores || urlDataset.metrics.cluster_scores || urlDataset.metrics.model_scores) {
+          setResultsMetrics({
+            model_cluster_scores: urlDataset.metrics.model_cluster_scores,
+            cluster_scores: urlDataset.metrics.cluster_scores,
+            model_scores: urlDataset.metrics.model_scores
+          });
+        }
 
-      // Set totals
-      if (urlDataset.total_conversations_by_model) {
-        setTotalConversationsByModel(urlDataset.total_conversations_by_model);
-      }
-      if (urlDataset.total_unique_conversations) {
-        setTotalUniqueConversations(urlDataset.total_unique_conversations);
-      }
+        // Set totals
+        if (urlDataset.total_conversations_by_model) {
+          setTotalConversationsByModel(urlDataset.total_conversations_by_model);
+        }
+        if (urlDataset.total_unique_conversations) {
+          setTotalUniqueConversations(urlDataset.total_unique_conversations);
+        }
 
-      setIsLoadingResults(false);
-      setShowColumnSelector(false); // Results don't need column mapping
+        setIsLoadingResults(false);
+        setShowColumnSelector(false); // Results don't need column mapping
 
-      console.log('✅ URL dataset loaded into app state');
-      console.log('   Final currentRows:', urlDataset.conversations?.length || 0);
+        console.log('✅ URL dataset loaded into app state');
+        console.log('   Final currentRows:', urlDataset.conversations?.length || 0);
+      });
     }
   }, [urlDataset]);
 
@@ -2558,10 +2562,22 @@ function App() {
   const categoricalColumns = useMemo(() => {
     if (operationalRows.length === 0) return [] as string[];
     const cols = new Set<string>();
+
+    // PERFORMANCE: For large datasets, use sampling instead of sequential slice
+    const sampleSize = Math.min(500, operationalRows.length);
+    let sample: any[];
+    if (operationalRows.length > 5000) {
+      // Use sampling for large datasets
+      const step = Math.floor(operationalRows.length / sampleSize);
+      sample = operationalRows.filter((_, i) => i % step === 0).slice(0, sampleSize);
+    } else {
+      sample = operationalRows.slice(0, sampleSize);
+    }
+
     for (const c of allowedColumns) {
       // Skip index column - it's not categorical
       if (c === '__index') continue;
-      const uniq = new Set(operationalRows.slice(0, 500).map(r => r?.[c])).size;
+      const uniq = new Set(sample.map(r => r?.[c])).size;
       if (uniq > 0 && uniq <= 50) cols.add(c);
     }
     return Array.from(cols);
@@ -2594,7 +2610,10 @@ function App() {
         return cache.get(col)!;
       }
       const s = new Set<string>();
-      currentRows.forEach(r => { const v = r?.[col]; if (v !== undefined && v !== null) s.add(String(v)); });
+      // PERFORMANCE: For large datasets (>5000 rows), sample first 5000 rows
+      // to avoid iterating over 50,000+ rows on every filter dropdown open
+      const sample = currentRows.length > 5000 ? currentRows.slice(0, 5000) : currentRows;
+      sample.forEach(r => { const v = r?.[col]; if (v !== undefined && v !== null) s.add(String(v)); });
       const result = Array.from(s).sort();
       cache.set(col, result);
       return result;

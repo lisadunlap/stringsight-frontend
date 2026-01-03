@@ -127,12 +127,16 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
   let clusterScores: any[] | undefined;
   let modelScores: any[] | undefined;
 
-  // Try new paginated API first (much faster!)
-  if (!datasetConfig.cdn_url || !isZipUrl(datasetConfig.cdn_url)) {
-    console.log(`🚀 Loading from paginated API endpoints...`);
+  // Determine loading strategy based on cdn_url
+  const useZipFile = datasetConfig.cdn_url && isZipUrl(datasetConfig.cdn_url);
+  const useFolderPath = datasetConfig.cdn_url && !isZipUrl(datasetConfig.cdn_url);
+
+  // Strategy 1: Try paginated API (fastest)
+  if (!datasetConfig.cdn_url) {
+    console.log(`🚀 Loading from paginated API endpoints (dataset name: ${datasetName})...`);
 
     try {
-      // Load all data in parallel
+      // Load all data in parallel using dataset name
       const [conversationsRes, propertiesRes, clustersRes, metricsRes] = await Promise.all([
         fetch(`/api/results/${datasetName}/conversations?limit=1000`).then(r => r.ok ? r.json() : null),
         fetch(`/api/results/${datasetName}/properties`).then(r => r.ok ? r.json() : null),
@@ -155,13 +159,51 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
       console.log(`   Properties: ${properties.length}`);
       console.log(`   Clusters: ${clusters.length}`);
     } catch (error) {
-      console.error('❌ Failed to load from API, falling back to ZIP:', error);
-      // Fall through to ZIP loading
+      console.error('❌ Failed to load from API:', error);
     }
   }
 
-  // Fallback to ZIP if API failed or cdn_url is specified
-  if (conversations.length === 0 && datasetConfig.cdn_url && isZipUrl(datasetConfig.cdn_url)) {
+  // Strategy 2: Load from folder path (backend serves individual files)
+  if (conversations.length === 0 && useFolderPath) {
+    console.log(`📁 Loading from folder path: ${datasetConfig.cdn_url}`);
+
+    try {
+      // Extract folder name from path and use it as the endpoint
+      // e.g., "/api/results/zip/final_results/medication_qa_2026-01-02" -> use full path
+      const folderPath = datasetConfig.cdn_url;
+
+      const [conversationsRes, propertiesRes, clustersRes, metricsRes] = await Promise.all([
+        fetch(`${folderPath}/conversations.jsonl`).then(r => r.ok ? r.text() : null),
+        fetch(`${folderPath}/properties.jsonl`).then(r => r.ok ? r.text() : null),
+        fetch(`${folderPath}/clusters.jsonl`).then(r => r.ok ? r.text() : null),
+        fetch(`${folderPath}/model_cluster_scores_df.jsonl`).then(r => r.ok ? r.text() : null),
+      ]);
+
+      // Parse JSONL files
+      if (conversationsRes) {
+        conversations = conversationsRes.trim().split('\n').map(line => JSON.parse(line));
+      }
+      if (propertiesRes) {
+        properties = propertiesRes.trim().split('\n').filter(l => l.trim()).map(line => JSON.parse(line));
+      }
+      if (clustersRes) {
+        clusters = clustersRes.trim().split('\n').filter(l => l.trim()).map(line => JSON.parse(line));
+      }
+      if (metricsRes) {
+        modelClusterScores = metricsRes.trim().split('\n').filter(l => l.trim()).map(line => JSON.parse(line));
+      }
+
+      console.log(`⏱️  Loaded from folder in ${Math.round(performance.now() - t0)}ms`);
+      console.log(`   Conversations: ${conversations.length}`);
+      console.log(`   Properties: ${properties.length}`);
+      console.log(`   Clusters: ${clusters.length}`);
+    } catch (error) {
+      console.error('❌ Failed to load from folder path:', error);
+    }
+  }
+
+  // Strategy 3: Fallback to ZIP file
+  if (conversations.length === 0 && useZipFile) {
     console.log(`📦 Loading from ZIP file: ${datasetConfig.cdn_url}`);
 
     const zipData = await loadDatasetFromZip(datasetConfig.cdn_url, datasetConfig.files);
