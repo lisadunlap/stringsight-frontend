@@ -350,6 +350,15 @@ export function MetricsInsightsOverview({
             );
           }
 
+          // Check if 75% of models have values on the same side of 0
+          const totalDeltas = metricData.deltas.length;
+          const numPositive = metricData.deltas.filter(d => d > 0).length;
+          const numNegative = metricData.deltas.filter(d => d < 0).length;
+          const threshold = 0.75;
+          const has75PercentAboveZero = numPositive / totalDeltas >= threshold;
+          const has75PercentBelowZero = numNegative / totalDeltas >= threshold;
+          const meetsDirectionalityRequirement = has75PercentAboveZero || has75PercentBelowZero;
+
           // Determine if this is an interesting/counterintuitive pattern based on
           // the aggregated impact direction:
           // - Negative behaviors should have positive impact (improving quality)
@@ -370,7 +379,8 @@ export function MetricsInsightsOverview({
           // Only include this metric if:
           // 1. At least one model had a significant impact
           // 2. The aggregated pattern is interesting (counterintuitive or stylistic)
-          if (anySig && isInteresting) {
+          // 3. 75% of models have values on the same side of 0 (either above or below)
+          if (anySig && isInteresting && meetsDirectionalityRequirement) {
             metricsImpacted.push({
               metric,
               avgDelta,

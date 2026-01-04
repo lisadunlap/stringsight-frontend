@@ -181,6 +181,10 @@ export default function PropertiesTab({
       const uniq = new Set(enrichedRows.slice(0, 500).map(r => r?.[col])).size;
       if (uniq > 0 && uniq <= 50) cols.add(col);
     }
+    // Always include 'category' if it exists in availableColumns, regardless of unique value count
+    if (availableColumns.includes('category')) {
+      cols.add('category');
+    }
     return Array.from(cols).sort();
   }, [enrichedRows, availableColumns]);
 

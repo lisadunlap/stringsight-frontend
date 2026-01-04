@@ -47,7 +47,7 @@ datasets:
     method: "single_model"
     created_at: "2026-01-03"
 
-  convo_conversational_full:
+  long_convo_controversy:
     name: "Long Free Form Conversations"
     description: "Asking two LLM's to keep a conversation going for 50 turns"
     # Uses /api/results/convo_conversational_full/* endpoints
