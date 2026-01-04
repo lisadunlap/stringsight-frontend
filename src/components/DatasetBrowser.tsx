@@ -89,19 +89,7 @@ export function DatasetBrowser({ datasets, onSelectDataset }: DatasetBrowserProp
                         color={config.method === 'side_by_side' ? 'secondary' : 'primary'}
                         variant="outlined"
                       />
-                      {config.created_at && (
-                        <Chip 
-                          label={config.created_at}
-                          size="small"
-                          variant="outlined"
-                        />
-                      )}
                     </Box>
-
-                    {/* File count */}
-                    <Typography variant="caption" color="text.secondary">
-                      {config.files.length} files available
-                    </Typography>
                   </Stack>
                 </CardContent>
               </CardActionArea>
