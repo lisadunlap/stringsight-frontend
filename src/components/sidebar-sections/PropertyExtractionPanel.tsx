@@ -1500,7 +1500,7 @@ export default function PropertyExtractionPanel({
                   }),
                 }}
               >
-                Open-ended Extraction
+                Open-ended Discovery
               </Button>
               <Button
                 variant={labelMode === 'label' ? 'contained' : 'outlined'}
@@ -1694,7 +1694,7 @@ export default function PropertyExtractionPanel({
             </Box>
           )}
 
-          {/* Open-ended Extraction Section */}
+          {/* Open-ended Discovery Section */}
           {labelMode === 'extract' && (
           <Box>
             <Stack spacing={2} data-tutorial-id="extract-properties-trace">

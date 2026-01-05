@@ -15,7 +15,9 @@ import {
   ListItemText,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
@@ -243,23 +245,35 @@ export function ColumnSelector({
       )}
 
       {/* Method Selection */}
-      <FormControl fullWidth sx={{ mb: 0 }}>
-        <InputLabel>Comparison Method</InputLabel>
-        <Select
+      <Box sx={{ mb: 0 }}>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+          Comparison Method
+        </Typography>
+        <ToggleButtonGroup
           value={mapping.method}
-          label="Comparison Method"
-          onChange={handleMethodChange}
+          exclusive
+          onChange={(event, newMethod) => {
+            if (newMethod !== null) {
+              handleMethodChange({ target: { value: newMethod } });
+            }
+          }}
+          fullWidth
+          sx={{ mb: 1 }}
         >
-          <MenuItem value="single_model">Single Model Analysis</MenuItem>
-          <MenuItem value="side_by_side">Side-by-Side Comparison</MenuItem>
-        </Select>
+          <ToggleButton value="single_model">
+            Single Model Analysis
+          </ToggleButton>
+          <ToggleButton value="side_by_side">
+            Side-by-Side Comparison
+          </ToggleButton>
+        </ToggleButtonGroup>
         <FormHelperText>
-          {mapping.method === 'single_model' 
+          {mapping.method === 'single_model'
             ? 'Analyze responses from individual models'
             : 'Compare responses between two models'
           }
         </FormHelperText>
-      </FormControl>
+      </Box>
 
       <Divider sx={{ my: 1 }} />
 

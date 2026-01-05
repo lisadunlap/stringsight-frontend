@@ -2032,7 +2032,7 @@ function App() {
    *
    * This ensures that prompts which both models answered are paired even when no explicit ID is provided.
    */
-  function pairTidyToSideBySide(rows: Record<string, any>[], mapping: ColumnMapping): Record<string, any>[] {
+  function pairTidyToSideBySide(rows: Record<string, any>[], mapping: ColumnMapping): { pairedRows: Record<string, any>[]; skippedCount: number; duplicateCount: number } {
     const modelColumn = mapping.selectedModels!.column;
     const modelA = mapping.selectedModels!.modelA;
     const modelB = mapping.selectedModels!.modelB;
@@ -2099,11 +2099,15 @@ function App() {
 
       const pairs: Record<string, any>[] = [];
       let pairIndex = 0;
+      let skippedPrompts = 0;
 
       promptGroups.forEach((groupRows) => {
         const rowA = groupRows.find((r) => String(r[modelColumn] ?? '') === modelA);
         const rowB = groupRows.find((r) => String(r[modelColumn] ?? '') === modelB);
-        if (!rowA || !rowB) return;
+        if (!rowA || !rowB) {
+          skippedPrompts += 1;
+          return;
+        }
 
         const promptValue = (rowA[promptCol] ?? rowB[promptCol] ?? '') as string;
 
@@ -2178,13 +2182,25 @@ function App() {
         pairIndex += 1;
       });
 
-      if (pairs.length === 0 && duplicateCount > 0) {
+      if (duplicateCount > 0) {
         console.warn(
-          `[pairTidyToSideBySide] No pairs created after dropping ${duplicateCount} duplicate (prompt, model) rows for models "${modelA}" and "${modelB}".`,
+          `[pairTidyToSideBySide] Dropped ${duplicateCount} duplicate (prompt, model) rows for models "${modelA}" and "${modelB}".`,
         );
       }
 
-      return pairs;
+      if (skippedPrompts > 0) {
+        console.warn(
+          `[pairTidyToSideBySide] Skipped ${skippedPrompts} prompt(s) that only had a response from one model (prompt-based pairing).`,
+        );
+      }
+
+      if (pairs.length === 0) {
+        console.warn(
+          `[pairTidyToSideBySide] No pairs created for models "${modelA}" and "${modelB}". Total prompts: ${promptGroups.size}, Skipped: ${skippedPrompts}, Duplicates dropped: ${duplicateCount}`,
+        );
+      }
+
+      return { pairedRows: pairs, skippedCount: skippedPrompts, duplicateCount };
     };
 
     // First attempt: group by question_id when available on all rows
@@ -2199,11 +2215,15 @@ function App() {
 
       const pairedRows: Record<string, any>[] = [];
       let pairIndex = 0;
+      let skippedQuestions = 0;
 
       groups.forEach((groupRows, groupKey) => {
         const rowA = groupRows.find((r) => String(r[modelColumn] ?? '') === modelA);
         const rowB = groupRows.find((r) => String(r[modelColumn] ?? '') === modelB);
-        if (!rowA || !rowB) return;
+        if (!rowA || !rowB) {
+          skippedQuestions += 1;
+          return;
+        }
 
         const promptValue = (rowA[mapping.promptCol] ?? rowB[mapping.promptCol] ?? '') as string;
 
@@ -2275,12 +2295,18 @@ function App() {
         pairedRows.push(sbsRow);
       });
 
+      if (skippedQuestions > 0) {
+        console.warn(
+          `[pairTidyToSideBySide] Skipped ${skippedQuestions} question(s) that only had a response from one model (question_id-based pairing).`,
+        );
+      }
+
       if (pairedRows.length > 0) {
-        return pairedRows;
+        return { pairedRows, skippedCount: skippedQuestions, duplicateCount: 0 };
       }
 
       console.warn(
-        `[pairTidyToSideBySide] No pairs found when grouping by question_id for models "${modelA}" and "${modelB}". Falling back to prompt-based pairing.`,
+        `[pairTidyToSideBySide] No pairs found when grouping by question_id for models "${modelA}" and "${modelB}". Total questions: ${groups.size}, Skipped: ${skippedQuestions}. Falling back to prompt-based pairing.`,
       );
       return buildPairsByPrompt(filteredRows);
     }
@@ -2489,10 +2515,12 @@ function App() {
     if (mappingValid && originalRows.length > 0) {
       // If user selected two models under side_by_side (tidy path), pair client-side
       if (mapping.method === 'side_by_side' && mapping.selectedModels && mapping.selectedModels.modelA && mapping.selectedModels.modelB && mapping.selectedModels.modelA !== mapping.selectedModels.modelB) {
-        const pairedRows = pairTidyToSideBySide(originalRows, mapping);
+        const { pairedRows, skippedCount, duplicateCount } = pairTidyToSideBySide(originalRows, mapping);
 
         console.log('[handleMappingChange] Paired tidy to side-by-side:', {
           pairs: pairedRows.length,
+          skipped: skippedCount,
+          duplicates: duplicateCount,
           sample: pairedRows[0],
           modelA: mapping.selectedModels.modelA,
           modelB: mapping.selectedModels.modelB
@@ -2500,7 +2528,22 @@ function App() {
 
         if (pairedRows.length === 0) {
           setResultsError(`No matching pairs found for models "${mapping.selectedModels.modelA}" and "${mapping.selectedModels.modelB}". Ensure both models answered the same prompts.`);
+          setFilterNotice(null);
           return;
+        }
+
+        // Build notice message for skipped/duplicate rows
+        const notices: string[] = [];
+        if (skippedCount > 0) {
+          notices.push(`${skippedCount} prompt(s) answered by only one model`);
+        }
+        if (duplicateCount > 0) {
+          notices.push(`${duplicateCount} duplicate (prompt, model) pair(s)`);
+        }
+        if (notices.length > 0) {
+          setFilterNotice(`Dropped ${notices.join(' and ')} during side-by-side pairing.`);
+        } else {
+          setFilterNotice(null);
         }
 
         // Set method and operational rows to the paired side-by-side data

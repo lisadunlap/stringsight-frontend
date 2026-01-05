@@ -43,7 +43,8 @@ export async function getDatasetConfig(datasetName: string): Promise<DatasetConf
  */
 async function constructFileUrl(
   datasetConfig: DatasetConfig,
-  fileName?: string
+  fileName?: string,
+  datasetName?: string
 ): Promise<string> {
   // Use direct URL from config (points to /api/results/zip/...)
   if (datasetConfig.cdn_url) {
@@ -55,7 +56,12 @@ async function constructFileUrl(
     return fileName ? `${datasetConfig.cdn_url}/${fileName}` : datasetConfig.cdn_url;
   }
 
-  throw new Error(`Cannot construct URL for dataset: no cdn_url configured`);
+  // Default to paginated API endpoint pattern when no cdn_url is set
+  if (datasetName && fileName) {
+    return `/api/results/${datasetName}/${fileName}`;
+  }
+
+  throw new Error(`Cannot construct URL for dataset: no cdn_url configured and no datasetName provided`);
 }
 
 /**
@@ -72,9 +78,10 @@ async function parseJsonl(text: string): Promise<any[]> {
 async function loadDatasetFile(
   datasetConfig: DatasetConfig,
   fileName: string,
-  required: boolean = true
+  required: boolean = true,
+  datasetName?: string
 ): Promise<any[] | null> {
-  const url = await constructFileUrl(datasetConfig, fileName);
+  const url = await constructFileUrl(datasetConfig, fileName, datasetName);
   
   console.log(`📄 Loading ${fileName} from ${url.substring(0, 100)}...`);
   
@@ -121,7 +128,7 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
   console.log(`📋 Dataset config:`, datasetConfig);
 
   // Check if this is a ZIP file
-  const datasetUrl = await constructFileUrl(datasetConfig);
+  const datasetUrl = await constructFileUrl(datasetConfig, undefined, datasetName);
   const isZip = isZipUrl(datasetUrl);
 
   let conversations: any[] = [];
@@ -145,26 +152,34 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
   } else {
     console.log(`📂 Loading individual files from: ${datasetUrl}`);
 
-    // Load individual files
-    conversations = await loadDatasetFile(datasetConfig, 'conversation.jsonl', true) || [];
-    properties = await loadDatasetFile(datasetConfig, 'properties.jsonl', false) || [];
-    clusters = await loadDatasetFile(datasetConfig, 'clusters.jsonl', false) || [];
+    // Load individual files - try both singular and plural forms for conversations
+    let conversationsData = await loadDatasetFile(datasetConfig, 'conversations.jsonl', false, datasetName);
+    if (!conversationsData) {
+      conversationsData = await loadDatasetFile(datasetConfig, 'conversation.jsonl', true, datasetName);
+    }
+    conversations = conversationsData || [];
+
+    properties = await loadDatasetFile(datasetConfig, 'properties.jsonl', false, datasetName) || [];
+    clusters = await loadDatasetFile(datasetConfig, 'clusters.jsonl', false, datasetName) || [];
 
     // Load optional metrics files
     modelClusterScores = await loadDatasetFile(
       datasetConfig,
       'model_cluster_scores_df.jsonl',
-      false
+      false,
+      datasetName
     ) || undefined;
     clusterScores = await loadDatasetFile(
       datasetConfig,
       'cluster_scores_df.jsonl',
-      false
+      false,
+      datasetName
     ) || undefined;
     modelScores = await loadDatasetFile(
       datasetConfig,
       'model_scores_df.jsonl',
-      false
+      false,
+      datasetName
     ) || undefined;
   }
   

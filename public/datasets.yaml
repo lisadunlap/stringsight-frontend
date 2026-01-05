@@ -58,7 +58,7 @@ datasets:
   drunk_at_a_party:
     name: "Drunk at a Party"
     description: "Asking two LLM's to keep a conversation going while drunk at a party"
-    # Uses /api/results/drunk_at_a_party/* endpoints
+    cdn_url: "http://localhost:8000/final_results/drunk_at_a_party"
     files: []
     method: "single_model"
     created_at: "2026-01-03"
