@@ -98,11 +98,13 @@ export default function PropertiesTab({
     if (enrichedRows.length === 0) {
       return [
         'property_description',
+        'model_response',
+        'model',
         'behavior_type',
         'evidence',
-        'reason',
-        'model',
-        'question_id'
+        'unexpected_behavior',
+        'question_id',
+        'reason'
       ];
     }
     const allKeys = new Set<string>();
@@ -142,7 +144,7 @@ export default function PropertiesTab({
 
     console.log(`[PropertiesTab] Valid columns after filtering:`, validColumns);
 
-    // Custom ordering: question_id first, property_description second, then model, then model_response, then the rest
+    // Custom ordering: question_id first, property_description second, then model_response, then model, then the rest, with reason at the very end
     const orderedColumns: string[] = [];
 
     // Add question_id first if it exists and is valid
@@ -155,20 +157,25 @@ export default function PropertiesTab({
       orderedColumns.push('property_description');
     }
 
-    // Add model third if it exists and is valid
+    // Always add model_response third (we ensure it exists in enrichedRows)
+    orderedColumns.push('model_response');
+
+    // Add model fourth if it exists and is valid
     if (validColumns.includes('model')) {
       orderedColumns.push('model');
     }
 
-    // Always add model_response fourth (we ensure it exists in enrichedRows)
-    orderedColumns.push('model_response');
-
-    // Add all other valid columns in alphabetical order
+    // Add all other valid columns in alphabetical order (excluding reason which goes last)
     const remainingColumns = validColumns
-      .filter(col => col !== 'question_id' && col !== 'property_description' && col !== 'model' && col !== 'model_response')
+      .filter(col => col !== 'question_id' && col !== 'property_description' && col !== 'model' && col !== 'model_response' && col !== 'reason')
       .sort();
 
     orderedColumns.push(...remainingColumns);
+
+    // Add reason at the very end if it exists and is valid
+    if (validColumns.includes('reason')) {
+      orderedColumns.push('reason');
+    }
 
     return orderedColumns;
   }, [enrichedRows]);
@@ -780,7 +787,7 @@ export default function PropertiesTab({
                             fontSize: 12,
                             letterSpacing: 0.4,
                             textTransform: 'uppercase',
-                            minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 200 : column === 'category' ? 75 : 'auto'
+                            minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 250 : column === 'category' ? 75 : column === 'model' ? 180 : 'auto'
                           }}
                         >
                           {formatColumnName(column)}
@@ -817,7 +824,7 @@ export default function PropertiesTab({
                               <TableCell
                                 key={column}
                                 sx={{
-                                  maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 100 : 200,
+                                  maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 100 : column === 'model' ? 200 : 200,
                                   verticalAlign: 'top',
                                   color: textColor,
                                   fontWeight: textColor !== 'inherit' ? 600 : 'inherit'
@@ -863,7 +870,7 @@ export default function PropertiesTab({
                         fontSize: 12,
                         letterSpacing: 0.4,
                         textTransform: 'uppercase',
-                        minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 200 : column === 'category' ? 125 : 'auto'
+                        minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 250 : column === 'category' ? 125 : column === 'model' ? 180 : 'auto'
                       }}
                     >
                       {formatColumnName(column)}
@@ -891,7 +898,7 @@ export default function PropertiesTab({
                           <TableCell
                             key={column}
                             sx={{
-                              maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 100 : 200,
+                              maxWidth: column === 'property_description' ? 400 : column === 'evidence' ? 250 : column === 'reason' ? 250 : column === 'category' ? 100 : column === 'model' ? 200 : 200,
                               verticalAlign: 'top',
                               color: textColor,
                               fontWeight: textColor !== 'inherit' ? 600 : 'inherit'
