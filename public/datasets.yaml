@@ -78,3 +78,11 @@ datasets:
     files: []
     method: "single_model"
     created_at: "2026-01-03"
+
+  omni_math_sample_100:
+    name: "Omni Math"
+    description: "Olympiad-level math problems"
+    cdn_url: "http://localhost:8000/final_results/omni_math_sample_100"
+    files: []
+    method: "single_model"
+    created_at: "2026-01-03"
