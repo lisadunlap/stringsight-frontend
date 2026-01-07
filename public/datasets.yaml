@@ -8,8 +8,8 @@ datasets:
   # All datasets now use fast paginated API endpoints
 
   telecom:
-    name: "Telecom Dataset"
-    description: "Telecom customer service analysis"
+    name: "TauBench v2 - Telecom"
+    description: "Telecom customer service agent"
     # Uses /api/results/telecom/* endpoints
     files: []
     method: "single_model"
@@ -17,7 +17,7 @@ datasets:
 
   swe_smith_tool_trajectories:
     name: "SWEBench Smith Tools"
-    description: "SWEBench Smith dataset"
+    description: "SWEBench Smith dataset with tools"
     # Uses /api/results/swe_smith_tool_trajectories/* endpoints
     files: []
     method: "single_model"
@@ -47,13 +47,13 @@ datasets:
     method: "single_model"
     created_at: "2026-01-03"
 
-  long_convo_controversy:
-    name: "Long Free Form Conversations"
-    description: "Asking two LLM's to keep a conversation going for 50 turns"
-    # Uses /api/results/convo_conversational_full/* endpoints
-    files: []
-    method: "single_model"
-    created_at: "2026-01-03"
+  # long_convo_controversy:
+  #   name: "Long Free Form Conversations"
+  #   description: "Asking two LLM's to keep a conversation going for 50 turns"
+  #   # Uses /api/results/convo_conversational_full/* endpoints
+  #   files: []
+  #   method: "single_model"
+  #   created_at: "2026-01-03"
 
   drunk_at_a_party:
     name: "Drunk at a Party"
@@ -63,3 +63,18 @@ datasets:
     method: "single_model"
     created_at: "2026-01-03"
 
+  airline:
+    name: "TauBench v2 - Airline"
+    description: "Airline customer service benchmark"
+    cdn_url: "http://localhost:8000/final_results/airline"
+    files: []
+    method: "single_model"
+    created_at: "2026-01-03"
+  
+  retail:
+    name: "TauBench v2 - Retail"
+    description: "Retail customer service benchmark"
+    cdn_url: "http://localhost:8000/final_results/retail"
+    files: []
+    method: "single_model"
+    created_at: "2026-01-03"
