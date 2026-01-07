@@ -1069,6 +1069,8 @@ export function ConversationTrace({
                             h4: ({ children }) => <h4>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h4>,
                             h5: ({ children }) => <h5>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h5>,
                             h6: ({ children }) => <h6>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h6>,
+                            code: ({ children }) => <code>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</code>,
+                            pre: ({ children }) => <pre>{children}</pre>,
                           }}
                         >
                           {normalizeLatexDelimiters(displayText)}
@@ -1159,6 +1161,8 @@ export function ConversationTrace({
                       h4: ({ children }) => <h4>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h4>,
                       h5: ({ children }) => <h5>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h5>,
                       h6: ({ children }) => <h6>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</h6>,
+                      code: ({ children }) => <code>{applyHighlightToChildren(children, effectiveHighlights, highlightRefs)}</code>,
+                      pre: ({ children }) => <pre>{children}</pre>,
                     }}
                   >
                     {normalizeLatexDelimiters(displayContent)}

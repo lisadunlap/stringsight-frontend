@@ -18,7 +18,7 @@ datasets:
   airline:
     name: "TauBench v2 - Airline"
     description: "Airline customer service benchmark"
-    cdn_url: "http://localhost:8000/final_results/airline"
+    # cdn_url: "http://localhost:8000/final_results/airline"
     files: []
     method: "single_model"
     created_at: "2026-01-03"
@@ -26,7 +26,7 @@ datasets:
   retail:
     name: "TauBench v2 - Retail"
     description: "Retail customer service benchmark"
-    cdn_url: "http://localhost:8000/final_results/retail"
+    # cdn_url: "http://localhost:8000/final_results/retail"
     files: []
     method: "single_model"
     created_at: "2026-01-03"
