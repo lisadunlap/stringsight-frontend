@@ -28,8 +28,10 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, startClusterJob, getClusterJobStatus, getClusterJobResult, runLabel, getLabelPrompt } from '../../lib/api';
+import DescriptionIcon from '@mui/icons-material/Description';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, PromptsMetadata, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, startClusterJob, getClusterJobStatus, getClusterJobResult, runLabel, getLabelPrompt } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
+import PromptsModal from '../PromptsModal';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
 
@@ -379,13 +381,17 @@ export default function PropertyExtractionPanel({
   const [sampleSize, setSampleSize] = React.useState<number | null>(null);
 
   const [busy, setBusy] = React.useState<boolean>(false);
+  const [promptGenerationProgress, setPromptGenerationProgress] = React.useState<number>(0);
   const [extractionProgress, setExtractionProgress] = React.useState<number>(0);
   const [lastExtractProps, setLastExtractProps] = React.useState<any[]>([]);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+  const [generatedPrompts, setGeneratedPrompts] = React.useState<PromptsMetadata | null>(null);
+  const [promptsModalOpen, setPromptsModalOpen] = React.useState<boolean>(false);
 
   const [jobId, setJobId] = React.useState<string>('');
   const [jobProgress, setJobProgress] = React.useState<number>(0);
   const [jobState, setJobState] = React.useState<string | null>(null);
+  const [promptGenerationActive, setPromptGenerationActive] = React.useState<boolean>(false);
 
   // Clustering configuration
   const [minClusterSize, setMinClusterSize] = React.useState<number>(3);
@@ -620,14 +626,19 @@ export default function PropertyExtractionPanel({
         // When using custom system prompt, send it as a literal string in system_prompt field
         // The backend's get_system_prompt() function will treat it as a literal if it's not a known alias
         system_prompt: useCustomSystemPrompt ? customSystemPrompt : selectedPrompt,
-        // Only include task_description when NOT using custom prompt (custom prompt is already complete)
-        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription : undefined,
+        // For dynamic prompts to work, we need to send task_description
+        // If custom prompt is used, task_description is already incorporated
+        // If no task description is provided, send a minimal one to trigger dynamic prompt generation
+        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0 
+          ? taskDescription 
+          : (!useCustomSystemPrompt ? "Extract interesting and notable behaviors from the conversation." : undefined),
         model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
         max_tokens: maxTokens,
         max_workers: maxWorkers,
         output_dir: outputDir,
+        use_dynamic_prompts: true,  // Enable dynamic prompt generation
       };
 
       console.log('[PropertyExtraction] Making API call with:', {
@@ -921,8 +932,12 @@ export default function PropertyExtractionPanel({
         // When using custom system prompt, send it as a literal string in system_prompt field
         // The backend's get_system_prompt() function will treat it as a literal if it's not a known alias
         system_prompt: useCustomSystemPrompt ? customSystemPrompt : selectedPrompt,
-        // Only include task_description when NOT using custom prompt (custom prompt is already complete)
-        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription : undefined,
+        // For dynamic prompts to work, we need to send task_description
+        // If custom prompt is used, task_description is already incorporated
+        // If no task description is provided, send a minimal one to trigger dynamic prompt generation
+        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0 
+          ? taskDescription 
+          : (!useCustomSystemPrompt ? "Extract interesting and notable behaviors from the conversation." : undefined),
         model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
@@ -930,6 +945,7 @@ export default function PropertyExtractionPanel({
         max_workers: maxWorkers,
         sample_size: demoSampleSize || sampleSize || undefined,
         output_dir: outputDir,
+        use_dynamic_prompts: true,  // Enable dynamic prompt generation
         // Clustering params REMOVED - we will run clustering separately after extraction
       };
 
@@ -960,6 +976,11 @@ export default function PropertyExtractionPanel({
               const r = await extractJobResult(startRes.job_id);
               console.error('[PropertyExtraction] 📊 Job result path:', r.result_path);
 
+              // Capture generated prompts if available
+              if (r.prompts) {
+                setGeneratedPrompts(r.prompts);
+                console.log('[PropertyExtraction] 📋 Captured generated prompts');
+              }
               const extractedProperties = r.properties || [];
               console.log('[PropertyExtraction] 📦 Extracted properties:', extractedProperties.length);
 
@@ -2013,7 +2034,24 @@ export default function PropertyExtractionPanel({
 
           {/* Action Buttons for Extract mode */}
           <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column', mt: 3 }}>
-            {busy && (
+            {/* Prompt Generation Progress Bar */}
+            {busy && promptGenerationActive && (
+              <Box sx={{ width: '100%', mb: 1 }}>
+                <LinearProgress
+                  variant={promptGenerationProgress > 0 ? "determinate" : "indeterminate"}
+                  value={promptGenerationProgress}
+                  sx={{ height: 6, borderRadius: 1, bgcolor: '#E0F2FE', '& .MuiLinearProgress-bar': { bgcolor: '#0EA5E9' } }}
+                />
+                <Typography variant="caption" sx={{ mt: 0.5, display: 'block', textAlign: 'center', color: 'text.secondary' }}>
+                  {promptGenerationProgress > 0
+                    ? `Generating dynamic prompts... ${Math.round(promptGenerationProgress)}%`
+                    : 'Generating dynamic prompts...'}
+                </Typography>
+              </Box>
+            )}
+            
+            {/* Extraction Progress Bar */}
+            {busy && !promptGenerationActive && (
               <Box sx={{ width: '100%', mb: 1 }}>
                 <LinearProgress
                   variant={extractionProgress > 0 ? "determinate" : "indeterminate"}
@@ -2052,6 +2090,16 @@ export default function PropertyExtractionPanel({
                 ? `Label and Cluster Sample (${sampleSize} traces)`
                 : `Label and Cluster All Traces (${getAllRows().length})`}
             </Button>
+            {generatedPrompts && (
+              <Button
+                variant="text"
+                onClick={() => setPromptsModalOpen(true)}
+                sx={{ width: '100%', mt: 1 }}
+                startIcon={<DescriptionIcon />}
+              >
+                View Generated Prompt
+              </Button>
+            )}
           </Box>
           </Box>
           )}
@@ -2256,6 +2304,12 @@ export default function PropertyExtractionPanel({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <PromptsModal
+        open={promptsModalOpen}
+        onClose={() => setPromptsModalOpen(false)}
+        prompts={generatedPrompts}
+      />
     </Stack>
   );
 }

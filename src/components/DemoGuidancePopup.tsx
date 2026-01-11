@@ -53,7 +53,7 @@ export default function DemoGuidancePopup({
           message: 'Use an LLM annotator to identify patterns and behaviors in your model responses. Each behavior will be labeled as positive, negative, or stylistic, along with some other metadata tags.',
           hasColoredMessage: true,
           highlights: [
-            'The task description box is used to help guide the LLM in its analysis. Editing is disabled for this demo but upload your own data to try it out!',
+            'The task description helps guide the LLM in its analysis. Editing is disabled for this demo but upload your own data to try it out!',
             'Click Label Trace at Row 0 to see the behaviors extracted on a single trace.',
             'Behaviors will appear as rows on the properties table below. Click on the response to see the full trace and evidence that led to the behavior.',
             'Run Label and Cluster All Traces once you like the results to get dataset level insights',

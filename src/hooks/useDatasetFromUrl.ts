@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { loadDataset, getDatasetNameFromUrl, listDatasets } from '../lib/datasetLoader';
+import { loadDataset, getDatasetNameFromUrl, listDatasets, getDatasetConfig } from '../lib/datasetLoader';
 import type { LoadedDataset, DatasetConfig } from '../types/dataset';
 
 export interface UseDatasetFromUrlResult {
@@ -11,6 +11,7 @@ export interface UseDatasetFromUrlResult {
   isLoading: boolean;
   error: Error | null;
   datasetName: string | null;
+  datasetDisplayName: string | null;
   availableDatasets: Array<{ name: string; config: DatasetConfig }>;
 }
 
@@ -31,6 +32,7 @@ export function useDatasetFromUrl(): UseDatasetFromUrlResult {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
   const [datasetName, setDatasetName] = useState<string | null>(null);
+  const [datasetDisplayName, setDatasetDisplayName] = useState<string | null>(null);
   const [availableDatasets, setAvailableDatasets] = useState<Array<{ name: string; config: DatasetConfig }>>([]);
 
   useEffect(() => {
@@ -39,32 +41,37 @@ export function useDatasetFromUrl(): UseDatasetFromUrlResult {
         // Extract dataset name from URL
         const name = getDatasetNameFromUrl();
         setDatasetName(name);
-        
+
         // If no dataset in URL, just load available datasets list
         if (!name) {
           console.log('📋 No dataset in URL, loading available datasets...');
           const datasets = await listDatasets();
           setAvailableDatasets(datasets);
+          setDatasetDisplayName(null);
           return;
         }
-        
+
         console.log(`🔄 Loading dataset from URL: ${name}`);
         setIsLoading(true);
         setError(null);
-        
+
+        // Fetch config first to get display name
+        const config = await getDatasetConfig(name);
+        setDatasetDisplayName(config.name);
+
         // Load the dataset
         const loaded = await loadDataset(name);
         setDataset(loaded);
-        
+
         // Also load available datasets for navigation
         const datasets = await listDatasets();
         setAvailableDatasets(datasets);
-        
+
         console.log('✅ Dataset loaded successfully');
       } catch (err) {
         console.error('❌ Failed to load dataset:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
-        
+
         // Still try to load available datasets on error
         try {
           const datasets = await listDatasets();
@@ -76,7 +83,7 @@ export function useDatasetFromUrl(): UseDatasetFromUrlResult {
         setIsLoading(false);
       }
     };
-    
+
     loadFromUrl();
   }, [window.location.pathname]); // Reload when URL changes
 
@@ -85,6 +92,7 @@ export function useDatasetFromUrl(): UseDatasetFromUrlResult {
     isLoading,
     error,
     datasetName,
+    datasetDisplayName,
     availableDatasets,
   };
 }

@@ -10,6 +10,18 @@ export interface DetectResponse {
   preview: Record<string, any>[];
 }
 
+export interface PromptsMetadata {
+  discovery_prompt?: string;
+  clustering_prompt?: string;
+  dedup_prompt?: string;
+  outlier_prompt?: string;
+  task_description_original?: string;
+  expanded_task_description?: string;
+  dynamic_prompts_used?: boolean;
+  verification_passed?: boolean;
+  reflection_attempts?: number;
+}
+
 // Prefer same-origin proxy in dev to avoid CORS/ad-blockers: use /api unless explicitly overridden
 export const API_BASE = (import.meta as any).env?.VITE_BACKEND || (globalThis as any)?.VITE_BACKEND || "/api";
 // Debug print once (won't throw in production)
@@ -158,6 +170,7 @@ export async function extractSingle(body: {
   use_wandb?: boolean;
   output_dir?: string | null;
   return_debug?: boolean;
+  use_dynamic_prompts?: boolean;  // Enable dynamic prompt generation
 }) {
   const res = await fetch(`${API_BASE}/extract/single`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
@@ -205,6 +218,7 @@ export async function extractJobStart(body: {
   use_wandb?: boolean;
   output_dir?: string | null;
   sample_size?: number;
+  use_dynamic_prompts?: boolean;  // Enable dynamic prompt generation
 }) {
   const res = await fetch(`${API_BASE}/api/v1/jobs/extract`, {
     method: 'POST',

@@ -188,6 +188,12 @@ function transformRowsForBackend(
  * Extracts quality_by_model and quality_delta_by_model from model_cluster_scores.
  */
 function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[]): any[] {
+  console.log('🔍 [ENRICHMENT] enrichClustersWithQualityData called', {
+    clustersCount: clusters?.length || 0,
+    scoresCount: modelClusterScores?.length || 0,
+    stackTrace: new Error().stack
+  });
+
   if (!clusters || !modelClusterScores || modelClusterScores.length === 0) {
     return clusters;
   }
@@ -215,22 +221,25 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
 
     // Extract quality metrics (both absolute and delta)
     // 1) Flat columns: quality_<metric>, quality_delta_<metric>
-    Object.keys(row).forEach(key => {
-      // quality_{metric} pattern
-      const qualityMatch = key.match(/^quality_(.+)$/);
-      if (qualityMatch && !key.includes('_delta') && !key.includes('_ci_') && !key.includes('_significant')) {
-        const metric = qualityMatch[1];
-        if (typeof row[key] === 'number') {
-          metrics[metric] = row[key];
-        }
+    // Pre-filter keys that start with 'quality_' to avoid regex on every key
+    const qualityKeys = Object.keys(row).filter(k => k.startsWith('quality_'));
+    qualityKeys.forEach(key => {
+      // Skip CI and significance columns
+      if (key.includes('_ci_') || key.includes('_significant')) {
+        return;
       }
 
-      // quality_delta_{metric} pattern
-      const deltaMatch = key.match(/^quality_delta_(.+)$/);
-      if (deltaMatch && !key.includes('_ci_') && !key.includes('_significant')) {
-        const metric = deltaMatch[1];
+      if (key.startsWith('quality_delta_')) {
+        // quality_delta_{metric} pattern
+        const metric = key.substring(14); // Remove 'quality_delta_' prefix (14 chars)
         if (typeof row[key] === 'number') {
           metrics[`delta_${metric}`] = row[key];
+        }
+      } else {
+        // quality_{metric} pattern (not delta)
+        const metric = key.substring(8); // Remove 'quality_' prefix (8 chars)
+        if (typeof row[key] === 'number') {
+          metrics[metric] = row[key];
         }
       }
     });
@@ -284,41 +293,45 @@ function enrichClustersWithQualityData(clusters: any[], modelClusterScores: any[
 
     // Get all unique metric names for quality
     const allMetricNames = new Set<string>();
-    Object.values(qualityByModel).forEach(modelMetrics => {
-      Object.keys(modelMetrics).forEach(metric => allMetricNames.add(metric));
-    });
+    for (const modelMetrics of Object.values(qualityByModel)) {
+      for (const metric of Object.keys(modelMetrics)) {
+        allMetricNames.add(metric);
+      }
+    }
 
     // Compute average quality for each metric
-    allMetricNames.forEach(metric => {
+    for (const metric of allMetricNames) {
       const values: number[] = [];
-      Object.values(qualityByModel).forEach(modelMetrics => {
+      for (const modelMetrics of Object.values(qualityByModel)) {
         if (typeof modelMetrics[metric] === 'number') {
           values.push(modelMetrics[metric]);
         }
-      });
+      }
       if (values.length > 0) {
         quality[metric] = values.reduce((a, b) => a + b, 0) / values.length;
       }
-    });
+    }
 
     // Get all unique metric names for quality_delta
     const allDeltaMetricNames = new Set<string>();
-    Object.values(qualityDeltaByModel).forEach(modelMetrics => {
-      Object.keys(modelMetrics).forEach(metric => allDeltaMetricNames.add(metric));
-    });
+    for (const modelMetrics of Object.values(qualityDeltaByModel)) {
+      for (const metric of Object.keys(modelMetrics)) {
+        allDeltaMetricNames.add(metric);
+      }
+    }
 
     // Compute average quality_delta for each metric
-    allDeltaMetricNames.forEach(metric => {
+    for (const metric of allDeltaMetricNames) {
       const values: number[] = [];
-      Object.values(qualityDeltaByModel).forEach(modelMetrics => {
+      for (const modelMetrics of Object.values(qualityDeltaByModel)) {
         if (typeof modelMetrics[metric] === 'number') {
           values.push(modelMetrics[metric]);
         }
-      });
+      }
       if (values.length > 0) {
         quality_delta[metric] = values.reduce((a, b) => a + b, 0) / values.length;
       }
-    });
+    }
 
     // Add to cluster meta (now includes overall quality and quality_delta)
     return {
@@ -616,7 +629,7 @@ function ExampleFormatTabs() {
 function App() {
 
   // URL-based dataset loading
-  const { dataset: urlDataset, isLoading: urlLoading, error: urlError, datasetName, availableDatasets } = useDatasetFromUrl();
+  const { dataset: urlDataset, isLoading: urlLoading, error: urlError, datasetName, datasetDisplayName, availableDatasets } = useDatasetFromUrl();
 
   // Data management layers as suggested
   const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]); // Raw uploaded data
@@ -1029,10 +1042,9 @@ function App() {
       // Reset UI for new data source
       resetUiStateForNewSource('results');
 
-      // PERFORMANCE: Wrap state updates in startTransition to make them non-blocking
-      // This allows the UI to remain responsive while React processes the large dataset
-      startTransition(() => {
-        const conversations = urlDataset.conversations;
+      // Load dataset state
+      // Note: startTransition removed as it was causing visual flashing
+      const conversations = urlDataset.conversations;
         const properties = urlDataset.properties;
         const clusters = urlDataset.clusters;
         const detectedMethod = urlDataset.config.method;
@@ -1140,11 +1152,18 @@ function App() {
 
         setIsLoadingResults(false);
 
-        console.log('✅ URL dataset loaded into app state');
-        console.log('   Final currentRows:', flattened.length);
-      });
+      console.log('✅ URL dataset loaded into app state');
+      console.log('   Final currentRows:', flattened.length);
     }
   }, [urlDataset]);
+
+  // Automatically navigate to metrics tab when loading results with metrics
+  useEffect(() => {
+    if (isResultsMode && resultsMetrics && Object.keys(resultsMetrics).length > 0) {
+      console.log('🎯 Auto-navigating to metrics tab for results mode');
+      setActiveSection('metrics');
+    }
+  }, [isResultsMode, resultsMetrics]);
 
   // DEBUG: Log state changes to diagnose blank UI
   useEffect(() => {
@@ -4007,7 +4026,7 @@ function App() {
         console.error('recompute (filters) failed', e);
       }
     })();
-  }, [clusters, propertiesRows, operationalRows, resultsMetrics, method]);
+  }, [propertiesRows, operationalRows, resultsMetrics, method]);
 
   // Utility: Guarantee examples is always an array when setting clusters
   const ensureExamplesArray = (clusters) => (clusters || []).map(c => ({ ...c, examples: c.examples || [] }));
@@ -4033,18 +4052,21 @@ function App() {
   // Handle URL-based loading states
   if (urlLoading) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
+      <Box sx={{
+        display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center', 
-        justifyContent: 'center', 
+        alignItems: 'center',
+        justifyContent: 'center',
         minHeight: '100vh',
         gap: 2,
         background: '#F9FAFB'
       }}>
         <CircularProgress size={60} />
-        <Typography variant="h6" color="text.secondary">
-          Loading dataset: {datasetName}
+        <Typography variant="h4" color="text.secondary">
+          Loading dataset: {datasetDisplayName || datasetName}
+        </Typography>
+        <Typography variant="h6" color="text.secondary" sx={{ fontStyle: 'italic', opacity: 0.7 }}>
+          This may take up to a minute, apologies
         </Typography>
       </Box>
     );
@@ -4266,7 +4288,7 @@ function App() {
           <Box sx={{ px: 3, pb: 1.5 }}>
             <Typography variant="body2" sx={{ color: 'primary.main', mb: 0.5, fontWeight: 600, fontSize: '0.9rem' }}>
               {pipelineStage === 'extraction' && batchState
-                ? `Extracting properties: ${batchState} • ${Math.round((batchProgress || 0) * 100)}%`
+                ? `Extracting properties: ${batchState} • ${Math.round((batchProgress || 0) * 100)}% (this may take a few minutes, please don't close your browser)`
                 : pipelineStage === 'clustering'
                   ? 'Clustering properties... (this may take a few minutes, please don\'t close your browser)'
                   : 'Processing...'}
@@ -4499,7 +4521,7 @@ function App() {
               </Box>
 
               {import.meta.env.VITE_DEMO === 'true' && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, my: 3 }}>
                   <Button
                     variant="contained"
                     size="large"
@@ -4522,6 +4544,29 @@ function App() {
                     }}
                   >
                     Try Demo Data
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    onClick={() => window.open('https://stringsight.com/results', '_blank')}
+                    sx={{
+                      py: 1.5,
+                      px: 4,
+                      fontSize: '1.1rem',
+                      fontWeight: 600,
+                      color: retroColors.green,
+                      borderColor: retroColors.green,
+                      borderWidth: 2,
+                      '&:hover': {
+                        borderWidth: 2,
+                        borderColor: '#3D9B73',
+                        backgroundColor: 'rgba(61, 155, 115, 0.04)',
+                        transform: 'translateY(-1px)'
+                      },
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    Browse Benchmarks
                   </Button>
                 </Box>
               )}
