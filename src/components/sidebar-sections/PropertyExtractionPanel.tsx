@@ -639,7 +639,7 @@ export default function PropertyExtractionPanel({
         max_tokens: maxTokens,
         max_workers: maxWorkers,
         output_dir: outputDir,
-        use_dynamic_prompts: true,  // Enable dynamic prompt generation
+        use_dynamic_prompts: !isDemoMode,  // Disable in demo mode for faster results
       };
 
       console.log('[PropertyExtraction] Making API call with:', {
@@ -952,7 +952,7 @@ export default function PropertyExtractionPanel({
         max_workers: maxWorkers,
         sample_size: demoSampleSize || sampleSize || undefined,
         output_dir: outputDir,
-        use_dynamic_prompts: true,  // Enable dynamic prompt generation
+        use_dynamic_prompts: !isDemoMode,  // Disable in demo mode for faster results
         // Clustering params REMOVED - we will run clustering separately after extraction
       };
 
@@ -2096,18 +2096,18 @@ export default function PropertyExtractionPanel({
               {sampleSize && sampleSize > 0
                 ? `Label and Cluster Sample (${sampleSize} traces)`
                 : `Label and Cluster All Traces (${getAllRows().length})`}
-            </Button>
-            {generatedPrompts && (
-              <Button
-                variant="text"
-                onClick={() => setPromptsModalOpen(true)}
-                sx={{ width: '100%', mt: 1 }}
-                startIcon={<DescriptionIcon />}
-              >
-                View Generated Prompt
               </Button>
-            )}
-          </Box>
+              {generatedPrompts && generatedPrompts.dynamic_prompts_used && (
+                <Button
+                  variant="text"
+                  onClick={() => setPromptsModalOpen(true)}
+                  sx={{ width: '100%', mt: 1 }}
+                  startIcon={<DescriptionIcon />}
+                >
+                  View Generated Prompt
+                </Button>
+              )}
+            </Box>
           </Box>
           )}
         </AccordionDetails>
