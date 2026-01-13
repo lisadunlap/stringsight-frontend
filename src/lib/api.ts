@@ -171,7 +171,15 @@ export async function extractSingle(body: {
   output_dir?: string | null;
   return_debug?: boolean;
   use_dynamic_prompts?: boolean;  // Enable dynamic prompt generation
-}) {
+}): Promise<{
+  rows: any[];
+  columns: string[];
+  counts: { conversations: number; properties: number };
+  stats: { parse_failures: number; empty_lists: number };
+  failures?: any[];
+  properties?: any[];
+  prompts?: PromptsMetadata;
+}> {
   const res = await fetch(`${API_BASE}/extract/single`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
@@ -280,7 +288,7 @@ export async function extractJobResult(job_id: string) {
     const errorText = await res.text();
     throw new Error(formatErrorMessage(errorText));
   }
-  return res.json() as Promise<{ properties: any[]; result_path: string; count: number }>;
+  return res.json() as Promise<{ properties: any[]; result_path: string; count: number; prompts?: PromptsMetadata }>;
 }
 
 export async function extractJobCancel(job_id: string) {

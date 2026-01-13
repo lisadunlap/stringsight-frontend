@@ -429,6 +429,7 @@ export default function PropertyExtractionPanel({
   const canTaskDescribe = selectedPromptMeta?.has_task_description || false;
 
   // Generate output directory name with custom name (or filename) and timestamp
+  // Results from frontend are saved under frontend/ subdirectory
   const generateOutputDir = React.useCallback(() => {
     const baseName = resultsNameProp?.trim() || uploadedFileName || 'results';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: YYYY-MM-DDTHH-MM-SS
@@ -765,6 +766,12 @@ export default function PropertyExtractionPanel({
       const res = await extractSingle({ ...body, return_debug: true });
       if (progressInterval) clearInterval(progressInterval);
       setExtractionProgress(100);
+
+      // Capture generated prompts if available
+      if (res.prompts) {
+        setGeneratedPrompts(res.prompts);
+        console.log('[PropertyExtraction] 📋 Captured generated prompts from single extraction');
+      }
 
       onPropertiesMerged(res.properties || []);
       setLastExtractProps(res.properties || []);
