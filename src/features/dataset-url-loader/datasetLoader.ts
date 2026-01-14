@@ -133,71 +133,101 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
 
   // Strategy 1: Try paginated API (fastest)
   if (!datasetConfig.cdn_url) {
-    console.log(`🚀 Loading from paginated API endpoints (dataset name: ${datasetName})...`);
+    console.log(`🚀 Loading from API (dataset name: ${datasetName})...`);
 
     try {
-      // Load all data in parallel using dataset name
-      const endpoints = {
-        conversations: `/api/results/${datasetName}/conversations?limit=1000`,
-        properties: `/api/results/${datasetName}/properties`,
-        clusters: `/api/results/${datasetName}/clusters`,
-        metrics: `/api/results/${datasetName}/metrics`,
-      };
+      // Strategy 1a: Try combined endpoint first (single request, best performance)
+      console.log(`📡 Trying combined endpoint: /api/results/${datasetName}/all`);
+      const combinedUrl = `/api/results/${datasetName}/all?conversations_limit=1000`;
 
-      console.log(`📡 Fetching from endpoints:`, endpoints);
+      try {
+        const combinedRes = await fetch(combinedUrl);
 
-      const [conversationsRes, propertiesRes, clustersRes, metricsRes] = await Promise.all([
-        fetch(endpoints.conversations).then(async r => {
-          if (!r.ok) {
-            console.error(`❌ Failed to fetch conversations: ${r.status} ${r.statusText}`);
-            console.error(`   URL: ${endpoints.conversations}`);
-            console.error(`   Response:`, await r.text().catch(() => 'Unable to read response'));
-            return null;
-          }
-          return r.json();
-        }),
-        fetch(endpoints.properties).then(async r => {
-          if (!r.ok) {
-            console.warn(`⚠️  Properties not found (optional): ${r.status} ${r.statusText}`);
-            return null;
-          }
-          return r.json();
-        }),
-        fetch(endpoints.clusters).then(async r => {
-          if (!r.ok) {
-            console.warn(`⚠️  Clusters not found (optional): ${r.status} ${r.statusText}`);
-            return null;
-          }
-          return r.json();
-        }),
-        fetch(endpoints.metrics).then(async r => {
-          if (!r.ok) {
-            console.warn(`⚠️  Metrics not found (optional): ${r.status} ${r.statusText}`);
-            return null;
-          }
-          return r.json();
-        }),
-      ]);
+        if (combinedRes.ok) {
+          const data = await combinedRes.json();
 
-      conversations = conversationsRes?.data || [];
-      properties = propertiesRes?.data || [];
-      clusters = clustersRes?.data || [];
+          conversations = data.conversations || [];
+          properties = data.properties || [];
+          clusters = data.clusters || [];
 
-      if (metricsRes) {
-        modelClusterScores = metricsRes.model_cluster_scores_df;
-        clusterScores = metricsRes.cluster_scores_df;
-        modelScores = metricsRes.model_scores_df;
+          if (data.metrics) {
+            modelClusterScores = data.metrics.model_cluster_scores_df;
+            clusterScores = data.metrics.cluster_scores_df;
+            modelScores = data.metrics.model_scores_df;
+          }
+
+          console.log(`⏱️  Loaded via combined endpoint in ${Math.round(performance.now() - t0)}ms`);
+          console.log(`   Conversations: ${conversations.length} of ${data.total_conversations}`);
+          console.log(`   Properties: ${properties.length}`);
+          console.log(`   Clusters: ${clusters.length}`);
+        } else {
+          console.warn(`⚠️  Combined endpoint failed (${combinedRes.status}), falling back to individual endpoints`);
+          throw new Error('Combined endpoint not available');
+        }
+      } catch (combinedError) {
+        // Strategy 1b: Fallback to individual endpoints (backward compatibility)
+        console.log(`📡 Using individual endpoints as fallback`);
+
+        const endpoints = {
+          conversations: `/api/results/${datasetName}/conversations?limit=1000`,
+          properties: `/api/results/${datasetName}/properties`,
+          clusters: `/api/results/${datasetName}/clusters`,
+          metrics: `/api/results/${datasetName}/metrics`,
+        };
+
+        const [conversationsRes, propertiesRes, clustersRes, metricsRes] = await Promise.all([
+          fetch(endpoints.conversations).then(async r => {
+            if (!r.ok) {
+              console.error(`❌ Failed to fetch conversations: ${r.status} ${r.statusText}`);
+              console.error(`   URL: ${endpoints.conversations}`);
+              console.error(`   Response:`, await r.text().catch(() => 'Unable to read response'));
+              return null;
+            }
+            return r.json();
+          }),
+          fetch(endpoints.properties).then(async r => {
+            if (!r.ok) {
+              console.warn(`⚠️  Properties not found (optional): ${r.status} ${r.statusText}`);
+              return null;
+            }
+            return r.json();
+          }),
+          fetch(endpoints.clusters).then(async r => {
+            if (!r.ok) {
+              console.warn(`⚠️  Clusters not found (optional): ${r.status} ${r.statusText}`);
+              return null;
+            }
+            return r.json();
+          }),
+          fetch(endpoints.metrics).then(async r => {
+            if (!r.ok) {
+              console.warn(`⚠️  Metrics not found (optional): ${r.status} ${r.statusText}`);
+              return null;
+            }
+            return r.json();
+          }),
+        ]);
+
+        conversations = conversationsRes?.data || [];
+        properties = propertiesRes?.data || [];
+        clusters = clustersRes?.data || [];
+
+        if (metricsRes) {
+          modelClusterScores = metricsRes.model_cluster_scores_df;
+          clusterScores = metricsRes.cluster_scores_df;
+          modelScores = metricsRes.model_scores_df;
+        }
+
+        console.log(`⏱️  Loaded via individual endpoints in ${Math.round(performance.now() - t0)}ms`);
+        console.log(`   Conversations: ${conversations.length}`);
+        console.log(`   Properties: ${properties.length}`);
+        console.log(`   Clusters: ${clusters.length}`);
       }
 
       if (conversations.length === 0) {
         console.error(`❌ No conversations loaded! Backend may not have this dataset.`);
         console.error(`   Dataset name: ${datasetName}`);
-        console.error(`   Expected backend endpoint: /api/results/${datasetName}/conversations`);
-      } else {
-        console.log(`⏱️  Loaded via API in ${Math.round(performance.now() - t0)}ms`);
-        console.log(`   Conversations: ${conversations.length} (first 1000 of ${conversationsRes?.total || conversations.length})`);
-        console.log(`   Properties: ${properties.length}`);
-        console.log(`   Clusters: ${clusters.length}`);
+        console.error(`   Expected backend endpoint: /api/results/${datasetName}/all or individual endpoints`);
       }
     } catch (error) {
       console.error('❌ Failed to load from API:', error);

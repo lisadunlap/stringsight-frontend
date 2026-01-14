@@ -621,8 +621,24 @@ export default function PropertyExtractionPanel({
       }
 
       const outputDir = generateOutputDir();
+
+      // Sample rows for dynamic prompt generation (use all operational rows, not just the current one)
+      // This ensures prompts are generated based on the full dataset context
+      const allOperationalRows = getOperationalRows();
+      const sampleSize = Math.min(5, allOperationalRows.length);
+      let sampleRows: Record<string, any>[] = [];
+
+      if (allOperationalRows.length > 0) {
+        // Use deterministic sampling based on indices to ensure consistent cache hits
+        const indices = Array.from({ length: allOperationalRows.length }, (_, i) => i);
+        const step = Math.max(1, Math.floor(allOperationalRows.length / sampleSize));
+        const sampledIndices = indices.filter((_, i) => i % step === 0).slice(0, sampleSize);
+        sampleRows = sampledIndices.map(i => sanitizeRowForSerialization(allOperationalRows[i]));
+      }
+
       const body: any = {
         row: sanitizedRow,
+        sample_rows: sampleRows.length > 0 ? sampleRows : undefined,  // Include sample rows for dynamic prompt generation
         method,
         // When using custom system prompt, send it as a literal string in system_prompt field
         // The backend's get_system_prompt() function will treat it as a literal if it's not a known alias
@@ -630,8 +646,8 @@ export default function PropertyExtractionPanel({
         // For dynamic prompts to work, we need to send task_description
         // If custom prompt is used, task_description is already incorporated
         // If no task description is provided, send a minimal one to trigger dynamic prompt generation
-        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0 
-          ? taskDescription 
+        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0
+          ? taskDescription
           : (!useCustomSystemPrompt ? "Extract interesting and notable behaviors from the conversation." : undefined),
         model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
@@ -653,6 +669,8 @@ export default function PropertyExtractionPanel({
         rowKeys: Object.keys(body.row),
         row_question_id: body.row?.question_id,
         row___index: body.row?.__index,
+        sample_rows_count: sampleRows.length,
+        use_dynamic_prompts: body.use_dynamic_prompts,
       });
 
       if (useCustomSystemPrompt) {
