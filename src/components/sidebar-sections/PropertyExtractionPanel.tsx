@@ -29,9 +29,15 @@ import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import CloseIcon from '@mui/icons-material/Close';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import DescriptionIcon from '@mui/icons-material/Description';
-import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, PromptsMetadata, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, startClusterJob, getClusterJobStatus, getClusterJobResult, runLabel, getLabelPrompt } from '../../lib/api';
+import { getPrompts, getPromptText, extractSingle, extractJobStart, extractJobStatus, extractJobResult, extractJobCancel, PromptsMetadata, getEmbeddingModels, runClustering, checkBackendHealth, pipelineJobStart, resultsLoad, startClusterJob, getClusterJobStatus, getClusterJobResult, runLabel, getLabelPrompt, generatePrompts } from '../../lib/api';
 import { useTutorial } from '../../context/TutorialContext';
 import PromptsModal from '../PromptsModal';
+import {
+  PromptModeSelector,
+  TemplatePromptsSection,
+  DynamicPromptsSection,
+  type PromptMode
+} from './PromptModeComponents';
 
 type Method = 'single_model' | 'side_by_side' | 'unknown';
 
@@ -369,8 +375,17 @@ export default function PropertyExtractionPanel({
     () => localStorage.getItem('stringsight.customSystemPrompt') || ''
   );
 
+  // Prompt mode state
+  const [promptMode, setPromptMode] = React.useState<PromptMode>(
+    () => (localStorage.getItem('stringsight.promptMode') as PromptMode) || 'template'
+  );
+  const [expandedTaskDescription, setExpandedTaskDescription] = React.useState<string | null>(null);
+
   // Demo mode detection
   const isDemoMode = !!demoSampleSize;
+
+  // Check if using demo dataset (airline data)
+  const isUsingDemoData = isDemoMode && (uploadedFileName === 'taubench_airline' || uploadedFileName === 'taubench_airline_sbs');
 
   // Use demo mode settings when applicable
   const [modelName, setModelName] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.modelName : 'gpt-4.1');
@@ -530,9 +545,14 @@ export default function PropertyExtractionPanel({
     return () => { mounted = false; };
   }, [taxonomy]);
 
+  // Display the resolved prompt (in dynamic mode, this will be the full discovery_prompt after extraction)
+  const displayPrompt = React.useMemo(() => {
+    return resolvedPrompt || '';
+  }, [resolvedPrompt]);
+
   // Highlight task description inside resolved prompt (visual only)
   const highlightedResolvedPrompt = React.useMemo(() => {
-    const text = resolvedPrompt || '';
+    const text = displayPrompt;
     const needle = canTaskDescribe && taskDescription.trim().length > 0 ? taskDescription.trim() : '';
     if (!needle) return [text];
     const parts = text.split(needle);
@@ -546,7 +566,27 @@ export default function PropertyExtractionPanel({
       }
     });
     return nodes;
-  }, [resolvedPrompt, canTaskDescribe, taskDescription]);
+  }, [displayPrompt, canTaskDescribe, taskDescription]);
+
+  // Prepare prompts for API based on mode
+  function preparePromptsForAPI() {
+    switch (promptMode) {
+      case 'template':
+        return {
+          system_prompt: selectedPrompt,
+          task_description: taskDescription || null,
+          use_dynamic_prompts: false,
+        };
+
+      case 'dynamic':
+        // Let backend generate prompts dynamically during extraction
+        return {
+          system_prompt: selectedPrompt,  // fallback template
+          task_description: taskDescription || null,
+          use_dynamic_prompts: true,  // backend will expand task and generate prompts
+        };
+    }
+  }
 
   async function runExtractSingle() {
     const row = getSelectedRow();
@@ -636,26 +676,21 @@ export default function PropertyExtractionPanel({
         sampleRows = sampledIndices.map(i => sanitizeRowForSerialization(allOperationalRows[i]));
       }
 
+      const promptConfig = preparePromptsForAPI();
+
       const body: any = {
         row: sanitizedRow,
-        sample_rows: sampleRows.length > 0 ? sampleRows : undefined,  // Include sample rows for dynamic prompt generation
+        sample_rows: sampleRows.length > 0 ? sampleRows : undefined,
         method,
-        // When using custom system prompt, send it as a literal string in system_prompt field
-        // The backend's get_system_prompt() function will treat it as a literal if it's not a known alias
-        system_prompt: useCustomSystemPrompt ? customSystemPrompt : selectedPrompt,
-        // For dynamic prompts to work, we need to send task_description
-        // If custom prompt is used, task_description is already incorporated
-        // If no task description is provided, send a minimal one to trigger dynamic prompt generation
-        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0
-          ? taskDescription
-          : (!useCustomSystemPrompt ? "Extract interesting and notable behaviors from the conversation." : undefined),
+        system_prompt: promptConfig.system_prompt,
+        task_description: promptConfig.task_description,
+        use_dynamic_prompts: promptConfig.use_dynamic_prompts && !isUsingDemoData,  // Disable for demo dataset
         model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
         max_tokens: maxTokens,
         max_workers: maxWorkers,
         output_dir: outputDir,
-        use_dynamic_prompts: !isDemoMode,  // Disable in demo mode for faster results
       };
 
       console.log('[PropertyExtraction] Making API call with:', {
@@ -789,6 +824,16 @@ export default function PropertyExtractionPanel({
       if (res.prompts) {
         setGeneratedPrompts(res.prompts);
         console.log('[PropertyExtraction] 📋 Captured generated prompts from single extraction');
+
+        // Capture expanded task description if dynamic prompts were used
+        if (res.prompts.expanded_task_description) {
+          setExpandedTaskDescription(res.prompts.expanded_task_description);
+        }
+
+        // Capture the full discovery prompt (system prompt with task description plugged in)
+        if (res.prompts.discovery_prompt) {
+          setResolvedPrompt(res.prompts.discovery_prompt);
+        }
       }
 
       onPropertiesMerged(res.properties || []);
@@ -949,20 +994,15 @@ export default function PropertyExtractionPanel({
       onBatchStatus?.(0, 'queued', 'extraction', 'Starting extraction job...');
 
       const outputDir = generateOutputDir();
+      const promptConfig = preparePromptsForAPI();
 
       // Only send extraction parameters, NOT clustering parameters
       const extractBody = {
         rows,
         method,
-        // When using custom system prompt, send it as a literal string in system_prompt field
-        // The backend's get_system_prompt() function will treat it as a literal if it's not a known alias
-        system_prompt: useCustomSystemPrompt ? customSystemPrompt : selectedPrompt,
-        // For dynamic prompts to work, we need to send task_description
-        // If custom prompt is used, task_description is already incorporated
-        // If no task description is provided, send a minimal one to trigger dynamic prompt generation
-        task_description: !useCustomSystemPrompt && canTaskDescribe && taskDescription.trim().length > 0 
-          ? taskDescription 
-          : (!useCustomSystemPrompt ? "Extract interesting and notable behaviors from the conversation." : undefined),
+        system_prompt: promptConfig.system_prompt,
+        task_description: promptConfig.task_description,
+        use_dynamic_prompts: promptConfig.use_dynamic_prompts && !isUsingDemoData,  // Disable for demo dataset
         model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
@@ -970,7 +1010,6 @@ export default function PropertyExtractionPanel({
         max_workers: maxWorkers,
         sample_size: demoSampleSize || sampleSize || undefined,
         output_dir: outputDir,
-        use_dynamic_prompts: !isDemoMode,  // Disable in demo mode for faster results
         // Clustering params REMOVED - we will run clustering separately after extraction
       };
 
@@ -1005,6 +1044,16 @@ export default function PropertyExtractionPanel({
               if (r.prompts) {
                 setGeneratedPrompts(r.prompts);
                 console.log('[PropertyExtraction] 📋 Captured generated prompts');
+
+                // Capture expanded task description if dynamic prompts were used
+                if (r.prompts.expanded_task_description) {
+                  setExpandedTaskDescription(r.prompts.expanded_task_description);
+                }
+
+                // Capture the full discovery prompt (system prompt with task description plugged in)
+                if (r.prompts.discovery_prompt) {
+                  setResolvedPrompt(r.prompts.discovery_prompt);
+                }
               }
               const extractedProperties = r.properties || [];
               console.log('[PropertyExtraction] 📦 Extracted properties:', extractedProperties.length);
@@ -1551,7 +1600,7 @@ export default function PropertyExtractionPanel({
               <Button
                 variant={labelMode === 'label' ? 'contained' : 'outlined'}
                 onClick={() => setLabelMode('label')}
-                disabled={busy || clusteringBusy || method !== 'single_model'}
+                disabled={busy || clusteringBusy || method !== 'single_model' || isUsingDemoData}
                 fullWidth
                 size="small"
                 sx={{
@@ -1568,6 +1617,8 @@ export default function PropertyExtractionPanel({
             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
               {labelMode === 'extract'
                 ? 'LLM discovers properties from traces based on your task description'
+                : isUsingDemoData
+                ? 'LLM assigns traces to predefined taxonomy labels (disabled for demo dataset)'
                 : 'LLM assigns traces to predefined taxonomy labels (single_model only)'}
             </Typography>
           </Box>
@@ -1654,6 +1705,19 @@ export default function PropertyExtractionPanel({
                         ))}
                       </Box>
                     )}
+
+                    {/* Results folder name */}
+                    <Box>
+                      <TextField
+                        size="small"
+                        label="Results folder name"
+                        value={resultsNameProp || ''}
+                        onChange={(e) => onResultsNameChange?.(e.target.value)}
+                        placeholder="Auto-generated from filename"
+                        helperText={resultsNameProp ? `Results will be saved to: ${resultsNameProp}_[timestamp]` : 'Defaults to uploaded filename'}
+                        fullWidth
+                      />
+                    </Box>
 
                     {/* Advanced Settings for Label Mode */}
                     <Box sx={{ mt: 2 }}>
@@ -1744,98 +1808,64 @@ export default function PropertyExtractionPanel({
           {labelMode === 'extract' && (
           <Box>
             <Stack spacing={2} data-tutorial-id="extract-properties-trace">
-              <Autocomplete
-                size="small"
-                options={promptOptions.map(p => p.name)}
-                value={selectedPrompt}
-                getOptionLabel={(option) => getPromptDisplayLabel(option)}
-                onChange={(_, v) => {
-                  if (v) {
-                    setSelectedPrompt(v);
-                    localStorage.setItem('stringsight.selectedPrompt', v);
-                    // Reset edited flag on prompt change
-                    setUserEdited(false);
-                    localStorage.setItem('stringsight.taskDescriptionEdited', 'false');
-                  }
+              {/* Prompt Mode Selector */}
+              <PromptModeSelector
+                mode={promptMode}
+                onModeChange={(mode) => {
+                  setPromptMode(mode);
+                  localStorage.setItem('stringsight.promptMode', mode);
                 }}
-                renderInput={(params) => <TextField {...params} label="Task Type" />}
+                disabled={busy || clusteringBusy || isUsingDemoData}
               />
 
-              {/* <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {promptOptions.length} prompts available
-              </Typography> */}
-
-              {canTaskDescribe && (
-                <Stack spacing={1}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
-                      Task description
-                    </Typography>
-                    <Tooltip
-                      title="Describe what you want the LLM to focus on when analyzing traces. Edit this to extract specific behaviors relevant to your use case and look in advanced setting to see the full system prompt."
-                      arrow
-                      placement="top"
-                    >
-                      <InfoOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'help' }} />
-                    </Tooltip>
-                  </Box>
-                  <TextField
-                    value={taskDescription}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setTaskDescription(val);
-                      setUserEdited(true);
-                      localStorage.setItem('stringsight.taskDescription', val);
-                      localStorage.setItem('stringsight.taskDescriptionEdited', 'true');
-                    }}
-                    minRows={4}
-                    maxRows={9}
-                    multiline
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end" sx={{ alignSelf: 'flex-start', mt: 0.5, ml: -1 }}>
-                          <IconButton
-                            size="small"
-                            onClick={() => setTaskDescFullscreen(true)}
-                            edge="end"
-                            title="Expand to full screen"
-                            sx={{ p: 0.5 }}
-                          >
-                            <FullscreenIcon sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={{
-                      '& .MuiInputBase-root': {
-                        overflow: 'auto',
-                        fontSize: '0.9rem',
-                      },
-                      '& .MuiInputLabel-root': {
-                        backgroundColor: 'background.paper',
-                        px: 0.5,
-                      }
-                    }}
-                  />
-                  <Box>
-                    <Button
-                      size="small"
-                      variant="text"
-                      onClick={() => {
-                        const def = method === 'side_by_side' ? (selectedPromptMeta?.default_task_description_sbs || '') : (selectedPromptMeta?.default_task_description_single || '');
-                        setTaskDescription(def);
-                        setUserEdited(false);
-                        localStorage.setItem('stringsight.taskDescription', def);
-                        localStorage.setItem('stringsight.taskDescriptionEdited', 'false');
-                      }}
-                    >
-                      Reset to default
-                    </Button>
-                  </Box>
-                </Stack>
+              {/* Template Mode UI */}
+              {promptMode === 'template' && (
+                <TemplatePromptsSection
+                  taskDescription={taskDescription}
+                  onTaskDescriptionChange={(val) => {
+                    setTaskDescription(val);
+                    setUserEdited(true);
+                    localStorage.setItem('stringsight.taskDescription', val);
+                    localStorage.setItem('stringsight.taskDescriptionEdited', 'true');
+                  }}
+                  onResetToDefault={() => {
+                    const def = method === 'side_by_side'
+                      ? (selectedPromptMeta?.default_task_description_sbs || '')
+                      : (selectedPromptMeta?.default_task_description_single || '');
+                    setTaskDescription(def);
+                    setUserEdited(false);
+                    localStorage.setItem('stringsight.taskDescription', def);
+                    localStorage.setItem('stringsight.taskDescriptionEdited', 'false');
+                  }}
+                  method={method}
+                  disabled={busy || clusteringBusy}
+                />
               )}
 
-              {/* Resolved system prompt moved to Advanced settings below */}
+              {/* Dynamic Mode UI */}
+              {promptMode === 'dynamic' && (
+                <DynamicPromptsSection
+                  taskDescription={taskDescription}
+                  onTaskDescriptionChange={(val) => {
+                    setTaskDescription(val);
+                    setUserEdited(true);
+                    localStorage.setItem('stringsight.taskDescription', val);
+                    localStorage.setItem('stringsight.taskDescriptionEdited', 'true');
+                  }}
+                  onResetToDefault={() => {
+                    const def = method === 'side_by_side'
+                      ? (selectedPromptMeta?.default_task_description_sbs || '')
+                      : (selectedPromptMeta?.default_task_description_single || '');
+                    setTaskDescription(def);
+                    setUserEdited(false);
+                    localStorage.setItem('stringsight.taskDescription', def);
+                    localStorage.setItem('stringsight.taskDescriptionEdited', 'false');
+                  }}
+                  expandedTaskDescription={expandedTaskDescription}
+                  method={method}
+                  disabled={busy || clusteringBusy}
+                />
+              )}
             </Stack>
 
           <Box sx={{ mt: 3 }}>
@@ -2115,16 +2145,6 @@ export default function PropertyExtractionPanel({
                 ? `Label and Cluster Sample (${sampleSize} traces)`
                 : `Label and Cluster All Traces (${getAllRows().length})`}
               </Button>
-              {generatedPrompts && generatedPrompts.dynamic_prompts_used && (
-                <Button
-                  variant="text"
-                  onClick={() => setPromptsModalOpen(true)}
-                  sx={{ width: '100%', mt: 1 }}
-                  startIcon={<DescriptionIcon />}
-                >
-                  View Generated Prompt
-                </Button>
-              )}
             </Box>
           </Box>
           )}

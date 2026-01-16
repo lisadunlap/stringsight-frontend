@@ -156,8 +156,34 @@ export async function getPromptText(name: string, task_description?: string | nu
   return res.json();
 }
 
+/**
+ * Generate dynamic prompts from sample traces without running extraction.
+ * Returns all 4 prompts: discovery, clustering, dedup, outlier.
+ */
+export async function generatePrompts(body: {
+  rows: Record<string, any>[];
+  method?: 'single_model' | 'side_by_side';
+  task_description?: string | null;
+  num_samples?: number;
+  model?: string;
+  output_dir?: string | null;
+  seed?: number;
+}): Promise<{
+  prompts: PromptsMetadata;
+  generation_time_seconds: number;
+}> {
+  const res = await fetch(`${API_BASE}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
+  return res.json();
+}
+
 export async function extractSingle(body: {
   row: Record<string, any>;
+  sample_rows?: Record<string, any>[];  // For dynamic prompt generation
   method?: 'single_model' | 'side_by_side';
   system_prompt?: string;  // Can be a prompt name ("default", "agent") or a literal prompt string
   task_description?: string | null;
@@ -171,6 +197,7 @@ export async function extractSingle(body: {
   output_dir?: string | null;
   return_debug?: boolean;
   use_dynamic_prompts?: boolean;  // Enable dynamic prompt generation
+  custom_clustering_prompts?: Record<string, string>;  // Pre-generated clustering prompts
 }): Promise<{
   rows: any[];
   columns: string[];
@@ -201,6 +228,7 @@ export async function extractBatch(body: {
   output_dir?: string | null;
   return_debug?: boolean;
   sample_size?: number;
+  custom_clustering_prompts?: Record<string, string>;  // Pre-generated clustering prompts
 }) {
   const res = await fetch(`${API_BASE}/extract/batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
@@ -227,6 +255,7 @@ export async function extractJobStart(body: {
   output_dir?: string | null;
   sample_size?: number;
   use_dynamic_prompts?: boolean;  // Enable dynamic prompt generation
+  custom_clustering_prompts?: Record<string, string>;  // Pre-generated clustering prompts
 }) {
   const res = await fetch(`${API_BASE}/api/v1/jobs/extract`, {
     method: 'POST',
