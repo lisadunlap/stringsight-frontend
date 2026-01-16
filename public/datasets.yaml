@@ -10,7 +10,7 @@ datasets:
   telecom:
     name: "TauBench v2 - Telecom"
     description: "Telecom customer service agent"
-    # Uses /api/results/telecom/* endpoints
+     # cdn_url: "http://localhost:8000/final_results/telecom"
     files: []
     method: "single_model"
     created_at: "2026-01-02"
