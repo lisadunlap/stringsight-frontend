@@ -197,10 +197,19 @@ export default function ClusterSidecard({
       }
     });
 
-    // Calculate unique conversation count from proportion_overall * totalUniqueConversations
-    const clusterConversationCount = (proportionOverall !== undefined && totalUniqueConversations)
-      ? Math.round(proportionOverall * totalUniqueConversations)
-      : cluster.meta?.total_unique_conversations;
+    // Calculate unique conversation count
+    // Priority 1: Use the accurate count from filtered cluster data (calculated from filtered question_ids)
+    // Priority 2: Fall back to proportion-based calculation only if filtered count not available
+    let clusterConversationCount = cluster.meta?.total_unique_conversations
+      ?? ((proportionOverall !== undefined && totalUniqueConversations)
+        ? Math.round(proportionOverall * totalUniqueConversations)
+        : undefined);
+
+    // Safety check: conversation count should never exceed property count
+    // (since each property must come from a conversation)
+    if (clusterConversationCount !== undefined && cluster.size !== undefined) {
+      clusterConversationCount = Math.min(clusterConversationCount, cluster.size);
+    }
 
     return {
       ...cluster,

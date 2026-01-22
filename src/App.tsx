@@ -628,6 +628,23 @@ function ExampleFormatTabs() {
 
 function App() {
 
+  // Helper function to filter out invalid properties with empty descriptions
+  const filterValidProperties = (properties: any[]): any[] => {
+    if (!properties || properties.length === 0) return properties;
+
+    const filtered = properties.filter(prop => {
+      const desc = prop?.property_description;
+      return desc && typeof desc === 'string' && desc.trim() !== '' && desc !== 'No properties';
+    });
+
+    const removedCount = properties.length - filtered.length;
+    if (removedCount > 0) {
+      console.log(`🔍 [App] Filtered out ${removedCount} properties with empty descriptions`);
+    }
+
+    return filtered;
+  };
+
   // URL-based dataset loading
   const { dataset: urlDataset, isLoading: urlLoading, error: urlError, datasetName, datasetDisplayName, availableDatasets } = useDatasetFromUrl();
 
@@ -1109,8 +1126,9 @@ function App() {
 
         // Set properties (matches Load Results flow line 1434)
         if (properties.length > 0) {
-          setPropertiesRows(properties);
-          console.log(`✅ Loaded ${properties.length} properties`);
+          const validProperties = filterValidProperties(properties);
+          setPropertiesRows(validProperties);
+          console.log(`✅ Loaded ${validProperties.length} properties`);
         }
 
         // Set metrics (matches Load Results flow lines 1445-1451)
@@ -1507,8 +1525,9 @@ function App() {
       // Skip loading properties only if this is bundled demo data loaded for tutorial (isDemoSession = true)
       const isLoadingBundledDemo = isDemoSession;
       if (properties.length > 0 && !isLoadingBundledDemo) {
-        setPropertiesRows(properties);
-        console.log(`✅ Loaded ${properties.length} properties`);
+        const validProperties = filterValidProperties(properties);
+        setPropertiesRows(validProperties);
+        console.log(`✅ Loaded ${validProperties.length} properties`);
       } else if (isLoadingBundledDemo && properties.length > 0) {
         console.log(`⚠️ Demo mode: Skipping ${properties.length} pre-loaded properties - table will start empty`);
       }
@@ -1903,8 +1922,9 @@ function App() {
       setShowColumnSelector(false);
 
       if (properties.length > 0) {
-        setPropertiesRows(properties);
-        console.log(`✅ Loaded ${properties.length} properties`);
+        const validProperties = filterValidProperties(properties);
+        setPropertiesRows(validProperties);
+        console.log(`✅ Loaded ${validProperties.length} properties`);
       }
 
       // Load metrics first (even if no clusters), then handle clusters separately
@@ -3705,9 +3725,10 @@ function App() {
     });
 
     // Add to existing propertiesRows (for single extraction, we append)
-    setPropertiesRows(prevRows => [...prevRows, ...enrichedProps]);
+    const validEnrichedProps = filterValidProperties(enrichedProps);
+    setPropertiesRows(prevRows => [...prevRows, ...validEnrichedProps]);
     // Don't auto-switch tabs - stay in extraction step
-  }, []);
+  }, [filterValidProperties]);
 
   const onBatchLoadedCb = useCallback((rows: any[]) => {
     // Enrich properties with model_response from operational data
@@ -3740,9 +3761,10 @@ function App() {
       };
     });
 
-    setPropertiesRows(enrichedRows);
+    const validEnrichedRows = filterValidProperties(enrichedRows);
+    setPropertiesRows(validEnrichedRows);
     // Don't auto-switch tabs - stay in extraction step to see properties in panel
-  }, []);
+  }, [filterValidProperties]);
 
   const onBatchDoneCb = useCallback(() => {
     setBatchRunning(false);

@@ -73,6 +73,68 @@ async function parseJsonl(text: string): Promise<any[]> {
 }
 
 /**
+ * Filter out invalid properties with empty descriptions
+ */
+function filterInvalidProperties(properties: any[]): any[] {
+  if (!properties || properties.length === 0) return properties;
+
+  const filtered = properties.filter(prop => {
+    const desc = prop?.property_description;
+    return desc && typeof desc === 'string' && desc.trim() !== '' && desc !== 'No properties';
+  });
+
+  const removedCount = properties.length - filtered.length;
+  if (removedCount > 0) {
+    console.log(`🔍 Filtered out ${removedCount} properties with empty descriptions`);
+  }
+
+  return filtered;
+}
+
+/**
+ * Filter out invalid property descriptions from cluster data
+ */
+function filterInvalidClusterProperties(clusters: any[]): any[] {
+  if (!clusters || clusters.length === 0) return clusters;
+
+  return clusters.map(cluster => {
+    const propertyIds = cluster.property_ids || [];
+    const propertyDescriptions = cluster.property_descriptions || [];
+    const questionIds = cluster.question_ids || [];
+
+    // Filter out invalid entries
+    const validIndices: number[] = [];
+    propertyDescriptions.forEach((desc: any, idx: number) => {
+      if (desc && typeof desc === 'string' && desc.trim() !== '' && desc !== 'No properties') {
+        validIndices.push(idx);
+      }
+    });
+
+    // Only return cluster if it has valid properties
+    if (validIndices.length === 0) return null;
+
+    // Get filtered question IDs and calculate unique conversations
+    const filteredQuestionIds = validIndices.map(i => questionIds[i]);
+    const uniqueConversations = new Set(filteredQuestionIds).size;
+
+    // Update cluster metadata with correct unique conversation count
+    const meta = cluster.meta || {};
+
+    return {
+      ...cluster,
+      property_ids: validIndices.map(i => propertyIds[i]),
+      property_descriptions: validIndices.map(i => propertyDescriptions[i]),
+      question_ids: filteredQuestionIds,
+      size: validIndices.length,
+      meta: {
+        ...meta,
+        total_unique_conversations: uniqueConversations
+      }
+    };
+  }).filter(c => c !== null);
+}
+
+/**
  * Load a single dataset file from backend
  */
 async function loadDatasetFile(
@@ -144,8 +206,8 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
     // Load from ZIP
     const zipData = await loadDatasetFromZip(datasetUrl, datasetConfig.files);
     conversations = zipData.conversations;
-    properties = zipData.properties;
-    clusters = zipData.clusters;
+    properties = filterInvalidProperties(zipData.properties);
+    clusters = filterInvalidClusterProperties(zipData.clusters);
     modelClusterScores = zipData.metrics.model_cluster_scores;
     clusterScores = zipData.metrics.cluster_scores;
     modelScores = zipData.metrics.model_scores;
@@ -159,8 +221,11 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
     }
     conversations = conversationsData || [];
 
-    properties = await loadDatasetFile(datasetConfig, 'properties.jsonl', false, datasetName) || [];
-    clusters = await loadDatasetFile(datasetConfig, 'clusters.jsonl', false, datasetName) || [];
+    const rawProperties = await loadDatasetFile(datasetConfig, 'properties.jsonl', false, datasetName) || [];
+    properties = filterInvalidProperties(rawProperties);
+
+    const rawClusters = await loadDatasetFile(datasetConfig, 'clusters.jsonl', false, datasetName) || [];
+    clusters = filterInvalidClusterProperties(rawClusters);
 
     // Load optional metrics files
     modelClusterScores = await loadDatasetFile(
