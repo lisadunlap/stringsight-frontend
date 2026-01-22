@@ -16,8 +16,7 @@ import {
   TableRow,
   Paper,
   Typography,
-  Tooltip,
-  IconButton
+  Tooltip
 } from '@mui/material';
 import { getModelDisplayName } from '../../lib/normalize';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -33,10 +32,55 @@ interface BenchmarkTableProps {
   showCI?: boolean;
 }
 
+type ResolvedMetricKeys = {
+  metric: string;
+  qualityKey: keyof ModelBenchmarkRow;
+  ciLowerKey: keyof ModelBenchmarkRow;
+  ciUpperKey: keyof ModelBenchmarkRow;
+};
+
+/**
+ * Resolve the actual `quality_<metric>` key that exists in the data.
+ *
+ * Some datasets use raw metric names like "claude score (1-10)" which become
+ * object keys like `quality_claude score (1-10)`. Other datasets use sanitized
+ * keys like `quality_claude_score_1_10`. The table should support both.
+ */
+function resolveQualityKeys(
+  sampleRow: ModelBenchmarkRow | undefined,
+  metric: string
+): ResolvedMetricKeys {
+  const originalKey = `quality_${metric}`;
+  const sanitizedKey = `quality_${sanitizeMetricName(metric)}`;
+
+  const qualityKeyStr =
+    sampleRow && (originalKey in sampleRow) ? originalKey : sanitizedKey;
+
+  return {
+    metric,
+    qualityKey: qualityKeyStr as unknown as keyof ModelBenchmarkRow,
+    ciLowerKey: `${qualityKeyStr}_ci_lower` as unknown as keyof ModelBenchmarkRow,
+    ciUpperKey: `${qualityKeyStr}_ci_upper` as unknown as keyof ModelBenchmarkRow
+  };
+}
+
 export function BenchmarkTable({ data, qualityMetrics, showCI = false }: BenchmarkTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
   const columnHelper = createColumnHelper<ModelBenchmarkRow>();
+
+  const resolvedMetrics = useMemo<ResolvedMetricKeys[]>(() => {
+    const sampleRow = data[0];
+    return qualityMetrics
+      .filter(metric =>
+        !metric.includes('delta') &&
+        !metric.includes('Delta') &&
+        !metric.endsWith('_ci_lower') &&
+        !metric.endsWith('_ci_mean') &&
+        !metric.endsWith('_ci_upper')
+      )
+      .map((metric) => resolveQualityKeys(sampleRow, metric));
+  }, [data, qualityMetrics]);
 
   const columns = useMemo(() => {
     const cols: any[] = [
@@ -77,21 +121,8 @@ export function BenchmarkTable({ data, qualityMetrics, showCI = false }: Benchma
       })
     ];
 
-    // Add a column for each quality metric (filter out delta metrics and CI columns)
-    qualityMetrics
-      .filter(metric =>
-        !metric.includes('delta') &&
-        !metric.includes('Delta') &&
-        !metric.endsWith('_ci_lower') &&
-        !metric.endsWith('_ci_mean') &&
-        !metric.endsWith('_ci_upper')
-      )
-      .forEach(metric => {
-      const sanitized = sanitizeMetricName(metric);
-      const qualityKey = `quality_${sanitized}` as keyof ModelBenchmarkRow;
-      const ciLowerKey = `${qualityKey}_ci_lower` as keyof ModelBenchmarkRow;
-      const ciUpperKey = `${qualityKey}_ci_upper` as keyof ModelBenchmarkRow;
-
+    // Add a column for each quality metric (supports both raw and sanitized keys)
+    resolvedMetrics.forEach(({ metric, qualityKey, ciLowerKey, ciUpperKey }) => {
       cols.push(
         columnHelper.accessor(qualityKey, {
           id: qualityKey,
@@ -106,7 +137,7 @@ export function BenchmarkTable({ data, qualityMetrics, showCI = false }: Benchma
             const ciLower = row[ciLowerKey] as number | undefined;
             const ciUpper = row[ciUpperKey] as number | undefined;
 
-            const hasCI = ciLower !== undefined && ciUpper !== undefined;
+            const hasCI = showCI && ciLower !== undefined && ciUpper !== undefined;
 
             return (
               <Tooltip
@@ -136,7 +167,7 @@ export function BenchmarkTable({ data, qualityMetrics, showCI = false }: Benchma
     });
 
     return cols;
-  }, [qualityMetrics, showCI, columnHelper]);
+  }, [columnHelper, resolvedMetrics, showCI]);
 
   const table = useReactTable({
     data,

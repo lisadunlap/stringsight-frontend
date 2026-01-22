@@ -2,7 +2,23 @@
  * Dataset configuration types
  */
 
+export type DatasetCategory =
+  | 'Customer Service & Dialog'
+  | 'Software Engineering'
+  | 'QA & Medical'
+  | 'Experimental / Toy';
+
 export interface DatasetConfig {
+  /**
+   * Category label used for grouping on the /results page.
+   *
+   * Expected values:
+   * - "Customer Service & Dialog"
+   * - "Software Engineering"
+   * - "QA & Medical"
+   * - "Experimental / Toy"
+   */
+  category: DatasetCategory;
   name: string;
   description: string;
   cdn_url: string;  // URL to dataset ZIP file (from /api/results/zip endpoint)
