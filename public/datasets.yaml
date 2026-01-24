@@ -34,7 +34,7 @@ datasets:
     created_at: "2026-01-03"
 
   swe_smith_tool:
-    category: "Software Engineering"
+    category: "Coding"
     name: "SWEBench Smith (Tools)"
     description: "SWEBench Smith dataset with tools"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/swe_smith_tool"
@@ -43,7 +43,7 @@ datasets:
     created_at: "2026-01-02"
 
   swe_smith_ticks:
-    category: "Software Engineering"
+    category: "Coding"
     name: "SWEBench Smith (Ticks)"
     description: "SWEBench Smith dataset with ticks"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/swe_smith_ticks"
@@ -52,7 +52,7 @@ datasets:
     created_at: "2025-12-30"
 
   swe_smith_xml:
-    category: "Software Engineering"
+    category: "Coding"
     name: "SWEBench Smith (XML)"
     description: "SWEBench Smith dataset with XML"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/swe_smith_xml"
