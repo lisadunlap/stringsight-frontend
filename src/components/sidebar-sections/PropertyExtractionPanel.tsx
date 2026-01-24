@@ -207,6 +207,11 @@ function transformRowsForBackend(
         transformed.scores = [row.score_b];
       }
 
+      // Preserve winner field if present
+      if (row.winner !== undefined && row.winner !== null) {
+        transformed.winner = row.winner;
+      }
+
       return transformed;
     });
   } else if (method === 'single_model') {

@@ -102,16 +102,126 @@ export default function ClusterSidecard({
 
   // Enrich cluster with model cluster scores data (same logic as ClustersTab)
   const enrichedCluster = React.useMemo(() => {
-    if (!cluster || !modelClusterScores || modelClusterScores.length === 0) {
+    if (!cluster) {
       return cluster;
     }
 
     const clusterLabel = cluster.label || cluster.cluster_label || String(cluster.id);
 
-    // Find all metrics rows for this cluster
-    const clusterMetrics = modelClusterScores.filter((m: any) =>
+    // Try to find backend-computed metrics first
+    const clusterMetrics = modelClusterScores?.filter((m: any) =>
       m.cluster === clusterLabel || String(m.cluster_id) === String(cluster.id)
-    );
+    ) || [];
+
+    // If no backend metrics, try to compute from raw data (fallback for winner-only data)
+    if (clusterMetrics.length === 0 && method === 'side_by_side' && getPropertiesRows && getOperationalRows) {
+      console.log('[ClusterSidecard] No backend metrics, attempting fallback computation from winner column');
+
+      const allProperties = getPropertiesRows();
+      const allOperational = getOperationalRows();
+
+      // Get properties in this cluster
+      const clusterPropertyIds = new Set(
+        Array.isArray(cluster.property_ids)
+          ? cluster.property_ids.map((id: any) => String(id))
+          : []
+      );
+
+      const clusterProperties = allProperties.filter((p: any) =>
+        clusterPropertyIds.has(String(p?.id))
+      );
+
+      // Check if operational rows have winner column
+      const hasWinner = allOperational.some((r: any) => r?.winner !== undefined && r?.winner !== null);
+
+      if (hasWinner && clusterProperties.length > 0) {
+        // Compute win rates for this cluster
+        const clusterWins: Record<string, { wins: number; total: number }> = {};
+        const overallWins: Record<string, { wins: number; total: number }> = {};
+
+        // Build question_id lookup
+        const opByQid = new Map<string, any>();
+        allOperational.forEach((r: any) => {
+          const qid = String(r?.__index ?? r?.question_id ?? '');
+          if (qid) opByQid.set(qid, r);
+        });
+
+        // Process cluster properties
+        clusterProperties.forEach((prop: any) => {
+          const qid = String(prop?.question_id ?? '');
+          const row = opByQid.get(qid);
+          if (!row) return;
+
+          const modelA = String(row?.model_a ?? '');
+          const modelB = String(row?.model_b ?? '');
+          const winner = row?.winner;
+
+          if (!modelA || !modelB || winner === undefined || winner === null) return;
+
+          // Initialize
+          if (!clusterWins[modelA]) clusterWins[modelA] = { wins: 0, total: 0 };
+          if (!clusterWins[modelB]) clusterWins[modelB] = { wins: 0, total: 0 };
+
+          clusterWins[modelA].total += 1;
+          clusterWins[modelB].total += 1;
+
+          // Count wins
+          const winnerStr = String(winner).toLowerCase();
+          if (winnerStr === modelA.toLowerCase() || winnerStr === 'model_a' || winnerStr === 'a') {
+            clusterWins[modelA].wins += 1;
+          } else if (winnerStr === modelB.toLowerCase() || winnerStr === 'model_b' || winnerStr === 'b') {
+            clusterWins[modelB].wins += 1;
+          }
+        });
+
+        // Compute overall win rates (all conversations)
+        allOperational.forEach((row: any) => {
+          const modelA = String(row?.model_a ?? '');
+          const modelB = String(row?.model_b ?? '');
+          const winner = row?.winner;
+
+          if (!modelA || !modelB || winner === undefined || winner === null) return;
+
+          if (!overallWins[modelA]) overallWins[modelA] = { wins: 0, total: 0 };
+          if (!overallWins[modelB]) overallWins[modelB] = { wins: 0, total: 0 };
+
+          overallWins[modelA].total += 1;
+          overallWins[modelB].total += 1;
+
+          const winnerStr = String(winner).toLowerCase();
+          if (winnerStr === modelA.toLowerCase() || winnerStr === 'model_a' || winnerStr === 'a') {
+            overallWins[modelA].wins += 1;
+          } else if (winnerStr === modelB.toLowerCase() || winnerStr === 'model_b' || winnerStr === 'b') {
+            overallWins[modelB].wins += 1;
+          }
+        });
+
+        // Build synthetic model cluster scores with quality deltas
+        const syntheticMetrics = Object.keys(clusterWins).map(model => {
+          const clusterWinRate = clusterWins[model].total > 0
+            ? clusterWins[model].wins / clusterWins[model].total
+            : 0;
+          const overallWinRate = overallWins[model]?.total > 0
+            ? overallWins[model].wins / overallWins[model].total
+            : 0;
+          const delta = clusterWinRate - overallWinRate;
+
+          const proportion = clusterWins[model].total / clusterProperties.length;
+
+          return {
+            cluster: clusterLabel,
+            model: model,
+            size: clusterWins[model].total,
+            proportion: proportion,
+            quality_winner: clusterWinRate,
+            quality_delta_winner: delta
+          };
+        });
+
+        console.log('[ClusterSidecard] Computed synthetic metrics:', syntheticMetrics);
+        clusterMetrics.push(...syntheticMetrics);
+      }
+    }
 
     if (clusterMetrics.length === 0) {
       return cluster;

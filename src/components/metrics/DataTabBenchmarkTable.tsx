@@ -155,6 +155,57 @@ export default function DataTabBenchmarkTable({
       }
     }
 
+    // If no quality metrics were found from score objects but we have a winner column,
+    // compute win rates from the winner column for side-by-side data
+    if (metricSet.size === 0 && method === 'side_by_side' && operationalRows && operationalRows.length > 0) {
+      const hasWinner = operationalRows.some((r: any) => r.winner !== undefined && r.winner !== null);
+
+      if (hasWinner) {
+        console.log('[DataTabBenchmarkTable] No score objects found, computing win rates from winner column');
+        metricSet.add('winner');
+
+        // Compute win rates per model
+        const winCounts: Record<string, { wins: number; total: number }> = {};
+
+        for (const r of operationalRows) {
+          const modelA = typeof (r as any)?.model_a === 'string' ? String((r as any).model_a) : '';
+          const modelB = typeof (r as any)?.model_b === 'string' ? String((r as any).model_b) : '';
+          const winner = (r as any)?.winner;
+
+          if (!modelA || !modelB || winner === undefined || winner === null) continue;
+
+          // Initialize counters
+          if (!winCounts[modelA]) winCounts[modelA] = { wins: 0, total: 0 };
+          if (!winCounts[modelB]) winCounts[modelB] = { wins: 0, total: 0 };
+
+          // Increment totals
+          winCounts[modelA].total += 1;
+          winCounts[modelB].total += 1;
+
+          // Increment wins based on winner value
+          const winnerStr = String(winner).toLowerCase();
+          if (winnerStr === modelA.toLowerCase() || winnerStr === 'model_a' || winnerStr === 'a') {
+            winCounts[modelA].wins += 1;
+          } else if (winnerStr === modelB.toLowerCase() || winnerStr === 'model_b' || winnerStr === 'b') {
+            winCounts[modelB].wins += 1;
+          }
+          // For ties, neither model gets a win (but both get a total count)
+        }
+
+        // Add winner metric to perModel (matches backend column name quality_winner)
+        for (const [model, counts] of Object.entries(winCounts)) {
+          if (!perModel[model]) {
+            perModel[model] = { model, cluster: 'all_clusters', size: 0, proportion: 1 };
+          }
+          perModel[model].size = counts.total;
+          const winRate = counts.total > 0 ? counts.wins / counts.total : 0;
+          (perModel[model] as any).__acc_winner = winRate * counts.total;
+          (perModel[model] as any).__cnt_winner = counts.total;
+          (perModel[model] as any).__sq_winner = (winRate * winRate) * counts.total;
+        }
+      }
+    }
+
     // Finalize means and confidence intervals per metric (95% CI)
     const rows: ModelBenchmarkRow[] = Object.values(perModel).map((row: any) => {
       metricSet.forEach((k) => {

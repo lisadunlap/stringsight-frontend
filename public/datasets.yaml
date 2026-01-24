@@ -16,7 +16,8 @@ datasets:
   #   created_at: "2026-01-02"
 
   airline:
-    name: "TauBench v2 - Airline"
+    category: "Customer Service & Dialog"
+    name: "TauBench v2 – Airline"
     description: "Airline customer service benchmark"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/airline"
     files: []
@@ -24,7 +25,8 @@ datasets:
     created_at: "2026-01-03"
   
   retail:
-    name: "TauBench v2 - Retail"
+    category: "Customer Service & Dialog"
+    name: "TauBench v2 – Retail"
     description: "Retail customer service benchmark"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/retail"
     files: []
@@ -32,7 +34,8 @@ datasets:
     created_at: "2026-01-03"
 
   swe_smith_tool:
-    name: "SWEBench Smith Tools"
+    category: "Software Engineering"
+    name: "SWEBench Smith (Tools)"
     description: "SWEBench Smith dataset with tools"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/swe_smith_tool"
     files: []
@@ -40,7 +43,8 @@ datasets:
     created_at: "2026-01-02"
 
   swe_smith_ticks:
-    name: "SWEBench Smith Ticks"
+    category: "Software Engineering"
+    name: "SWEBench Smith (Ticks)"
     description: "SWEBench Smith dataset with ticks"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/swe_smith_ticks"
     files: []
@@ -48,14 +52,16 @@ datasets:
     created_at: "2025-12-30"
 
   swe_smith_xml:
-    name: "SWEBench Smith XML"
-    description: "SWEBench Smith dataset with ticks"
+    category: "Software Engineering"
+    name: "SWEBench Smith (XML)"
+    description: "SWEBench Smith dataset with XML"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/swe_smith_xml"
     files: []
     method: "single_model"
     created_at: "2025-12-30"
 
   medication_qa:
+    category: "QA & Medical"
     name: "Medication QA"
     description: "Answering questions about medications"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/medication_qa"
@@ -64,6 +70,7 @@ datasets:
     created_at: "2026-01-02"
 
   aci_bench:
+    category: "QA & Medical"
     name: "ACI Bench"
     description: "Summarizing doctor patient conversations"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/aci_bench"
@@ -80,6 +87,7 @@ datasets:
   #   created_at: "2026-01-03"
 
   call_center:
+    category: "Customer Service & Dialog"
     name: "Call Center"
     description: "Summarizing IT customer service calls"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/call_center"
@@ -88,6 +96,7 @@ datasets:
     created_at: "2026-01-03"
 
   drunk_at_a_party:
+    category: "Fun"
     name: "Drunk at a Party"
     description: "Asking two LLM's to keep a conversation going while drunk at a party"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/drunk_at_a_party"

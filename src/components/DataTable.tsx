@@ -132,7 +132,11 @@ const DataTable = React.memo(function DataTable({
               const messageCount = value.length;
               return <span style={{ color: '#6B7280', fontStyle: 'italic' }}>Conversation ({messageCount} message{messageCount !== 1 ? 's' : ''})</span>;
             }
-            // For non-message arrays, stringify them
+            // Handle model arrays for side-by-side comparisons
+            if (col === 'model') {
+              return <TruncatedCell text={value.join(' vs ')} />;
+            }
+            // For other non-message arrays, stringify them
             return <TruncatedCell text={JSON.stringify(value)} />;
           }
 

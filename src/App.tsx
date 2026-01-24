@@ -823,12 +823,29 @@ function App() {
   const resultsInputRef = useRef<HTMLInputElement>(null);
   const resultsZipInputRef = useRef<HTMLInputElement>(null);
 
-  // Backend availability check on mount
+  // Backend availability check on mount with retry logic
   React.useEffect(() => {
-    (async () => {
-      const ok = await checkBackendHealth();
-      setBackendAvailable(ok);
-    })();
+    let attempts = 0;
+    const maxAttempts = 6; // Will retry for ~60 seconds total
+    const retryDelays = [0, 2000, 5000, 10000, 15000, 20000]; // Progressive delays
+
+    const checkWithRetry = async () => {
+      while (attempts < maxAttempts) {
+        const ok = await checkBackendHealth();
+        if (ok) {
+          setBackendAvailable(true);
+          return;
+        }
+        attempts++;
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, retryDelays[attempts]));
+        }
+      }
+      // After all retries, still not available
+      setBackendAvailable(false);
+    };
+
+    checkWithRetry();
   }, []);
 
   // PDF download handler for drawer traces
