@@ -20,6 +20,7 @@ import {
   IconButton,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -61,6 +62,7 @@ interface TemplatePromptsSectionProps {
   taskDescription: string;
   onTaskDescriptionChange: (value: string) => void;
   onResetToDefault?: () => void;
+  onFullscreenClick?: () => void;
   method: 'single_model' | 'side_by_side' | null;
   disabled?: boolean;
 }
@@ -69,6 +71,7 @@ export function TemplatePromptsSection({
   taskDescription,
   onTaskDescriptionChange,
   onResetToDefault,
+  onFullscreenClick,
   method,
   disabled,
 }: TemplatePromptsSectionProps) {
@@ -85,6 +88,16 @@ export function TemplatePromptsSection({
           <Tooltip title="Used to customize the template prompt for your specific use case">
             <InfoOutlinedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           </Tooltip>
+          {onFullscreenClick && (
+            <IconButton
+              size="small"
+              onClick={onFullscreenClick}
+              sx={{ ml: 'auto' }}
+              title="Expand to full screen"
+            >
+              <FullscreenIcon fontSize="small" />
+            </IconButton>
+          )}
         </Box>
         <TextField
           fullWidth
@@ -116,6 +129,7 @@ interface DynamicPromptsSectionProps {
   taskDescription: string;
   onTaskDescriptionChange: (value: string) => void;
   onResetToDefault?: () => void;
+  onFullscreenClick?: () => void;
   expandedTaskDescription: string | null;
   method: 'single_model' | 'side_by_side' | null;
   disabled?: boolean;
@@ -125,6 +139,7 @@ export function DynamicPromptsSection({
   taskDescription,
   onTaskDescriptionChange,
   onResetToDefault,
+  onFullscreenClick,
   expandedTaskDescription,
   method,
   disabled,
@@ -142,6 +157,16 @@ export function DynamicPromptsSection({
           <Tooltip title="Your task description will be automatically expanded using sample conversations when you run extraction">
             <InfoOutlinedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           </Tooltip>
+          {onFullscreenClick && (
+            <IconButton
+              size="small"
+              onClick={onFullscreenClick}
+              sx={{ ml: 'auto' }}
+              title="Expand to full screen"
+            >
+              <FullscreenIcon fontSize="small" />
+            </IconButton>
+          )}
         </Box>
         <TextField
           fullWidth

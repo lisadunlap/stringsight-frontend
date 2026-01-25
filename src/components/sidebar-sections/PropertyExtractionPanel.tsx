@@ -1842,6 +1842,7 @@ export default function PropertyExtractionPanel({
                     localStorage.setItem('stringsight.taskDescription', def);
                     localStorage.setItem('stringsight.taskDescriptionEdited', 'false');
                   }}
+                  onFullscreenClick={() => setTaskDescFullscreen(true)}
                   method={method}
                   disabled={busy || clusteringBusy}
                 />
@@ -1866,6 +1867,7 @@ export default function PropertyExtractionPanel({
                     localStorage.setItem('stringsight.taskDescription', def);
                     localStorage.setItem('stringsight.taskDescriptionEdited', 'false');
                   }}
+                  onFullscreenClick={() => setTaskDescFullscreen(true)}
                   expandedTaskDescription={expandedTaskDescription}
                   method={method}
                   disabled={busy || clusteringBusy}
