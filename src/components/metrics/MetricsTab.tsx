@@ -142,8 +142,15 @@ export function MetricsTab({
       console.log(`[MetricsTab] Converted cluster_scores dict to array (${allClusterScores.length} clusters)`);
     }
 
-    // Include all clusters (including outliers)
-    const modelClusterScores = allModelClusterScores;
+    // Filter out outlier clusters from metrics
+    const modelClusterScores = allModelClusterScores.filter((row: any) => {
+      const clusterLabel = String(row.cluster || '');
+      const clusterId = row.cluster_id;
+      const isOutlier = clusterLabel.toLowerCase().includes('outlier') ||
+                        (typeof clusterId === 'string' && clusterId.startsWith('-')) ||
+                        (typeof clusterId === 'number' && clusterId < 0);
+      return !isOutlier;
+    });
 
     // Extract models, clusters, and groups
     const models = [...new Set(modelClusterScores.map((row: any) => row.model))].sort();

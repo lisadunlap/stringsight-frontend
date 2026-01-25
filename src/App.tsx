@@ -4782,6 +4782,7 @@ function App() {
                   getPropertiesRows={getPropertiesRowsCb}
                   onRequestRecompute={onRequestRecomputeCb}
                   modelClusterScores={resultsMetrics?.model_cluster_scores}
+                  clusterScores={resultsMetrics?.cluster_scores}
                   externalSearchQuery={clusterSearchQuery}
                   onClusterClick={(cluster) => {
                     console.log('[App] onClusterClick called with cluster:', cluster);

@@ -34,6 +34,7 @@ interface ClustersTabProps {
   onRequestRecompute?: (included_property_ids?: string[]) => void;
   externalSearchQuery?: string;
   modelClusterScores?: any[];  // Metrics from model_cluster_scores_df.jsonl
+  clusterScores?: any[];  // Metrics from cluster_scores_df.jsonl (aggregated across models)
 }
 
 function formatPercent(p?: number): string {
@@ -41,7 +42,7 @@ function formatPercent(p?: number): string {
   return `${(p * 100).toFixed(1)}%`;
 }
 
-function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversations, onClusterClick, getPropertiesRows, onRequestRecompute, externalSearchQuery, modelClusterScores }: ClustersTabProps) {
+function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversations, onClusterClick, getPropertiesRows, onRequestRecompute, externalSearchQuery, modelClusterScores, clusterScores }: ClustersTabProps) {
 
   // Enrich clusters with metrics data at render time
   const enrichedClusters = React.useMemo(() => {
@@ -52,9 +53,14 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
     return clusters.map(cluster => {
       const clusterLabel = cluster.label || cluster.cluster_label || String(cluster.id);
 
-      // Find all metrics rows for this cluster
+      // Find all metrics rows for this cluster from model_cluster_scores (per-model data)
       const clusterMetrics = modelClusterScores.filter((m: any) =>
         m.cluster === clusterLabel || String(m.cluster_id) === String(cluster.id)
+      );
+
+      // Find aggregated cluster data from cluster_scores (total unique conversations)
+      const clusterAggregated = clusterScores?.find((c: any) =>
+        c.cluster === clusterLabel || String(c.cluster_id) === String(cluster.id)
       );
 
       // Build proportion_by_model, quality_by_model, and quality_delta_by_model
@@ -129,10 +135,13 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         }
       });
 
-      // Calculate unique conversation count from proportion_overall * totalUniqueConversations
-      const clusterConversationCount = (proportionOverall !== undefined && totalUniqueConversations)
-        ? Math.round(proportionOverall * totalUniqueConversations)
-        : cluster.meta?.total_unique_conversations;
+      // Get unique conversation count from cluster_scores (aggregated data)
+      // This represents the number of distinct conversations (question_ids) in the cluster
+      const clusterConversationCount = clusterAggregated?.total_unique_conversations
+        || cluster.meta?.total_unique_conversations
+        || (proportionOverall !== undefined && totalUniqueConversations
+          ? Math.round(proportionOverall * totalUniqueConversations)
+          : undefined);
 
       return {
         ...cluster,
@@ -149,7 +158,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         }
       };
     });
-  }, [clusters, modelClusterScores]);
+  }, [clusters, modelClusterScores, clusterScores, totalUniqueConversations]);
 
   // Smooth entrance animation on initial mount
   const animateOnMountRef = React.useRef(true);
@@ -296,17 +305,24 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
     let list = (enrichedClusters || []).filter((c) => {
       const meta = (c && c.meta) || {};
 
+      // Filter out outlier clusters
+      const label = String(c.label || '');
+      const isOutlier = label.toLowerCase().includes('outlier') ||
+                        (typeof c.id === 'string' && c.id.startsWith('-')) ||
+                        (typeof c.id === 'number' && c.id < 0);
+      if (isOutlier) return false;
+
       // search match: cluster label or any property description
       let matchesSearch = true;
       if (hasSearch) {
-        const label = String(c.label || '').toLowerCase();
+        const labelLower = label.toLowerCase();
         const fromMetaItems: string[] = Array.isArray((meta as any).property_items)
           ? (meta as any).property_items.map((it: any) => String(it?.property_description || '').toLowerCase())
           : [];
         const fromDescriptions: string[] = Array.isArray(c.property_descriptions)
           ? c.property_descriptions.map((s: any) => String(s || '').toLowerCase())
           : [];
-        matchesSearch = label.includes(query) || fromMetaItems.some((t) => t.includes(query)) || fromDescriptions.some((t) => t.includes(query));
+        matchesSearch = labelLower.includes(query) || fromMetaItems.some((t) => t.includes(query)) || fromDescriptions.some((t) => t.includes(query));
       }
 
       if (!matchesSearch) return false;
@@ -574,7 +590,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
               {/* Left side: Model bars with names */}
               <Stack spacing={0.25} sx={{ minWidth: 220 }}>
                 {modelBars.map(bar => {
-                  const tooltipText = `${bar.model}: ${(bar.proportion * 100).toFixed(1)}% (${bar.size} conversations)`;
+                  const tooltipText = `${bar.model}: ${(bar.proportion * 100).toFixed(1)}% (${bar.size} responses)`;
 
                   return (
                     <Tooltip key={bar.model} title={tooltipText} arrow placement="top">
@@ -648,11 +664,11 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                       if (selectedModels.length > 0) {
                         const filteredSize = modelBars.reduce((sum, bar) => sum + bar.size, 0);
                         if (filteredSize > 0) {
-                          return `${filteredSize.toLocaleString()} conversations`;
+                          return `${filteredSize.toLocaleString()} model responses (filtered)`;
                         }
                       }
-                      
-                      // Otherwise show overall count
+
+                      // Otherwise show unique conversation count
                       if (clusterUniqueConversations !== undefined && clusterUniqueConversations > 0) {
                         // Prefer overallProp from metrics; fallback to derived proportion using totals
                         const derivedProp = (typeof overallProp === 'number' && isFinite(overallProp))
@@ -661,7 +677,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                               ? (clusterUniqueConversations / totalUniqueConversations)
                               : undefined);
                         const propText = typeof derivedProp === 'number' ? ` (${formatPercent(derivedProp)})` : '';
-                        return `${clusterUniqueConversations.toLocaleString()} conversations${propText}`;
+                        return `${clusterUniqueConversations.toLocaleString()} unique conversations${propText}`;
                       }
                       const clusterSize = c.size ?? 0;
                       return `${clusterSize.toLocaleString()} properties`;

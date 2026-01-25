@@ -32,7 +32,16 @@ export default function ClustersOverviewBanner({
         style: 0,
       };
 
-      clusters.forEach((cluster) => {
+      // Filter out outlier clusters
+      const nonOutlierClusters = clusters.filter((cluster) => {
+        const label = String(cluster.label || '');
+        const isOutlier = label.toLowerCase().includes('outlier') ||
+                          (typeof cluster.id === 'string' && cluster.id.startsWith('-')) ||
+                          (typeof cluster.id === 'number' && cluster.id < 0);
+        return !isOutlier;
+      });
+
+      nonOutlierClusters.forEach((cluster) => {
         const rawType =
           (cluster && cluster.meta && cluster.meta.group) != null
             ? String(cluster.meta.group)
@@ -117,7 +126,13 @@ export default function ClustersOverviewBanner({
                     component="span"
                     sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#2563eb' }}
                   >
-                    {clusters.length}
+                    {clusters.filter((c) => {
+                      const label = String(c.label || '');
+                      const isOutlier = label.toLowerCase().includes('outlier') ||
+                                        (typeof c.id === 'string' && c.id.startsWith('-')) ||
+                                        (typeof c.id === 'number' && c.id < 0);
+                      return !isOutlier;
+                    }).length}
                   </Typography>
                   <Typography
                     component="span"
