@@ -27,6 +27,11 @@ curl http://127.0.0.1:8000/health  # Check backend health
 - `VITE_BACKEND`: Backend API URL (optional; defaults to `/api` proxy in dev, allows features like extraction/clustering)
 - Example: `VITE_BACKEND=http://localhost:8000`
 
+**Proxy Configuration**: In development, `vite.config.ts` proxies `/api/*` requests to `VITE_BACKEND` (default: `http://localhost:8000`). This:
+- Avoids CORS issues during development
+- Prevents ad-blockers from blocking API requests
+- Sets 10-minute timeouts for long-running operations (clustering, extraction)
+
 ## Architecture Overview
 
 ### Data Flow Layers
@@ -116,6 +121,15 @@ This handles LLM-extracted evidence that may have whitespace variations, punctua
 
 The `parseFile()` function in `src/lib/parse.ts` handles CSV/JSON/JSONL parsing entirely in-browser using PapaParse. No backend required for data loading.
 
+### Results Loading
+
+The app supports loading pre-computed analysis results from local folders or remote URLs via `src/lib/datasetLoader.ts`:
+- `full_dataset.json`: Main bundle containing conversations, properties, and clusters
+- `*_scores_df.jsonl`: Metrics files for the Metrics tab
+- ZIP files are extracted using `src/lib/zipLoader.ts` with JSZip
+
+When loading results, the app sets `isResultsMode=true`, which disables extraction/clustering UI since data is pre-computed.
+
 ## Important Patterns
 
 ### Question ID Matching
@@ -134,21 +148,41 @@ Check `backendAvailable` state before enabling extraction/clustering features. W
 
 When `isResultsMode=true` (loading pre-computed `full_dataset.json`), extraction/clustering are disabled since the data is already processed.
 
+### Column Mapping Flow
+
+The app supports flexible column naming through the `ColumnSelector` component:
+1. User uploads data → `inferColumns()` in `src/lib/parse.ts` attempts auto-detection
+2. If detection fails or user wants customization → `ColumnSelector` modal appears
+3. User maps their column names to expected fields (`prompt`, `model_response`, etc.)
+4. `processDataWithMapping()` in App.tsx applies the mapping and creates operational format
+
+This allows users to load datasets with arbitrary column names (e.g., `query` instead of `prompt`).
+
 ## Component Organization
 
 ```
 src/
 ├── components/
 │   ├── metrics/           # Metrics visualization (MetricsTab, DataTabBenchmarkTable)
-│   ├── sidebar-sections/  # Sidebar panels (DataStatsPanel, PropertyExtractionPanel, etc.)
-│   └── cards/             # Reusable card components
+│   │   ├── charts/       # Plotly-based chart components
+│   │   └── utils/        # Metric calculation utilities
+│   ├── sidebar-sections/  # Sidebar panels (DataStatsPanel, PropertyExtractionPanel, MetricsPanel)
+│   └── cards/             # Reusable card components (PropertyCard, ClusterCard, ModelResponseCard)
+├── context/               # React context providers (TutorialContext)
+├── features/              # Feature modules (dataset-url-loader)
 ├── hooks/                 # Custom React hooks
 ├── lib/
-│   ├── api.ts            # Backend client
-│   ├── normalize.ts      # Score flattening logic
+│   ├── api.ts            # Backend client (all /api proxy calls)
+│   ├── normalize.ts      # Score flattening/unflattening logic
 │   ├── parse.ts          # File parsing (CSV/JSON/JSONL)
-│   └── traces.ts         # Trace format conversion
+│   ├── traces.ts         # Trace format conversion (OpenAI message format)
+│   ├── datasetLoader.ts  # Pre-computed results loading
+│   ├── zipLoader.ts      # ZIP file extraction utilities
+│   └── utils.ts          # General utilities
 └── types/                # TypeScript definitions
+    ├── operations.ts     # Data transformation operation types
+    ├── metrics.ts        # Metrics and filtering types
+    └── dataset.ts        # Dataset configuration types
 ```
 
 ## Tech Stack
@@ -165,9 +199,35 @@ src/
 
 `public/taubench_airline.jsonl` is bundled for quick testing. Loaded via "Load Demo Data" button, demonstrates the column mapping flow.
 
-## Notes from README
+## Critical Implementation Patterns
+
+### Data Transformation Flow
+
+When data flows through the app:
+1. **Upload** → `originalRows` (raw, immutable)
+2. **Column Mapping** → `operationalRows` (with score dicts: `{score: {metric: value}}`)
+3. **Operations Applied** → still `operationalRows` (backend uses this format)
+4. **Display Transform** → `currentRows` (flattened: `score_metric` columns)
+
+**CRITICAL**: Always send `operationalRows` to backend endpoints. Always use `currentRows` for UI tables.
+
+### Trace Format Conversion
+
+The `ensureOpenAIFormat()` function in `src/lib/traces.ts` normalizes responses to OpenAI message format:
+- Handles string responses → converts to `[{role: 'user', content: prompt}, {role: 'assistant', content: response}]`
+- Handles pre-formatted message arrays → passes through
+- Handles nested/aliased response fields (see `pickSingleResponse()` and `pickPairResponses()` in App.tsx)
+
+### Backend Request Transformation
+
+`transformRowsForBackend()` in App.tsx converts operational format to backend expectations:
+- **Single model**: Renames fields to match backend schema
+- **Side-by-side**: Converts scalar `model_a`/`model_b`/`score_a`/`score_b` to arrays for batch operations
+
+## Deployment Notes
 
 - Server browsing removed; all uploads are browser-based
 - Backend connection optional; core visualization works standalone
 - Deploy to Vercel via CLI or button
 - Supports full conversation traces with side-by-side model comparisons
+- Demo data includes `public/taubench_airline.jsonl` for testing column mapping flow
