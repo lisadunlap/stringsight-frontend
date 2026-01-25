@@ -722,7 +722,7 @@ function App() {
   const [isResultsMode, setIsResultsMode] = useState<boolean>(false);
   const [resultsMetrics, setResultsMetrics] = useState<{ model_cluster_scores?: any; cluster_scores?: any; model_scores?: any } | null>(null);
   // Removed explainBusy (no separate panel submit)
-  const [backendAvailable, setBackendAvailable] = useState<boolean>(false);
+  const [backendAvailable, setBackendAvailable] = useState<boolean>(true);
 
   // -------- Display Settings ---------
   const [decimalPrecision, setDecimalPrecision] = useState<number>(2);
@@ -823,29 +823,13 @@ function App() {
   const resultsInputRef = useRef<HTMLInputElement>(null);
   const resultsZipInputRef = useRef<HTMLInputElement>(null);
 
-  // Backend availability check on mount with retry logic
+  // Optional: Check backend health in background (non-blocking)
   React.useEffect(() => {
-    let attempts = 0;
-    const maxAttempts = 6; // Will retry for ~60 seconds total
-    const retryDelays = [0, 2000, 5000, 10000, 15000, 20000]; // Progressive delays
-
-    const checkWithRetry = async () => {
-      while (attempts < maxAttempts) {
-        const ok = await checkBackendHealth();
-        if (ok) {
-          setBackendAvailable(true);
-          return;
-        }
-        attempts++;
-        if (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, retryDelays[attempts]));
-        }
+    checkBackendHealth().then(ok => {
+      if (!ok) {
+        console.warn('Backend health check failed - API calls may not work');
       }
-      // After all retries, still not available
-      setBackendAvailable(false);
-    };
-
-    checkWithRetry();
+    });
   }, []);
 
   // PDF download handler for drawer traces
