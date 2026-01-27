@@ -312,6 +312,13 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                         (typeof c.id === 'number' && c.id < 0);
       if (isOutlier) return false;
 
+      // Filter out clusters with fewer than 5 unique conversations
+      const clusterConvCount = meta.total_unique_conversations
+        || c.total_unique_conversations
+        || 0;
+      const MIN_CLUSTER_SIZE = 5;
+      if (clusterConvCount < MIN_CLUSTER_SIZE) return false;
+
       // search match: cluster label or any property description
       let matchesSearch = true;
       if (hasSearch) {

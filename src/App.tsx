@@ -15,6 +15,8 @@ import CodeIcon from '@mui/icons-material/Code';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import LeaderboardIcon from '@mui/icons-material/Leaderboard';
+import ArticleIcon from '@mui/icons-material/Article';
 import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
 import { flattenScores, normalizeMetricsColumnNames, enrichModelClusterScoresWithMetadata } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
@@ -4572,6 +4574,7 @@ function App() {
                     variant="outlined"
                     size="large"
                     onClick={() => window.open('https://stringsight.com/results', '_blank')}
+                    startIcon={<LeaderboardIcon />}
                     sx={{
                       py: 1.5,
                       px: 4,
@@ -4590,6 +4593,30 @@ function App() {
                     }}
                   >
                     Browse Benchmarks
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    onClick={() => window.open('https://blog.stringsight.com', '_blank')}
+                    startIcon={<ArticleIcon />}
+                    sx={{
+                      py: 1.5,
+                      px: 4,
+                      fontSize: '1.1rem',
+                      fontWeight: 600,
+                      color: retroColors.green,
+                      borderColor: retroColors.green,
+                      borderWidth: 2,
+                      '&:hover': {
+                        borderWidth: 2,
+                        borderColor: '#3D9B73',
+                        backgroundColor: 'rgba(61, 155, 115, 0.04)',
+                        transform: 'translateY(-1px)'
+                      },
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    Blog
                   </Button>
                 </Box>
               )}

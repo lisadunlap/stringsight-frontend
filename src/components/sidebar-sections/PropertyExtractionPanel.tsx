@@ -414,7 +414,7 @@ export default function PropertyExtractionPanel({
   const [promptGenerationActive, setPromptGenerationActive] = React.useState<boolean>(false);
 
   // Clustering configuration
-  const [minClusterSize, setMinClusterSize] = React.useState<number>(3);
+  const [minClusterSize, setMinClusterSize] = React.useState<number>(5);
   const [embeddingModel, setEmbeddingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : 'openai/text-embedding-3-large');
   const [embeddingModels, setEmbeddingModels] = React.useState<string[]>([]);
   const [groupBy, setGroupBy] = React.useState<'none' | 'category' | 'behavior_type'>(isDemoMode ? DEMO_MODE_SETTINGS.groupBy : 'behavior_type');
