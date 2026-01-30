@@ -693,7 +693,7 @@ export default function ClusterSidecard({
         <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
           {/* Cluster metadata */}
           <Box sx={{ mb: 2 }}>
-            <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
               <Tooltip title="Number of unique conversations in this cluster and their percentage of total conversations">
                 <Box sx={{ color: '#6B7280', fontSize: 14 }}>
                   {(() => {
@@ -742,47 +742,47 @@ export default function ClusterSidecard({
                   </Typography>
                 );
               })()}
+            </Box>
 
-              {/* Significance tags */}
-              {showSignificance && (
-                <>
-                  {isSignificantInFrequency && (
-                    <Tooltip title="This cluster shows statistically significant differences in frequency across models">
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          px: 1.5,
-                          py: 0.5,
-                          borderRadius: 1,
-                          backgroundColor: '#DBEAFE',
-                          color: '#1E40AF',
-                          fontWeight: 600,
-                        }}
-                      >
-                        Sig. Freq
-                      </Typography>
-                    </Tooltip>
-                  )}
-                  {isSignificantInQuality && (
-                    <Tooltip title="This cluster shows statistically significant differences in quality across models">
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          px: 1.5,
-                          py: 0.5,
-                          borderRadius: 1,
-                          backgroundColor: '#FCE7F3',
-                          color: '#9F1239',
-                          fontWeight: 600,
-                        }}
-                      >
-                        Sig. Quality
-                      </Typography>
-                    </Tooltip>
-                  )}
-                </>
-              )}
-            </Stack>
+            {/* Significance tags */}
+            {showSignificance && (
+              <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 1 }}>
+                {isSignificantInFrequency && (
+                  <Tooltip title="This cluster shows statistically significant differences in frequency across models">
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        backgroundColor: '#DBEAFE',
+                        color: '#1E40AF',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Sig. Freq
+                    </Typography>
+                  </Tooltip>
+                )}
+                {isSignificantInQuality && (
+                  <Tooltip title="This cluster shows statistically significant differences in quality across models">
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        backgroundColor: '#FCE7F3',
+                        color: '#9F1239',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Sig. Quality
+                    </Typography>
+                  </Tooltip>
+                )}
+              </Stack>
+            )}
 
             {/* Overall quality metrics */}
             {overallQuality && Object.keys(overallQuality).length > 0 && (

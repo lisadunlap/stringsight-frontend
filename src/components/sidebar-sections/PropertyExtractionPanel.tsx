@@ -575,6 +575,17 @@ export default function PropertyExtractionPanel({
 
   // Prepare prompts for API based on mode
   function preparePromptsForAPI() {
+    // If using custom system prompt, send the literal custom prompt string
+    // This bypasses all template logic and dynamic prompt generation
+    if (useCustomSystemPrompt) {
+      return {
+        system_prompt: customSystemPrompt,  // Send the exact custom prompt text
+        task_description: null,  // No task description needed with custom prompt
+        use_dynamic_prompts: false,  // Never use dynamic prompts with custom prompt
+      };
+    }
+
+    // Otherwise, use template or dynamic mode
     switch (promptMode) {
       case 'template':
         return {
@@ -701,7 +712,11 @@ export default function PropertyExtractionPanel({
       console.log('[PropertyExtraction] Making API call with:', {
         method,
         useCustomSystemPrompt,
-        system_prompt_type: useCustomSystemPrompt ? 'custom (literal string)' : `template (${selectedPrompt})`,
+        system_prompt_type: useCustomSystemPrompt
+          ? 'custom (literal string)'
+          : body.use_dynamic_prompts
+            ? `dynamic (fallback: ${selectedPrompt})`
+            : `template (${selectedPrompt})`,
         system_prompt_length: body.system_prompt?.length || 0,
         task_description: body.task_description,
         model_name: body.model_name,
@@ -714,8 +729,9 @@ export default function PropertyExtractionPanel({
       });
 
       if (useCustomSystemPrompt) {
-        console.log('[PropertyExtraction] Using CUSTOM system prompt (first 200 chars):',
+        console.log('[PropertyExtraction] 🎯 Using CUSTOM system prompt (first 200 chars):',
           body.system_prompt?.substring(0, 200) + '...');
+        console.log('[PropertyExtraction] ✓ Custom prompt will be used exactly as provided (no dynamic generation)');
       }
 
       // DEMO MODE INTERCEPTION: Load cached properties for the selected row
