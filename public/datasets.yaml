@@ -152,7 +152,7 @@ datasets:
     created_at: "2026-01-03"
 
   wildbench-grok:
-    name: "Comparing Grok 3 & 4 on WildBench"
+    name: "WildBench Grok 3 VS 4"
     description: "Grok 3 beta VS Grok 4 on human curated questions"
     files: []
     method: "side_by_side"

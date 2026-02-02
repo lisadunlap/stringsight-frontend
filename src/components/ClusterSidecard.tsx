@@ -693,7 +693,7 @@ export default function ClusterSidecard({
         <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
           {/* Cluster metadata */}
           <Box sx={{ mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, mt: 2 }}>
               <Tooltip title="Number of unique conversations in this cluster and their percentage of total conversations">
                 <Box sx={{ color: '#6B7280', fontSize: 14 }}>
                   {(() => {

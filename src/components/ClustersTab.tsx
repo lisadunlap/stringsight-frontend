@@ -660,7 +660,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
                       color: '#111827',
                       lineHeight: 1.6,
                       fontSize: '1rem',
-                      mb: 0.5
+                      mb: 1
                     }
                   }}
                 />

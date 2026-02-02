@@ -518,7 +518,8 @@ export function FrequencyChartAlt({
                     sx: {
                       color: 'text.primary',
                       lineHeight: 1.6,
-                      fontSize: '1rem'
+                      fontSize: '1rem',
+                      mb: 1
                     }
                   }}
                 />
