@@ -510,7 +510,7 @@ export function FrequencyChartAlt({
               </Stack>
 
               {/* Middle: Cluster description (Markdown-supported) */}
-              <Box sx={{ flex: 1, minWidth: 0, pb: category ? 3 : 0 }}>
+              <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <ClusterLabel
                   text={cluster}
                   typographyProps={{
@@ -522,7 +522,7 @@ export function FrequencyChartAlt({
                     }
                   }}
                 />
-                <Stack spacing={0.25} sx={{ color: 'text.secondary' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'text.secondary' }}>
                   {(typeof totalSize === 'number' && totalSize > 0) && (
                     <Typography variant="body2" sx={{ fontSize: 13 }}>
                       {(() => {
@@ -537,34 +537,29 @@ export function FrequencyChartAlt({
                       })()}
                     </Typography>
                   )}
-                </Stack>
+                  {category && (
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontSize: '0.7rem',
+                        color: getCategoryColor(category),
+                        fontWeight: 500,
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 1,
+                        bgcolor: `${getCategoryColor(category)}10`
+                      }}
+                    >
+                      {getCategoryDisplayName(category)}
+                    </Typography>
+                  )}
+                </Box>
               </Box>
 
               {/* Arrow icon - at the very right */}
               <Box sx={{ color: 'action.active' }}>
                 →
               </Box>
-            </Box>
-
-            {/* Behavior tag at absolute bottom right */}
-            <Box sx={{
-              position: 'absolute',
-              bottom: 8,
-              right: 8
-            }}>
-              <Chip
-                label={getCategoryDisplayName(category)}
-                size="small"
-                sx={{
-                  height: 20,
-                  fontSize: '0.7rem',
-                  color: getCategoryColor(category),
-                  borderColor: getCategoryColor(category),
-                  bgcolor: 'transparent',
-                  fontWeight: 500
-                }}
-                variant="outlined"
-              />
             </Box>
           </Paper>
         ))}

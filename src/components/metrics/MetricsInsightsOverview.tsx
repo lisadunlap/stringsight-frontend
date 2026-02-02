@@ -767,7 +767,7 @@ export function MetricsInsightsOverview({
                     </Stack>
 
                     {/* Middle: Cluster name (Markdown-supported) */}
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                       <ClusterLabel
                         text={failure.cluster}
                         typographyProps={{
@@ -780,7 +780,7 @@ export function MetricsInsightsOverview({
                           }
                         }}
                       />
-                      <Stack spacing={0.25}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Typography variant="body2" sx={{ color: '#6B7280', fontSize: 13 }}>
                           {(() => {
                             const percent = typeof failure.proportionOverall === 'number'
@@ -790,34 +790,27 @@ export function MetricsInsightsOverview({
                             return `${failure.totalSize.toLocaleString()} conversations${suffix}`;
                           })()}
                         </Typography>
-                      </Stack>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontSize: '0.7rem',
+                            color: failure.category === 'negative_critical' ? '#DC2626' : '#CA8A04',
+                            fontWeight: 500,
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: 1,
+                            bgcolor: failure.category === 'negative_critical' ? '#DC262610' : '#CA8A0410'
+                          }}
+                        >
+                          {failure.category === 'negative_critical' ? 'Critical' : 'Non-critical'}
+                        </Typography>
+                      </Box>
                     </Box>
 
                     {/* Arrow icon - at the very right */}
                     <Box sx={{ color: 'action.active', ml: 'auto' }}>
                       →
                     </Box>
-                  </Box>
-
-                  {/* Severity chip at absolute bottom right */}
-                  <Box sx={{
-                    position: 'absolute',
-                    bottom: 8,
-                    right: 12
-                  }}>
-                    <Chip
-                      label={failure.category === 'negative_critical' ? 'Critical' : 'Non-critical'}
-                      size="small"
-                      sx={{
-                        height: 22,
-                        fontSize: '0.75rem',
-                        color: failure.category === 'negative_critical' ? '#DC2626' : '#CA8A04',
-                        borderColor: failure.category === 'negative_critical' ? '#DC2626' : '#CA8A04',
-                        bgcolor: 'white',
-                        fontWeight: 500
-                      }}
-                      variant="outlined"
-                    />
                   </Box>
                 </Paper>
               ))}
