@@ -282,13 +282,13 @@ export default function ClustersOverviewBanner({
                 >
                   <Typography
                     component="span"
-                    sx={{ fontSize: '1.1rem', fontWeight: 700, color: retroColors.purple }}
+                    sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#8B5CF6' }}
                   >
                     {counts.style}
                   </Typography>
                   <Typography
                     component="span"
-                    sx={{ fontSize: '0.85rem', fontWeight: 600, color: retroColors.purple }}
+                    sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#8B5CF6' }}
                   >
                     Style
                   </Typography>
@@ -296,7 +296,7 @@ export default function ClustersOverviewBanner({
               }
               size="medium"
               sx={{
-                bgcolor: `${retroColors.purple}15`,
+                bgcolor: '#8B5CF615',
                 height: 'auto',
                 py: 0.75,
                 px: 1.25,

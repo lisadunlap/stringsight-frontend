@@ -6,12 +6,11 @@
 
 datasets:
   # All datasets now use fast paginated API endpoints
-
   telecom:
     category: "Customer Service & Dialog"
     name: "TauBench v2 - Telecom"
     description: "Telecom customer service agent"
-    cdn_url: "https://prices-distributor-catalyst-expand.trycloudflare.com/final_results/telecom"
+    # cdn_url: "https://prices-distributor-catalyst-expand.trycloudflare.com/final_results/telecom"
     files: []
     method: "single_model"
     created_at: "2026-01-02"
@@ -110,7 +109,7 @@ datasets:
     category: "Fun"
     name: "Drunk at a Party (w/ fixed taxonomy)"
     description: "Asking two LLM's to keep a conversation going while drunk at a party"
-    cdn_url: "https://prices-distributor-catalyst-expand.trycloudflare.com/final_results/drunk_w_fixed_taxonomy"
+    # cdn_url: "https://prices-distributor-catalyst-expand.trycloudflare.com/final_results/drunk_w_fixed_taxonomy"
     files: []
     method: "single_model"
     created_at: "2026-01-03"
@@ -128,7 +127,7 @@ datasets:
   qwen3-235b-a22b-no-thinking-gemini-2.5-flash:
     name: "Chatbot Arena Qwen VS Gemini"
     category: "Pairwise Preference"
-    description: "Qwen 3 255b VS Gemini 2.5 Flash"
+    description: "Qwen 3 255b VS Gemini 2.5 Flash on user submitted questions"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/omni_math"
     files: []
     method: "side_by_side"
@@ -137,7 +136,7 @@ datasets:
   arena_140_claude_4_opus_gemini_2-5_pro:
     name: "Chatbot Arena Claude VS Gemini 2.5"
     category: "Pairwise Preference"
-    description: "Claude 4 Opus VS Gemini 2.5 Pro"
+    description: "Claude 4 Opus VS Gemini 2.5 Pro on user submitted questions"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/omni_math"
     files: []
     method: "side_by_side"
@@ -146,8 +145,15 @@ datasets:
   arena_140_claude_4_opus_o3:
     name: "Chatbot Arena Claude VS GPT"
     category: "Pairwise Preference"
-    description: "Claude 4 Opus VS GPT o3"
+    description: "Claude 4 Opus VS GPT o3 on user submitted questions"
     # cdn_url: "https://sons-uploaded-learn-man.trycloudflare.com/final_results/omni_math"
+    files: []
+    method: "side_by_side"
+    created_at: "2026-01-03"
+
+  wildbench-grok:
+    name: "Comparing Grok 3 & 4 on WildBench"
+    description: "Grok 3 beta VS Grok 4 on human curated questions"
     files: []
     method: "side_by_side"
     created_at: "2026-01-03"

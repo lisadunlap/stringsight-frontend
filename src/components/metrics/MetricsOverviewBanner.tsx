@@ -35,7 +35,7 @@ function getGroupColor(group: string): string {
     case 'positive': return retroColors.green;
     case 'negative_critical': return retroColors.red;
     case 'negative_non_critical': return retroColors.orange;
-    case 'style': return retroColors.blue;
+    case 'style': return '#8B5CF6';
     default: return '#6B7280'; // gray
   }
 }
