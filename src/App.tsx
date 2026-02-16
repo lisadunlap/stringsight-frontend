@@ -2683,9 +2683,10 @@ function App() {
     if (currentRows.length === 0) return [];
     const allColumns = Object.keys(currentRows[0]);
 
-    // For side-by-side, hide model names and model_b_response (we only show one View button via model_a_response)
+    // For side-by-side, hide model_b_response (we only show one View button via model_a_response)
+    // but show model_a and model_b columns so users can see which models are being compared
     const hiddenSbsColumns = method === 'side_by_side'
-      ? ['model_a', 'model_b', 'model_b_response']
+      ? ['model_b_response']
       : [];
 
     const visibleColumns = allColumns.filter(c => !hiddenSbsColumns.includes(c));
