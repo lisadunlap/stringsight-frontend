@@ -1,11 +1,19 @@
-import React from 'react';
-import { Box, TextField, Stack, Autocomplete, Button, FormControlLabel, Switch, Divider, Chip } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, TextField, Stack, Autocomplete, Button, FormControlLabel, Switch, Chip, CircularProgress, Typography, IconButton } from '@mui/material';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
 
 interface Filter {
   column: string;
   values: string[];
   negated: boolean;
   operator?: 'AND' | 'OR'; // Operator to use BEFORE this filter (undefined for first filter)
+}
+
+export interface NlSuggestion {
+  code: string;
+  explanation: string;
 }
 
 interface FilterBarProps {
@@ -52,6 +60,15 @@ interface FilterBarProps {
   onCustomCodeRun?: () => void;
   onReset?: () => void;
   customCodeError?: string | null;
+
+  // Natural language to pandas
+  showNlQuery?: boolean;
+  nlQueryLoading?: boolean;
+  nlSuggestion?: NlSuggestion | null;
+  nlError?: string | null;
+  onNlQuerySubmit?: (query: string) => void;
+  onAcceptNlCode?: (code: string) => void;
+  onRejectNlCode?: () => void;
 }
 
 export default function FilterBar({
@@ -82,9 +99,39 @@ export default function FilterBar({
   onCustomCodeChange,
   onCustomCodeRun,
   onReset,
-  customCodeError
+  customCodeError,
+  showNlQuery = false,
+  nlQueryLoading = false,
+  nlSuggestion = null,
+  nlError = null,
+  onNlQuerySubmit,
+  onAcceptNlCode,
+  onRejectNlCode,
 }: FilterBarProps) {
-  
+
+  const [nlQueryText, setNlQueryText] = useState('');
+  const [editedCode, setEditedCode] = useState('');
+
+  React.useEffect(() => {
+    if (nlSuggestion) {
+      setEditedCode(nlSuggestion.code);
+    }
+  }, [nlSuggestion]);
+
+  const handleNlSubmit = () => {
+    if (!nlQueryText.trim() || nlQueryLoading) return;
+    onNlQuerySubmit?.(nlQueryText.trim());
+  };
+
+  const handleAccept = () => {
+    onAcceptNlCode?.(editedCode);
+    setNlQueryText('');
+  };
+
+  const handleReject = () => {
+    onRejectNlCode?.();
+  };
+
   return (
     <Box sx={{
       pb: 1.5,
@@ -95,9 +142,8 @@ export default function FilterBar({
       maxWidth: '100vw',
       overflow: 'hidden'
     }}>
+      {/* Row 1: Search, Filters, Group By */}
       <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ xs: 'stretch', lg: 'center' }}>
-        
-        {/* Search and Filters Section */}
         <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
           
           {/* Search Bar */}
@@ -165,40 +211,119 @@ export default function FilterBar({
             />
           ))}
           
-        {/* Group By (inline) */}
-        {showGroupBy && (
-          <Autocomplete
-            size="small"
-            sx={{ minWidth: 160, maxWidth: 220, flex: '0 1 auto' }}
-            options={groupByOptions}
-            value={groupByValue}
-            onChange={(_, v) => onGroupByChange?.(v)}
-            renderInput={(params) => <TextField {...params} label="Group by" />}
-          />
-        )}
-
+          {/* Group By (inline) */}
+          {showGroupBy && (
+            <Autocomplete
+              size="small"
+              sx={{ minWidth: 160, maxWidth: 220, flex: '0 1 auto' }}
+              options={groupByOptions}
+              value={groupByValue}
+              onChange={(_, v) => onGroupByChange?.(v)}
+              renderInput={(params) => <TextField {...params} label="Group by" />}
+            />
+          )}
 
         </Stack>
 
-
-        {/* Custom Code Section */}
+        {/* Custom Code Section (inline on row 1) */}
         {showCustomCode && (
-          <>
-            <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ flex: 1 }}>
-              <TextField 
-                size="small" 
-                fullWidth 
-                placeholder={"Custom expression"} 
-                value={customCodeValue} 
-                onChange={(e) => onCustomCodeChange?.(e.target.value)} 
-              />
-              <Button variant="outlined" onClick={onCustomCodeRun}>Run</Button>
-              <Button variant="text" onClick={onReset}>Reset</Button>
-            </Stack>
-          </>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ flex: 1 }}>
+            <TextField 
+              size="small" 
+              fullWidth 
+              placeholder={"Custom expression"} 
+              value={customCodeValue} 
+              onChange={(e) => onCustomCodeChange?.(e.target.value)} 
+            />
+            <Button variant="outlined" onClick={onCustomCodeRun}>Run</Button>
+            <Button variant="text" onClick={onReset}>Reset</Button>
+          </Stack>
         )}
       </Stack>
+
+      {/* Row 2: NL-to-Pandas Query */}
+      {showNlQuery && (
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.5 }}>
+          <AutoFixHighIcon sx={{ color: '#6B7280', fontSize: 20 }} />
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Text to Pandas: describe the data view you want..."
+            value={nlQueryText}
+            onChange={(e) => setNlQueryText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleNlSubmit(); }}
+            disabled={nlQueryLoading}
+          />
+          <Button
+            variant="outlined"
+            onClick={handleNlSubmit}
+            disabled={!nlQueryText.trim() || nlQueryLoading}
+            startIcon={nlQueryLoading ? <CircularProgress size={16} /> : undefined}
+            sx={{ whiteSpace: 'nowrap' }}
+          >
+            Generate
+          </Button>
+          {onReset && (
+            <Button variant="text" onClick={onReset}>Reset</Button>
+          )}
+        </Stack>
+      )}
+
+      {/* NL Suggestion Card */}
+      {nlSuggestion && (
+        <Box sx={{
+          mt: 1,
+          p: 1.5,
+          border: '1px solid',
+          borderColor: nlError ? '#FCA5A5' : '#93C5FD',
+          borderRadius: 1,
+          bgcolor: nlError ? '#FEF2F2' : '#EFF6FF',
+        }}>
+          <Stack spacing={1}>
+            <Typography variant="caption" sx={{ color: nlError ? '#991B1B' : '#1E40AF', fontWeight: 600 }}>
+              Generated pandas expression
+            </Typography>
+            <TextField
+              size="small"
+              fullWidth
+              multiline
+              minRows={1}
+              maxRows={4}
+              value={editedCode}
+              onChange={(e) => setEditedCode(e.target.value)}
+              slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: '0.85rem' } } }}
+            />
+            {nlError && (
+              <Typography variant="caption" sx={{ color: '#DC2626' }}>
+                Error: {nlError}
+              </Typography>
+            )}
+            {nlSuggestion.explanation && !nlError && (
+              <Typography variant="caption" sx={{ color: '#6B7280' }}>
+                {nlSuggestion.explanation}
+              </Typography>
+            )}
+            <Stack direction="row" spacing={1}>
+              <IconButton
+                size="small"
+                onClick={handleAccept}
+                sx={{ color: '#059669', border: '1px solid #059669', borderRadius: 1, px: 1.5 }}
+              >
+                <CheckIcon fontSize="small" sx={{ mr: 0.5 }} />
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>Accept</Typography>
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={handleReject}
+                sx={{ color: '#DC2626', border: '1px solid #DC2626', borderRadius: 1, px: 1.5 }}
+              >
+                <CloseIcon fontSize="small" sx={{ mr: 0.5 }} />
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>Reject</Typography>
+              </IconButton>
+            </Stack>
+          </Stack>
+        </Box>
+      )}
       
       {/* Custom Code Error */}
       {customCodeError && (

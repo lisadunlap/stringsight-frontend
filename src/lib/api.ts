@@ -134,6 +134,25 @@ export async function dfCustom(body: { rows: any[]; code: string; sample_size?: 
   return res.json();
 }
 
+/**
+ * Generate a pandas expression from a natural language query.
+ * Returns a code string and short explanation that the user can accept or reject.
+ */
+export async function nl2pandas(body: {
+  query: string;
+  columns: string[];
+  dtypes: Record<string, string>;
+  sample_values: Record<string, any[]>;
+}): Promise<{ code: string; explanation: string }> {
+  const res = await fetch(`${API_BASE}/df/nl2pandas`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
+  return res.json();
+}
+
 
 // ----------------------------
 // Extraction/Prompts endpoints

@@ -17,7 +17,7 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import ArticleIcon from '@mui/icons-material/Article';
-import { detectAndValidate, dfGroupPreview, dfCustom, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
+import { detectAndValidate, dfGroupPreview, dfCustom, nl2pandas, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
 import { flattenScores, normalizeMetricsColumnNames, enrichModelClusterScoresWithMetadata } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
 import { detectMethodFromColumns, ensureOpenAIFormat } from "./lib/traces";
@@ -33,6 +33,7 @@ import DataTabBenchmarkTable from "./components/metrics/DataTabBenchmarkTable";
 
 import PropertiesTab from "./components/PropertiesTab";
 import FilterBar from "./components/FilterBar";
+import type { NlSuggestion } from "./components/FilterBar";
 import PermanentIconSidebar, { type SidebarSection } from "./components/PermanentIconSidebar";
 import DataOverviewBanner from "./components/DataOverviewBanner";
 import PropertiesOverviewBanner from "./components/PropertiesOverviewBanner";
@@ -2930,6 +2931,9 @@ function App() {
     setCustomError(null);
     setSortColumn(null);
     setSortDirection(null);
+    setNlSuggestion(null);
+    setNlQueryLoading(false);
+    setNlError(null);
   }, [operationalRows, method]);
 
   // -------- GroupBy State ---------
@@ -3127,6 +3131,96 @@ function App() {
     return <span>{text}</span>;
   });
 
+  // -------- Natural Language to Pandas ---------
+  const [nlSuggestion, setNlSuggestion] = useState<NlSuggestion | null>(null);
+  const [nlQueryLoading, setNlQueryLoading] = useState(false);
+  const [nlError, setNlError] = useState<string | null>(null);
+
+  const handleNlQuerySubmit = useCallback(async (query: string) => {
+    if (!currentRows.length) return;
+
+    setNlQueryLoading(true);
+    setNlSuggestion(null);
+    setNlError(null);
+
+    const sampleRow = currentRows[0];
+    const columns = Object.keys(sampleRow);
+    const dtypes: Record<string, string> = {};
+    const sampleValues: Record<string, any[]> = {};
+
+    for (const col of columns) {
+      const vals = currentRows.slice(0, 5).map(r => r[col]).filter(v => v != null);
+      sampleValues[col] = vals;
+      const first = vals[0];
+      dtypes[col] = typeof first === 'number' ? 'float64'
+        : typeof first === 'boolean' ? 'bool'
+        : 'object';
+    }
+
+    const result = await nl2pandas({ query, columns, dtypes, sample_values: sampleValues });
+    setNlSuggestion(result);
+    setNlQueryLoading(false);
+  }, [currentRows]);
+
+  const handleAcceptNlCode = useCallback(async (code: string) => {
+    // Run the code against currentRows (flattened) since NL-generated code
+    // references the flattened column names the user sees in the table.
+    // To avoid sending huge text blobs over the wire, we strip large string
+    // columns and use a temp index to map filtered results back.
+    setNlError(null);
+
+    const NL_IDX = '__nl_idx';
+    const MAX_STR_LEN = 500;
+
+    // Detect which columns are "large" (string values > MAX_STR_LEN)
+    const largeCols = new Set<string>();
+    if (currentRows.length > 0) {
+      for (const col of Object.keys(currentRows[0])) {
+        const sample = currentRows.find(r => r[col] != null)?.[col];
+        if (typeof sample === 'string' && sample.length > MAX_STR_LEN) {
+          largeCols.add(col);
+        }
+      }
+    }
+
+    // Build lightweight rows: add temp index, strip large columns
+    const lightRows = currentRows.map((row, i) => {
+      const light: Record<string, any> = { [NL_IDX]: i };
+      for (const [k, v] of Object.entries(row)) {
+        if (!largeCols.has(k)) light[k] = v;
+      }
+      return light;
+    });
+
+    let res: any;
+    try {
+      res = await dfCustom({ rows: lightRows, code });
+    } catch (e: any) {
+      setNlError(String(e?.message || e));
+      return;
+    }
+    if (res.error) {
+      setNlError(res.error);
+      return;
+    }
+
+    // Map filtered indices back to full rows
+    const keptIndices = new Set<number>(
+      (res.rows as any[]).map((r: any) => r[NL_IDX])
+    );
+    const filtered = currentRows.filter((_, i) => keptIndices.has(i));
+
+    const customOp = createCustomCodeOperation(code);
+    setOperationChain(prev => [...prev, customOp]);
+    setNlSuggestion(null);
+    setCurrentRows(filtered);
+  }, [currentRows]);
+
+  const handleRejectNlCode = useCallback(() => {
+    setNlSuggestion(null);
+    setNlError(null);
+  }, []);
+
   // -------- Custom Code ---------
   const [customCode, setCustomCode] = useState<string>("");
   const [customError, setCustomError] = useState<string | null>(null);
@@ -3290,6 +3384,14 @@ function App() {
                   setGroupPreview([]);
                 }
               }}
+              showNlQuery={true}
+              nlQueryLoading={nlQueryLoading}
+              nlSuggestion={nlSuggestion}
+              onNlQuerySubmit={handleNlQuerySubmit}
+              onAcceptNlCode={handleAcceptNlCode}
+              onRejectNlCode={handleRejectNlCode}
+              nlError={nlError}
+              onReset={resetAll}
             />
 
             {/* Operation Chain Summary */}
@@ -3520,6 +3622,14 @@ function App() {
                 setGroupPreview([]);
               }
             }}
+            showNlQuery={true}
+            nlQueryLoading={nlQueryLoading}
+            nlSuggestion={nlSuggestion}
+            onNlQuerySubmit={handleNlQuerySubmit}
+            onAcceptNlCode={handleAcceptNlCode}
+            onRejectNlCode={handleRejectNlCode}
+            nlError={nlError}
+            onReset={resetAll}
           />
 
           {/* Operation Chain Summary */}
@@ -3541,7 +3651,7 @@ function App() {
         />
       </>
     );
-  }, [activeSection, operationalRows, groupBy, groupPreview, sortedRows, allowedColumns, responseKeys, onView, groupPagination, sortColumn, sortDirection, handleSort, dataSearchQuery, categoricalColumns, pendingColumn, pendingValues, pendingNegated, filters, removeFilter, uniqueValuesFor, refreshGroupPreview, customCode, handleCustomCodeChange, runCustom, resetAll, customError]);
+  }, [activeSection, operationalRows, groupBy, groupPreview, sortedRows, allowedColumns, responseKeys, onView, groupPagination, sortColumn, sortDirection, handleSort, dataSearchQuery, categoricalColumns, pendingColumn, pendingValues, pendingNegated, filters, removeFilter, uniqueValuesFor, refreshGroupPreview, customCode, handleCustomCodeChange, runCustom, resetAll, customError, nlQueryLoading, nlSuggestion, nlError, handleNlQuerySubmit, handleAcceptNlCode, handleRejectNlCode]);
 
   // Memoized properties content
   const propertiesContent = useMemo(() => {
