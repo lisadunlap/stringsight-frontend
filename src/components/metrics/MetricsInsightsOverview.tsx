@@ -77,21 +77,60 @@ interface MetricsInsightsOverviewProps {
 
 // Normalize group names to standard categories
 function normalizeGroup(value: unknown): string {
-  const v = String(value || '').trim().toLowerCase();
+  const v = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
   if (!v) return '';
-  if (v === 'negative (critical)' || v === 'negative critical') return 'negative_critical';
-  if (v === 'negative (non-critical)' || v === 'negative non-critical' || v === 'negative (non critical)') return 'negative_non_critical';
+  if (v === 'negative_(critical)' || v === 'negative_critical' || v === 'negative(critical)') return 'negative_critical';
+  if (v === 'negative_(non-critical)' || v === 'negative_non-critical' || v === 'negative_non_critical' || v === 'negative(non-critical)') return 'negative_non_critical';
   if (v === 'positive') return 'positive';
   if (v === 'style') return 'style';
+  if (v === 'phrasing') return 'phrasing';
+  if (v === 'domain' || v === 'problem_domain') return 'problem_domain';
+  if (v === 'skills_required' || v === 'skillsrequired') return 'skills_required';
   return v;
 }
 
 type InsightsTabKey =
   | 'commonFailures'
+  | 'userInsights'
   | 'modelComparison'
   | 'uniqueBehaviors'
   | 'misalignedPatterns'
   | 'allClusters';
+
+function getBehaviorTypeNormalized(row: ModelClusterRow): string {
+  const metadata = row.metadata || {};
+  const behaviorType = (metadata as Record<string, unknown>).behavior_type;
+  if (typeof behaviorType === 'string' && behaviorType.trim()) {
+    return normalizeGroup(behaviorType);
+  }
+
+  const groupValue = (metadata as Record<string, unknown>).group;
+  const group = String(groupValue || '').trim();
+  if (group.includes('_')) {
+    const parts = group.split('_');
+    const tail = parts[parts.length - 1];
+    return normalizeGroup(tail);
+  }
+  return normalizeGroup(group);
+}
+
+function getRoleNormalized(row: ModelClusterRow): string {
+  const metadata = row.metadata || {};
+  const role = (metadata as Record<string, unknown>).role;
+  if (typeof role === 'string' && role.trim()) {
+    return role.trim().toLowerCase();
+  }
+
+  const groupValue = (metadata as Record<string, unknown>).group;
+  const group = String(groupValue || '').trim();
+  if (group.includes('_')) {
+    const parts = group.split('_');
+    if (parts.length > 1) {
+      return parts[0].trim().toLowerCase();
+    }
+  }
+  return '';
+}
 
 interface CommonFailure {
   cluster: string;
@@ -165,7 +204,7 @@ export function MetricsInsightsOverview({
 
     // 1. COMMON FAILURES - All negative behaviors
     const negativeRows = filteredData.filter(row => {
-      const group = normalizeGroup(row.metadata?.group);
+      const group = getBehaviorTypeNormalized(row);
       return group === 'negative_critical' || group === 'negative_non_critical';
     });
 
@@ -173,7 +212,7 @@ export function MetricsInsightsOverview({
     negativeRows.forEach(row => {
       if (!clusterGroups.has(row.cluster)) {
         clusterGroups.set(row.cluster, {
-          category: normalizeGroup(row.metadata?.group),
+          category: getBehaviorTypeNormalized(row),
           rows: []
         });
       }
@@ -233,7 +272,7 @@ export function MetricsInsightsOverview({
 
     // 2. UNIQUE STYLISTIC BEHAVIORS - Group by cluster, show delta per model
     const stylisticRows = filteredData.filter(row => {
-      const group = normalizeGroup(row.metadata?.group);
+      const group = getBehaviorTypeNormalized(row);
       return (group === 'style' || group === 'positive') && (row.proportion_delta || 0) > 0;
     });
 
@@ -242,7 +281,7 @@ export function MetricsInsightsOverview({
     stylisticRows.forEach(row => {
       if (!clusterBehaviorMap.has(row.cluster)) {
         clusterBehaviorMap.set(row.cluster, {
-          category: normalizeGroup(row.metadata?.group),
+          category: getBehaviorTypeNormalized(row),
           modelDeltas: new Map(),
           modelProportions: new Map()
         });
@@ -281,7 +320,7 @@ export function MetricsInsightsOverview({
       const misalignedMap = new Map<string, { category: string; metricDeltas: Map<string, { deltas: number[]; significances: boolean[] }> }>();
 
       filteredData.forEach(row => {
-        const group = normalizeGroup(row.metadata?.group);
+        const group = getBehaviorTypeNormalized(row);
 
         qualityMetrics.forEach(metric => {
           const qualityDeltaKey = `quality_delta_${metric}`;
@@ -439,7 +478,7 @@ export function MetricsInsightsOverview({
       : [];
 
     return filteredData.some(row => {
-      const group = normalizeGroup(row.metadata?.group);
+      const group = getBehaviorTypeNormalized(row);
 
       // Respect behavior-type filter if present (include all if no selection)
       if (selectedBehaviorTypes.length > 0 && !selectedBehaviorTypes.includes(group)) {
@@ -460,9 +499,9 @@ export function MetricsInsightsOverview({
   const hasBehaviorTypes = useMemo(() => {
     if (!data.length) return false;
     
-    // Check if any row has a metadata.group that normalizes to a known behavior type
+    // Check if any row has a behavior type that normalizes to a known category
     const hasBehaviorType = data.some(row => {
-      const group = normalizeGroup(row.metadata?.group);
+      const group = getBehaviorTypeNormalized(row);
       return group === 'negative_critical' || 
              group === 'negative_non_critical' || 
              group === 'style' || 
@@ -475,24 +514,57 @@ export function MetricsInsightsOverview({
     return hasBehaviorType || hasAvailableTypes;
   }, [data, availableBehaviorTypes]);
 
+  const hasUserRoleData = useMemo(() => {
+    if (!data.length) return false;
+    return data.some((row) => getRoleNormalized(row) === 'user');
+  }, [data]);
+
+  const hasRoleMetadata = useMemo(() => {
+    if (!data.length) return false;
+    return data.some((row) => {
+      const meta = row.metadata || {};
+      return (
+        (meta.role != null && String(meta.role).trim() !== '') ||
+        (meta.group != null && String(meta.group).trim() !== '')
+      );
+    });
+  }, [data]);
+
+  const assistantOnlyData = useMemo(() => {
+    if (!hasRoleMetadata) return data;
+    return data.filter((row) => {
+      const r = getRoleNormalized(row);
+      if (r === 'user') return false;
+      const meta = row.metadata || {};
+      const group = meta.group != null ? String(meta.group).toLowerCase() : '';
+      if (group === 'user' || group.startsWith('user_')) return false;
+      return true;
+    });
+  }, [data, hasRoleMetadata]);
+
   const availableTabs: { key: InsightsTabKey; label: string }[] = useMemo(() => {
-    // If behavior types are not present, only show All Clusters and Model Comparison
     if (!hasBehaviorTypes) {
-      return [
-        { key: 'allClusters', label: 'All Clusters' },
+      const baseTabs: { key: InsightsTabKey; label: string }[] = [
+        { key: 'allClusters', label: 'Model Behaviors' },
         { key: 'modelComparison', label: 'Model Comparison' }
       ];
+      if (hasUserRoleData) {
+        baseTabs.splice(1, 0, { key: 'userInsights', label: 'Skill Breakdown' });
+      }
+      return baseTabs;
     }
-    
-    // Otherwise show all tabs with All Clusters first
-    return [
-      { key: 'allClusters', label: 'All Clusters' },
+
+    const tabs: { key: InsightsTabKey; label: string }[] = [
+      { key: 'allClusters', label: 'Model Behaviors' },
       { key: 'commonFailures', label: 'Common Failures' },
       { key: 'modelComparison', label: 'Model Comparison' },
-      // { key: 'uniqueBehaviors', label: 'Unique Stylistic Behaviors' }, // Temporarily removed
       { key: 'misalignedPatterns', label: 'Impact on Metrics' }
     ];
-  }, [hasBehaviorTypes]);
+    if (hasUserRoleData) {
+      tabs.splice(2, 0, { key: 'userInsights', label: 'Skill Breakdown' });
+    }
+    return tabs;
+  }, [hasBehaviorTypes, hasUserRoleData]);
 
   const [activeTab, setActiveTab] = useState<InsightsTabKey | null>(
     availableTabs.length > 0 ? availableTabs[0].key : null
@@ -819,7 +891,42 @@ export function MetricsInsightsOverview({
         </Box>
       )}
 
-      {/* 2. MODEL COMPARISON */}
+      {/* 2. SKILL BREAKDOWN (user clusters) */}
+      {activeTab === 'userInsights' && (
+        <Box>
+          {onFiltersChange && qualityMetrics.length > 1 && (
+            <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                Bar Metric:
+              </Typography>
+              {qualityMetrics.map((metric) => (
+                <Button
+                  key={`user-metric-${metric}`}
+                  size="small"
+                  variant={filters.qualityMetric === metric ? 'contained' : 'outlined'}
+                  onClick={() => onFiltersChange({ ...filters, qualityMetric: metric })}
+                  sx={{ textTransform: 'none' }}
+                >
+                  {metric}
+                </Button>
+              ))}
+            </Box>
+          )}
+          <FrequencyChartAlt
+            data={data.filter((row) => getRoleNormalized(row) === 'user')}
+            filters={filters}
+            summary={summary}
+            topClusters={topClusters}
+            showCI={showCI}
+            onNavigateToCluster={onNavigateToCluster}
+            modelBarMetric="quality_delta"
+            defaultSortBy="quality_delta_abs"
+            defaultSortDirection="desc"
+          />
+        </Box>
+      )}
+
+      {/* 3. MODEL COMPARISON */}
       {activeTab === 'modelComparison' && (
         <Box>
           <ModelComparisonTab
@@ -830,7 +937,7 @@ export function MetricsInsightsOverview({
         </Box>
       )}
 
-      {/* 3. UNIQUE STYLISTIC BEHAVIORS - Temporarily removed */}
+      {/* 4. UNIQUE STYLISTIC BEHAVIORS - Temporarily removed */}
       {/* {activeTab === 'uniqueBehaviors' && (
         <Box>
           <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', width: '100%', maxHeight: 'none', alignSelf: 'stretch' }}>
@@ -954,7 +1061,7 @@ export function MetricsInsightsOverview({
         </Box>
       )} */}
 
-      {/* 4. MISALIGNED PATTERNS */}
+      {/* 5. MISALIGNED PATTERNS */}
       {activeTab === 'misalignedPatterns' && (
         <Box>
           <Paper
@@ -1255,11 +1362,11 @@ export function MetricsInsightsOverview({
         </Box>
       )}
 
-      {/* 5. ALL CLUSTERS */}
+      {/* 6. ALL CLUSTERS (Model Behaviors) - assistant clusters only when roles analyzed */}
       {activeTab === 'allClusters' && (
         <Box>
           <FrequencyChartAlt
-            data={data}
+            data={assistantOnlyData}
             filters={filters}
             summary={summary}
             topClusters={topClusters}

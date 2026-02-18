@@ -6,10 +6,13 @@ interface PropertiesOverviewBannerProps {
   /**
    * Array of property rows returned from extraction.
    * Expected keys (if present) that affect counts:
-   * - `behavior_type`: string label such as "positive", "negative (critical)", "negative (non-critical)", "style".
+   * - `behavior_type`: string label such as "positive", "negative (critical)", "negative (non-critical)", "style",
+   *   or user types "phrasing", "domain", "skills_required".
    * - `unexpected_behavior`: boolean indicating if this is an unexpected behavior.
    */
   properties: any[];
+  /** When true, show Phrasing / Problem Domain / Skills Required chips. When false, hide them. */
+  roleExtractionEnabled?: boolean;
 }
 
 /**
@@ -22,6 +25,7 @@ interface PropertiesOverviewBannerProps {
  */
 export default function PropertiesOverviewBanner({
   properties,
+  roleExtractionEnabled = false,
 }: PropertiesOverviewBannerProps) {
   const counts = React.useMemo(
     () => {
@@ -30,6 +34,9 @@ export default function PropertiesOverviewBanner({
         negativeCritical: 0,
         negativeNonCritical: 0,
         style: 0,
+        phrasing: 0,
+        domain: 0,
+        skillsRequired: 0,
         unexpected: 0,
       };
 
@@ -39,6 +46,7 @@ export default function PropertiesOverviewBanner({
             ? String(row.behavior_type ?? row.category)
             : '';
         const type = rawType.toLowerCase().trim();
+        const normalized = type.replace(/\s+/g, '_').replace(/-/g, '_');
 
         if (type === 'positive') {
           result.positive += 1;
@@ -51,6 +59,12 @@ export default function PropertiesOverviewBanner({
           result.negativeNonCritical += 1;
         } else if (type === 'style') {
           result.style += 1;
+        } else if (normalized === 'phrasing') {
+          result.phrasing += 1;
+        } else if (normalized === 'domain' || normalized === 'problem_domain') {
+          result.domain += 1;
+        } else if (normalized === 'skills_required' || normalized === 'skillsrequired') {
+          result.skillsRequired += 1;
         }
 
         // Count unexpected behaviors
@@ -291,6 +305,124 @@ export default function PropertiesOverviewBanner({
               }}
             />
           </Tooltip>
+
+          {roleExtractionEnabled && (
+            <>
+              <Tooltip
+                title="How the prompt is presented (wording, clarity, structure, tone)"
+                arrow
+                placement="top"
+              >
+                <Chip
+                  label={
+                    <Box
+                      component="span"
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                    >
+                      <Typography
+                        component="span"
+                        sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#0EA5E9' }}
+                      >
+                        {counts.phrasing}
+                      </Typography>
+                      <Typography
+                        component="span"
+                        sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#0EA5E9' }}
+                      >
+                        Phrasing
+                      </Typography>
+                    </Box>
+                  }
+                  size="medium"
+                  sx={{
+                    bgcolor: '#0EA5E915',
+                    height: 'auto',
+                    py: 0.75,
+                    px: 1.25,
+                    border: 'none',
+                    '& .MuiChip-label': { px: 0 },
+                    cursor: 'help',
+                  }}
+                />
+              </Tooltip>
+
+              <Tooltip
+                title="The specific problem area or subject matter the user asks about"
+                arrow
+                placement="top"
+              >
+                <Chip
+                  label={
+                    <Box
+                      component="span"
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                    >
+                      <Typography
+                        component="span"
+                        sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#06B6D4' }}
+                      >
+                        {counts.domain}
+                      </Typography>
+                      <Typography
+                        component="span"
+                        sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#06B6D4' }}
+                      >
+                        Problem Domain
+                      </Typography>
+                    </Box>
+                  }
+                  size="medium"
+                  sx={{
+                    bgcolor: '#06B6D415',
+                    height: 'auto',
+                    py: 0.75,
+                    px: 1.25,
+                    border: 'none',
+                    '& .MuiChip-label': { px: 0 },
+                    cursor: 'help',
+                  }}
+                />
+              </Tooltip>
+
+              <Tooltip
+                title="Concrete capabilities needed to complete the request (e.g. multi-hop reasoning)"
+                arrow
+                placement="top"
+              >
+                <Chip
+                  label={
+                    <Box
+                      component="span"
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                    >
+                      <Typography
+                        component="span"
+                        sx={{ fontSize: '1.1rem', fontWeight: 700, color: '#14B8A6' }}
+                      >
+                        {counts.skillsRequired}
+                      </Typography>
+                      <Typography
+                        component="span"
+                        sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#14B8A6' }}
+                      >
+                        Skills Required
+                      </Typography>
+                    </Box>
+                  }
+                  size="medium"
+                  sx={{
+                    bgcolor: '#14B8A615',
+                    height: 'auto',
+                    py: 0.75,
+                    px: 1.25,
+                    border: 'none',
+                    '& .MuiChip-label': { px: 0 },
+                    cursor: 'help',
+                  }}
+                />
+              </Tooltip>
+            </>
+          )}
         </Box>
       </Box>
       <Box>

@@ -9,10 +9,10 @@ import {
   Stack,
   Typography,
   Paper,
-  Chip,
   Slider
 } from '@mui/material';
 import { getModelDisplayName } from '../../lib/normalize';
+import { getBehaviorTypeDisplayLabel, getBehaviorTypeColor } from '../../lib/utils';
 import type { ModelClusterRow, MetricsFilters } from '../../types/metrics';
 import { ClusterLabel } from '../ClusterLabel';
 
@@ -24,15 +24,22 @@ function getModelColor(model: string, allModels: string[]): string {
   return MODEL_COLORS[index % MODEL_COLORS.length];
 }
 
-// Normalize group names to standard categories
+// Normalize group names to standard categories (strip role prefix e.g. non_user_style -> style)
 function normalizeGroup(value: unknown): string {
-  const v = String(value || '').trim().toLowerCase();
+  const v = String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
   if (!v) return '';
-  if (v === 'negative (critical)' || v === 'negative critical') return 'negative_critical';
-  if (v === 'negative (non-critical)' || v === 'negative non-critical' || v === 'negative (non critical)') return 'negative_non_critical';
-  if (v === 'positive') return 'positive';
-  if (v === 'style') return 'style';
-  return v;
+  const rolePrefixes = ['non_user_', 'user_', 'assistant_', 'tool_', 'system_'];
+  let suffix = v;
+  for (const prefix of rolePrefixes) {
+    if (v.startsWith(prefix)) {
+      suffix = v.slice(prefix.length);
+      break;
+    }
+  }
+  if (suffix === 'negative_(critical)' || suffix === 'negative(critical)') return 'negative_critical';
+  if (suffix === 'negative_(non-critical)' || suffix === 'negative(non-critical)') return 'negative_non_critical';
+  if (suffix === 'positive' || suffix === 'style' || suffix === 'phrasing' || suffix === 'domain' || suffix === 'problem_domain' || suffix === 'skills_required' || suffix === 'skillsrequired') return suffix;
+  return suffix || v;
 }
 
 interface ModelCardBehavior {
@@ -235,13 +242,8 @@ export function ModelComparisonTab({
                 >
                   <Stack spacing={1}>
                     {card.behaviors.map((behavior, idx) => {
-                      const categoryConfig: Record<string, { label: string; color: string }> = {
-                        negative_critical: { label: 'Critical', color: '#DC2626' },
-                        negative_non_critical: { label: 'Non-critical', color: '#CA8A04' },
-                        style: { label: 'Style', color: '#9C27B0' },
-                        positive: { label: 'Positive', color: '#16A34A' }
-                      };
-                      const config = categoryConfig[behavior.category] || { label: behavior.category, color: '#9E9E9E' };
+                      const displayLabel = getBehaviorTypeDisplayLabel(behavior.category || '');
+                      const color = getBehaviorTypeColor(behavior.category || '');
                       const hasCategory = behavior.category && behavior.category.trim() !== '';
 
                       return (
@@ -285,20 +287,17 @@ export function ModelComparisonTab({
                               {behavior.size} conversations
                             </Typography>
                             {hasCategory && (
-                              <Chip
-                                label={config.label}
-                                size="small"
+                              <Typography
+                                component="span"
                                 sx={{
-                                  height: 20,
-                                  fontSize: '0.7rem',
-                                  color: config.color,
-                                  borderColor: config.color,
-                                  bgcolor: 'background.paper',
+                                  fontSize: '0.75rem',
                                   fontWeight: 500,
+                                  color,
                                   flexShrink: 0
                                 }}
-                                variant="outlined"
-                              />
+                              >
+                                {displayLabel}
+                              </Typography>
                             )}
                           </Stack>
                         </Box>

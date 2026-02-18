@@ -99,6 +99,20 @@ export function MetricsMainContent({
   const { filteredData, topClusters, baseFilteredData } = useMemo(() => {
     let filtered = [...modelClusterData.data];
 
+    const hasRoleMetadata = filtered.some((row: any) => {
+      const meta = row.metadata || {};
+      return (
+        (meta.role != null && String(meta.role).trim() !== '') ||
+        (meta.group != null && String(meta.group).trim() !== '')
+      );
+    });
+    const isUserRow = (row: any): boolean => {
+      const meta = row.metadata || {};
+      const role = meta.role != null ? String(meta.role).toLowerCase() : '';
+      if (role === 'user') return true;
+      const group = meta.group != null ? String(meta.group).toLowerCase() : '';
+      return group === 'user' || group.startsWith('user_');
+    };
     // Filter by selected models
     if (filters.selectedModels.length > 0) {
       filtered = filtered.filter(row =>
@@ -137,14 +151,15 @@ export function MetricsMainContent({
       });
     }
 
-    // Save the base filtered data for BehaviorMapOverview
+    // baseFiltered: full data for MetricsInsightsOverview (Skills tab needs user clusters)
     const baseFiltered = filtered;
 
-    // Get all unique cluster names from filtered data (no topN limit)
-    const allClusterNames = [...new Set(filtered.map(row => row.cluster))];
+    // For Model Behaviors, TopClustersSummary: assistant-only when role metadata exists
+    const modelBehaviorsFiltered = hasRoleMetadata ? filtered.filter((r: any) => !isUserRow(r)) : filtered;
+    const allClusterNames = [...new Set(modelBehaviorsFiltered.map((row: any) => row.cluster))];
     
-    // Sort rows by the selected metric
-    filtered.sort((a, b) => {
+    // Sort model-behaviors rows for TopClustersSummary
+    modelBehaviorsFiltered.sort((a, b) => {
       const getSortValue = (row: typeof a, sortBy: string): number => {
         switch (sortBy) {
           case 'proportion_desc':
@@ -177,7 +192,7 @@ export function MetricsMainContent({
     });
     
     return {
-      filteredData: filtered,
+      filteredData: modelBehaviorsFiltered,
       topClusters: allClusterNames,
       baseFilteredData: baseFiltered
     };

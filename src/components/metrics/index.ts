@@ -15,6 +15,7 @@ export { BenchmarkSection } from './BenchmarkSection';
 export { ClusterPlotsSection } from './ClusterPlotsSection';
 export { TopClustersSummary } from './TopClustersSummary';
 export { MetricsInsightsOverview } from './MetricsInsightsOverview';
+export { MetricsNarrativeOverview } from './MetricsNarrativeOverview';
 
 // Types (re-export for convenience)
 export type {

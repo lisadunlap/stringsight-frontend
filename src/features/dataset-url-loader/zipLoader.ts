@@ -96,7 +96,8 @@ export async function loadDatasetFromZip(
     'clusters.jsonl',
     'model_cluster_scores_df.jsonl',
     'cluster_scores_df.jsonl',
-    'model_scores_df.jsonl'
+    'model_scores_df.jsonl',
+    'metrics_insights.json'
   ]
 ): Promise<{
   conversations: any[];
@@ -107,6 +108,7 @@ export async function loadDatasetFromZip(
     cluster_scores?: any[];
     model_scores?: any[];
   };
+  metrics_insights?: any;
 }> {
   // Download and extract ZIP
   const files = await loadAndExtractZip(zipUrl);
@@ -151,6 +153,7 @@ export async function loadDatasetFromZip(
   const modelClusterScores = loadFile('model_cluster_scores_df.jsonl', false);
   const clusterScores = loadFile('cluster_scores_df.jsonl', false);
   const modelScores = loadFile('model_scores_df.jsonl', false);
+  const metricsInsights = loadFile('metrics_insights.json', false);
 
   console.log(`⏱️  Total parsing time: ${Math.round(performance.now() - tParse)}ms`);
   
@@ -162,7 +165,8 @@ export async function loadDatasetFromZip(
       model_cluster_scores: modelClusterScores || undefined,
       cluster_scores: clusterScores || undefined,
       model_scores: modelScores || undefined
-    }
+    },
+    metrics_insights: metricsInsights || undefined,
   };
 
   console.log(`✅ Loaded from ZIP:`, {

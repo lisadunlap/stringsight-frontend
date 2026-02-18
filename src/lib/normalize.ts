@@ -261,9 +261,16 @@ export function enrichModelClusterScoresWithMetadata(
     const clusterLabel = row.cluster || '';
     const clusterMeta = clusterMetaMap.get(clusterLabel);
 
+    // Flatten metadata.group and metadata.role to top level for easier access
+    const metadata = row.metadata || {};
+    const group = metadata.group || clusterMeta?.group || null;
+    const role = metadata.role || clusterMeta?.role || null;
+
     if (clusterMeta) {
       return {
         ...row,
+        group, // Flatten group to top level
+        role, // Flatten role to top level (for role-based clustering)
         metadata: {
           ...(row.metadata || {}),
           ...clusterMeta
@@ -271,10 +278,15 @@ export function enrichModelClusterScoresWithMetadata(
       };
     }
 
-    return row;
+    // Even if no cluster meta, still flatten metadata fields
+    return {
+      ...row,
+      group,
+      role
+    };
   });
 
-  console.log('[normalize] Enrichment complete. Sample enriched row:', enriched[1]);
+  console.log('[normalize] Enrichment complete. Sample enriched row:', enriched[0]);
 
   return enriched;
 }

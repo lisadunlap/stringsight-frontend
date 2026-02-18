@@ -11,7 +11,7 @@ import {
 } from '@mui/icons-material';
 import { EXTERNAL_LINKS } from '../config';
 
-export type SidebarSection = 'data' | 'extraction' | 'clusters' | 'metrics';
+export type SidebarSection = 'data' | 'extraction' | 'metrics';
 
 interface PermanentIconSidebarProps {
   activeSection: SidebarSection;

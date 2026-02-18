@@ -160,6 +160,27 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
     });
   }, [clusters, modelClusterScores, clusterScores, totalUniqueConversations]);
 
+  const isUserCluster = React.useCallback((cluster: any): boolean => {
+    const meta = (cluster && cluster.meta) || {};
+    const role = meta.role != null ? String(meta.role).toLowerCase() : '';
+    if (role === 'user') return true;
+    const group = meta.group != null ? String(meta.group).toLowerCase() : '';
+    if (group === 'user' || group.startsWith('user_')) return true;
+    return false;
+  }, []);
+
+  const assistantOnlyClusters = React.useMemo(() => {
+    const hasRoleMetadata = (enrichedClusters || []).some((cluster: any) => {
+      const meta = (cluster && cluster.meta) || {};
+      return (
+        (meta.role != null && String(meta.role).trim() !== '') ||
+        (meta.group != null && String(meta.group).trim() !== '')
+      );
+    });
+    if (!hasRoleMetadata) return enrichedClusters;
+    return (enrichedClusters || []).filter((cluster: any) => !isUserCluster(cluster));
+  }, [enrichedClusters, isUserCluster]);
+
   // Smooth entrance animation on initial mount
   const animateOnMountRef = React.useRef(true);
   React.useEffect(() => {
@@ -196,24 +217,41 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
 
     // Fallback to deriving from current clusters
     const s = new Set<string>();
-    (enrichedClusters || []).forEach((c) => {
+    (assistantOnlyClusters || []).forEach((c) => {
       const meta = (c && c.meta) || {};
       const byModel = (meta.proportion_by_model && Object.keys(meta.proportion_by_model)) || [];
       const qualityByModel = (meta.quality_by_model && Object.keys(meta.quality_by_model)) || [];
       [...byModel, ...qualityByModel].forEach((m) => { if (m) s.add(String(m)); });
     });
     return Array.from(s).sort((a, b) => a.localeCompare(b));
-  }, [enrichedClusters, getPropertiesRows]);
+  }, [assistantOnlyClusters, getPropertiesRows]);
 
   const allGroups = React.useMemo<string[]>(() => {
     const s = new Set<string>();
-    (enrichedClusters || []).forEach((c) => {
+    (assistantOnlyClusters || []).forEach((c) => {
       const meta = (c && c.meta) || {};
       const g = meta.group;
       if (g != null && g !== '') s.add(String(g));
     });
     return Array.from(s).sort((a, b) => a.localeCompare(b));
-  }, [enrichedClusters]);
+  }, [assistantOnlyClusters]);
+
+  // Detect if clusters are grouped by role (heuristic: groups don't match behavior types)
+  const isRoleBasedClustering = React.useMemo(() => {
+    if (allGroups.length === 0) return false;
+    const behaviorTypes = new Set(['positive', 'negative (critical)', 'negative (non-critical)', 'style']);
+    if (allGroups.every(g => behaviorTypes.has(g.toLowerCase()))) return false;
+    return allGroups.some(g => {
+      const lower = g.toLowerCase();
+      return ['user', 'assistant', 'tool', 'system'].includes(lower) || 
+             (!behaviorTypes.has(lower) && g.length > 0);
+    });
+  }, [allGroups]);
+
+  // State for side-by-side view toggle
+  const [sideBySideView, setSideBySideView] = React.useState<boolean>(
+    () => (localStorage.getItem('stringsight.clustersSideBySideView') === 'true') || false
+  );
 
   const propertiesById = React.useMemo<Map<string, any>>(() => {
     const map = new Map<string, any>();
@@ -234,7 +272,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
       return;
     }
     const included = new Set<string>();
-    (enrichedClusters || []).forEach((c) => {
+    (assistantOnlyClusters || []).forEach((c) => {
       const meta = (c && c.meta) || {};
       if (hasGroupFilter) {
         const g = meta.group != null ? String(meta.group) : null;
@@ -259,7 +297,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
       });
     });
     onRequestRecompute(Array.from(included));
-  }, [onRequestRecompute, selectedModels, selectedGroups, enrichedClusters, propertiesById]);
+  }, [onRequestRecompute, selectedModels, selectedGroups, assistantOnlyClusters, propertiesById]);
 
   const requestRecomputeDebounced = React.useCallback(() => {
     if (debouncedApplyRef.current) {
@@ -302,7 +340,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
       return maxDelta;
     };
 
-    let list = (enrichedClusters || []).filter((c) => {
+    let list = (assistantOnlyClusters || []).filter((c) => {
       const meta = (c && c.meta) || {};
 
       // Filter out outlier clusters
@@ -376,7 +414,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
         break;
     }
     return list;
-  }, [enrichedClusters, search, selectedModels, selectedGroups, sortBy]);
+  }, [assistantOnlyClusters, search, selectedModels, selectedGroups, sortBy]);
 
   // Bars now use absolute percentage width (0–100), so no max scaling is needed.
   if (!clusters || clusters.length === 0) {
@@ -390,7 +428,7 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
   return (
     <Box>
       {/* Clusters Overview Banner */}
-      <ClustersOverviewBanner clusters={enrichedClusters} />
+      <ClustersOverviewBanner clusters={assistantOnlyClusters} />
       
       <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 0.5, overflow: 'hidden', background: '#FFFFFF' }}>
         {/* Legend / helper text */}
@@ -479,6 +517,26 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
               <MenuItem value={4}>4</MenuItem>
             </Select>
           </FormControl>
+          
+          {/* Side-by-side view toggle (only show when role-based clustering detected) */}
+          {isRoleBasedClustering && (
+            <Button
+              size="small"
+              variant={sideBySideView ? 'contained' : 'outlined'}
+              onClick={() => {
+                const newValue = !sideBySideView;
+                setSideBySideView(newValue);
+                localStorage.setItem('stringsight.clustersSideBySideView', String(newValue));
+              }}
+              sx={{ 
+                minWidth: 140,
+                textTransform: 'none',
+                fontWeight: sideBySideView ? 600 : 400
+              }}
+            >
+              {sideBySideView ? 'Side-by-Side' : 'Standard View'}
+            </Button>
+          )}
         </Stack>
       </Box>
       {(selectedModels.length > 0 || selectedGroups.length > 0 || (search.trim().length > 0)) && (
@@ -543,201 +601,242 @@ function ClustersTab({ clusters, totalConversationsByModel, totalUniqueConversat
           <Button size="small" variant="text" onClick={() => { setSelectedModels([]); setSelectedGroups([]); setSearch(''); requestRecomputeDebounced(); }}>Clear all</Button>
         </Box>
       )}
-      {visibleClusters.map((c, idx) => {
-        const meta = (c && c.meta) || {};
-        const overallProp: number | undefined = meta.proportion_overall;
-        const group: string | undefined = meta.group;
-        const clusterUniqueConversations: number | undefined = meta.total_unique_conversations;
-        const proportionByModel = meta.proportion_by_model || {};
-        const sizeByModel = meta.size_by_model || {};
+      
+      {/* Render clusters: side-by-side view for roles, or standard list */}
+      {isRoleBasedClustering && sideBySideView ? (
+        // Side-by-side role view
+        <Box sx={{ display: 'flex', gap: 2, p: 2 }}>
+          {allGroups.map(role => {
+            const roleClusters = visibleClusters.filter(c => {
+              const meta = (c && c.meta) || {};
+              return meta.group === role;
+            });
 
-        // Use selected models if filter is active, otherwise use all models
-        const modelsToShow = selectedModels.length > 0 ? selectedModels : allModels;
+            if (roleClusters.length === 0) return null;
 
-        // Build model bars for this cluster
-        const modelBars = modelsToShow.map(model => {
-          const proportion = proportionByModel[model] || 0;
-          const modelShortName = getModelDisplayName(model);
-          const color = getModelColor(model, allModels);
-          
-          // Use size directly from the enriched data
-          const size = sizeByModel[model] || 0;
-
-          return {
-            model,
-            modelShortName,
-            proportion,
-            size,
-            color
-          };
-        });
-
-        const row = (
-          <Paper
-            key={c.id ?? idx}
-            variant="outlined"
-            onClick={() => {
-              console.log('[ClustersTab] Cluster card clicked:', c);
-              onClusterClick(c);
-            }}
-            sx={{
-              p: 1.5,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              borderBottom: '1px solid #E5E7EB',
-              borderRadius: 0,
-              '&:hover': {
-                bgcolor: '#F9FAFB',
-                boxShadow: 1
-              },
-              position: 'relative'
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-              {/* Left side: Model bars with names */}
-              <Stack spacing={0.25} sx={{ minWidth: 220 }}>
-                {modelBars.map(bar => {
-                  const tooltipText = `${bar.model}: ${(bar.proportion * 100).toFixed(1)}% (${bar.size} responses)`;
-
-                  return (
-                    <Tooltip key={bar.model} title={tooltipText} arrow placement="top">
-                      <Box 
-                        sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {/* Visual bar */}
-                        <Box
-                          sx={{
-                            width: 140,
-                            height: 10,
-                            bgcolor: 'grey.100',
-                            borderRadius: 0.5,
-                            position: 'relative',
-                            overflow: 'hidden'
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              left: 0,
-                              top: 0,
-                              height: '100%',
-                              width: `${Math.min(100, bar.proportion * 100)}%`,
-                              bgcolor: bar.color,
-                              opacity: 0.8,
-                              transition: 'width 0.3s ease'
-                            }}
-                          />
-                        </Box>
-
-                        {/* Model name */}
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            fontSize: '0.75rem',
-                            color: 'text.secondary',
-                            minWidth: 100,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {bar.modelShortName}
-                        </Typography>
-                      </Box>
-                    </Tooltip>
-                  );
-                })}
-              </Stack>
-
-              {/* Middle: Cluster description */}
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <ClusterLabel
-                  text={String(c.label || '')}
-                  typographyProps={{
-                    variant: 'body1',
-                    sx: {
-                      color: '#111827',
-                      lineHeight: 1.6,
-                      fontSize: '1rem',
-                      mb: 1
-                    }
-                  }}
-                />
-                <Stack spacing={0.25}>
-                  <Typography variant="body2" sx={{ color: '#6B7280', fontSize: 13 }}>
-                    {(() => {
-                      // When models are filtered, show count for only selected models
-                      if (selectedModels.length > 0) {
-                        const filteredSize = modelBars.reduce((sum, bar) => sum + bar.size, 0);
-                        if (filteredSize > 0) {
-                          return `${filteredSize.toLocaleString()} model responses (filtered)`;
-                        }
-                      }
-
-                      // Otherwise show unique conversation count
-                      if (clusterUniqueConversations !== undefined && clusterUniqueConversations > 0) {
-                        // Prefer overallProp from metrics; fallback to derived proportion using totals
-                        const derivedProp = (typeof overallProp === 'number' && isFinite(overallProp))
-                          ? overallProp
-                          : (typeof totalUniqueConversations === 'number' && totalUniqueConversations > 0
-                              ? (clusterUniqueConversations / totalUniqueConversations)
-                              : undefined);
-                        const propText = typeof derivedProp === 'number' ? ` (${formatPercent(derivedProp)})` : '';
-                        return `${clusterUniqueConversations.toLocaleString()} unique conversations${propText}`;
-                      }
-                      const clusterSize = c.size ?? 0;
-                      return `${clusterSize.toLocaleString()} properties`;
-                    })()}
+            return (
+              <Box key={role} sx={{ flex: 1, minWidth: 0 }}>
+                {/* Role header */}
+                <Box sx={{ 
+                  mb: 2, 
+                  pb: 1, 
+                  borderBottom: '2px solid',
+                  borderColor: 'primary.main'
+                }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
+                    {role}
                   </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {roleClusters.length} cluster{roleClusters.length !== 1 ? 's' : ''}
+                  </Typography>
+                </Box>
+
+                {/* Clusters for this role */}
+                <Stack spacing={2}>
+                  {roleClusters.map((c, idx) => renderCluster(c, idx))}
                 </Stack>
               </Box>
-
-              {/* Arrow icon - at the very right */}
-              <Box sx={{ color: 'action.active', ml: 'auto' }}>
-                →
-              </Box>
-            </Box>
-
-            {/* Category chip at absolute bottom right */}
-            {group && (
-              <Box 
-                sx={{
-                  position: 'absolute',
-                  bottom: 8,
-                  right: 12
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Chip
-                  label={group}
-                  size="small"
-                  sx={{
-                    height: 22,
-                    fontSize: '0.75rem',
-                    color: getCategoryColor(group),
-                    borderColor: getCategoryColor(group),
-                    bgcolor: 'white',
-                    fontWeight: 500
-                  }}
-                  variant="outlined"
-                />
-              </Box>
-            )}
-          </Paper>
-        );
-
-        if (animateOnMountRef.current && idx < 20) {
-          return (
-            <Fade in timeout={Math.min(900 + idx * 140, 2600)} key={`fade-${c.id ?? idx}`}>
-              {row}
-            </Fade>
-          );
-        }
-        return row;
-      })}
+            );
+          })}
+        </Box>
+      ) : (
+        // Standard list view
+        visibleClusters.map((c, idx) => renderCluster(c, idx))
+      )}
       </Box>
     </Box>
   );
+
+  // Helper function to render a cluster card (extracted to avoid duplication)
+  function renderCluster(c: any, idx: number) {
+    const meta = (c && c.meta) || {};
+    const overallProp: number | undefined = meta.proportion_overall;
+    const group: string | undefined = meta.group;
+    const clusterUniqueConversations: number | undefined = meta.total_unique_conversations;
+    const proportionByModel = meta.proportion_by_model || {};
+    const sizeByModel = meta.size_by_model || {};
+
+    // Use selected models if filter is active, otherwise use all models
+    const modelsToShow = selectedModels.length > 0 ? selectedModels : allModels;
+
+    // Build model bars for this cluster
+    const modelBars = modelsToShow.map(model => {
+      const proportion = proportionByModel[model] || 0;
+      const modelShortName = getModelDisplayName(model);
+      const color = getModelColor(model, allModels);
+      
+      // Use size directly from the enriched data
+      const size = sizeByModel[model] || 0;
+
+      return {
+        model,
+        modelShortName,
+        proportion,
+        size,
+        color
+      };
+    });
+
+    const row = (
+      <Paper
+        key={c.id ?? idx}
+        variant="outlined"
+        onClick={() => onClusterClick(c)}
+        sx={{
+          p: 1.5,
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+          borderBottom: '1px solid #E5E7EB',
+          borderRadius: 0,
+          '&:hover': {
+            bgcolor: '#F9FAFB',
+            boxShadow: 1
+          },
+          position: 'relative'
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+          {/* Left side: Model bars with names */}
+          <Stack spacing={0.25} sx={{ minWidth: 220 }}>
+            {modelBars.map(bar => {
+              const tooltipText = `${bar.model}: ${(bar.proportion * 100).toFixed(1)}% (${bar.size} responses)`;
+
+              return (
+                <Tooltip key={bar.model} title={tooltipText} arrow placement="top">
+                  <Box 
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Visual bar */}
+                    <Box
+                      sx={{
+                        width: 140,
+                        height: 10,
+                        bgcolor: 'grey.100',
+                        borderRadius: 0.5,
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          left: 0,
+                          top: 0,
+                          height: '100%',
+                          width: `${Math.min(100, bar.proportion * 100)}%`,
+                          bgcolor: bar.color,
+                          opacity: 0.8,
+                          transition: 'width 0.3s ease'
+                        }}
+                      />
+                    </Box>
+
+                    {/* Model name */}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontSize: '0.75rem',
+                        color: 'text.secondary',
+                        minWidth: 100,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {bar.modelShortName}
+                    </Typography>
+                  </Box>
+                </Tooltip>
+              );
+            })}
+          </Stack>
+
+          {/* Middle: Cluster description */}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <ClusterLabel
+              text={String(c.label || '')}
+              typographyProps={{
+                variant: 'body1',
+                sx: {
+                  color: '#111827',
+                  lineHeight: 1.6,
+                  fontSize: '1rem',
+                  mb: 1
+                }
+              }}
+            />
+            <Stack spacing={0.25}>
+              <Typography variant="body2" sx={{ color: '#6B7280', fontSize: 13 }}>
+                {(() => {
+                  // When models are filtered, show count for only selected models
+                  if (selectedModels.length > 0) {
+                    const filteredSize = modelBars.reduce((sum, bar) => sum + bar.size, 0);
+                    if (filteredSize > 0) {
+                      return `${filteredSize.toLocaleString()} model responses (filtered)`;
+                    }
+                  }
+
+                  // Otherwise show unique conversation count
+                  if (clusterUniqueConversations !== undefined && clusterUniqueConversations > 0) {
+                    // Prefer overallProp from metrics; fallback to derived proportion using totals
+                    const derivedProp = (typeof overallProp === 'number' && isFinite(overallProp))
+                      ? overallProp
+                      : (typeof totalUniqueConversations === 'number' && totalUniqueConversations > 0
+                          ? (clusterUniqueConversations / totalUniqueConversations)
+                          : undefined);
+                    const propText = typeof derivedProp === 'number' ? ` (${formatPercent(derivedProp)})` : '';
+                    return `${clusterUniqueConversations.toLocaleString()} unique conversations${propText}`;
+                  }
+                  const clusterSize = c.size ?? 0;
+                  return `${clusterSize.toLocaleString()} properties`;
+                })()}
+              </Typography>
+            </Stack>
+          </Box>
+
+          {/* Arrow icon - at the very right */}
+          <Box sx={{ color: 'action.active', ml: 'auto' }}>
+            →
+          </Box>
+        </Box>
+
+        {/* Category chip at absolute bottom right */}
+        {group && (
+          <Box 
+            sx={{
+              position: 'absolute',
+              bottom: 8,
+              right: 12
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Chip
+              label={group}
+              size="small"
+              sx={{
+                height: 22,
+                fontSize: '0.75rem',
+                color: getCategoryColor(group),
+                borderColor: getCategoryColor(group),
+                bgcolor: 'white',
+                fontWeight: 500
+              }}
+              variant="outlined"
+            />
+          </Box>
+        )}
+      </Paper>
+    );
+
+    if (animateOnMountRef.current && idx < 20) {
+      return (
+        <Fade in timeout={Math.min(900 + idx * 140, 2600)} key={`fade-${c.id ?? idx}`}>
+          {row}
+        </Fade>
+      );
+    }
+    return row;
+  }
 }
 export default React.memo(ClustersTab);

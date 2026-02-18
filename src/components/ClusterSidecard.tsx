@@ -115,7 +115,6 @@ export default function ClusterSidecard({
 
     // If no backend metrics, try to compute from raw data (fallback for winner-only data)
     if (clusterMetrics.length === 0 && method === 'side_by_side' && getPropertiesRows && getOperationalRows) {
-      console.log('[ClusterSidecard] No backend metrics, attempting fallback computation from winner column');
 
       const allProperties = getPropertiesRows();
       const allOperational = getOperationalRows();
@@ -218,7 +217,6 @@ export default function ClusterSidecard({
           };
         });
 
-        console.log('[ClusterSidecard] Computed synthetic metrics:', syntheticMetrics);
         clusterMetrics.push(...syntheticMetrics);
       }
     }
@@ -394,17 +392,6 @@ export default function ClusterSidecard({
   const isSignificantInQuality = Object.values(qualityDeltaSignificantByModel).some(metrics =>
     Object.values(metrics).some(v => v === true)
   );
-
-  console.log('[ClusterSidecard] Enriched cluster meta:', meta);
-  console.log('[ClusterSidecard] qualityDeltaByModel:', qualityDeltaByModel);
-  console.log('[ClusterSidecard] qualityDeltaByModel keys:', Object.keys(qualityDeltaByModel));
-  console.log('[ClusterSidecard] qualityDeltaCIByModel:', qualityDeltaCIByModel);
-  console.log('[ClusterSidecard] Significance flags:', {
-    isSignificantInFrequency,
-    isSignificantInQuality,
-    proportionDeltaSignificantByModel,
-    qualityDeltaSignificantByModel
-  });
 
   // Property trace view logic
   if (viewMode === 'property-trace' && selectedPropertyId) {
@@ -590,7 +577,7 @@ export default function ClusterSidecard({
   const descriptions: string[] = Array.isArray(enrichedCluster.property_descriptions) ? enrichedCluster.property_descriptions : [];
   const ids: any[] = Array.isArray((enrichedCluster as any).property_ids) ? (enrichedCluster as any).property_ids : [];
 
-  // Build property list with model names
+  // Build property list with model names and roles
   const propertyList = hasItems
     ? items.map((item: any) => ({
       id: item.property_id,

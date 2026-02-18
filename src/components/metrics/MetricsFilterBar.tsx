@@ -49,6 +49,10 @@ function getBehaviorTypeLabel(behaviorType: string): string {
     'negative_non_critical': 'Negative (Non-Critical)',
     'positive': 'Positive',
     'style': 'Stylistic',
+    'phrasing': 'Phrasing',
+    'domain': 'Problem Domain',
+    'problem_domain': 'Problem Domain',
+    'skills_required': 'Skills Required',
   };
   return labels[behaviorType] || behaviorType;
 }

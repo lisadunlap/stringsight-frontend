@@ -112,6 +112,35 @@ export interface ClusterScoresPayload {
 }
 
 /**
+ * LLM-generated sectioned narrative over interesting metrics patterns.
+ *
+ * Expected backend format:
+ * - narrative_markdown: markdown string with headings:
+ *   ## Failures
+ *   ## Quality-Impacting Behaviors
+ *   ## Frequency Discrepancies
+ * - candidates: optional structured top-k rows used to generate the narrative
+ * - selection_metadata: thresholds and candidate counts used during filtering
+ */
+export interface MetricsInsightsPayload {
+  narrative_markdown: string;
+  candidates?: {
+    failures?: Record<string, unknown>[];
+    quality_impact?: Record<string, unknown>[];
+    frequency_discrepancies?: Record<string, unknown>[];
+  };
+  selection_metadata?: {
+    top_k_per_section?: number;
+    min_cluster_proportion?: number;
+    min_abs_quality_delta?: number;
+    min_model_freq_gap?: number;
+    quality_metrics?: string[];
+    input_cluster_count?: number;
+    interesting_cluster_count?: number;
+  };
+}
+
+/**
  * Response from /metrics/summary endpoint.
  */
 export interface MetricsSummary {

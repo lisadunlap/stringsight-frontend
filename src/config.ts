@@ -14,14 +14,6 @@ export const EXTERNAL_LINKS = {
   DOCUMENTATION: 'https://lisadunlap.github.io/StringSight/',
 } as const;
 
-/**
- * URL for fetching datasets.yaml configuration
- * Falls back to /datasets.yaml (public folder) if not set
- */
-export const DATASETS_CONFIG_URL = 
-  (import.meta as any).env?.VITE_DATASETS_URL || 
-  (globalThis as any)?.VITE_DATASETS_URL;
-
 
 
 

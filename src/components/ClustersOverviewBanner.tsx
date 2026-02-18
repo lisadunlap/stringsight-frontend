@@ -15,6 +15,32 @@ interface ClustersOverviewBannerProps {
 }
 
 /**
+ * Normalize behavior type labels to canonical buckets used in overview counts.
+ * Supports:
+ * - explicit `meta.behavior_type`
+ * - legacy/plain `meta.group` values (e.g., "Style")
+ * - combined role groups (e.g., "assistant_Style", "user_Negative (critical)")
+ */
+function getBehaviorTypeKey(cluster: any): string {
+  const meta = (cluster && cluster.meta) || {};
+
+  const rawBehaviorType =
+    meta.behavior_type != null
+      ? String(meta.behavior_type)
+      : '';
+  if (rawBehaviorType.trim()) {
+    return rawBehaviorType.toLowerCase().trim().replace(/[_\s]+/g, '_');
+  }
+
+  const rawGroup = meta.group != null ? String(meta.group) : '';
+  const group = rawGroup.trim();
+  if (!group) return '';
+
+  const tail = group.includes('_') ? group.split('_').slice(1).join('_') : group;
+  return tail.toLowerCase().trim().replace(/[_\s]+/g, '_');
+}
+
+/**
  * Overview banner for clusters, showing counts of
  * positive / negative (critical) / negative (non-critical) / style clusters.
  *
@@ -42,11 +68,7 @@ export default function ClustersOverviewBanner({
       });
 
       nonOutlierClusters.forEach((cluster) => {
-        const rawType =
-          (cluster && cluster.meta && cluster.meta.group) != null
-            ? String(cluster.meta.group)
-            : '';
-        const type = rawType.toLowerCase().trim().replace(/[_\s]+/g, '_');
+        const type = getBehaviorTypeKey(cluster);
 
         if (type === 'positive') {
           result.positive += 1;

@@ -117,6 +117,7 @@ clusters.jsonl              [Optional] Cluster assignments
 model_cluster_scores_df.jsonl [Optional] Model-cluster metrics
 cluster_scores_df.jsonl     [Optional] Cluster metrics
 model_scores_df.jsonl       [Optional] Model metrics
+metrics_insights.json       [Optional] LLM sectioned insights overview
 
 Export Checklist
 ================

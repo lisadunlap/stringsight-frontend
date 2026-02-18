@@ -126,6 +126,7 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
   let modelClusterScores: any[] | undefined;
   let clusterScores: any[] | undefined;
   let modelScores: any[] | undefined;
+  let metricsInsights: any;
 
   // Determine loading strategy based on cdn_url
   const useZipFile = datasetConfig.cdn_url && isZipUrl(datasetConfig.cdn_url);
@@ -154,6 +155,7 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
             modelClusterScores = data.metrics.model_cluster_scores_df;
             clusterScores = data.metrics.cluster_scores_df;
             modelScores = data.metrics.model_scores_df;
+            metricsInsights = data.metrics.metrics_insights;
           }
 
           console.log(`⏱️  Loaded via combined endpoint in ${Math.round(performance.now() - t0)}ms`);
@@ -216,6 +218,7 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
           modelClusterScores = metricsRes.model_cluster_scores_df;
           clusterScores = metricsRes.cluster_scores_df;
           modelScores = metricsRes.model_scores_df;
+          metricsInsights = metricsRes.metrics_insights;
         }
 
         console.log(`⏱️  Loaded via individual endpoints in ${Math.round(performance.now() - t0)}ms`);
@@ -248,11 +251,12 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
         properties: `${folderPath}/properties.jsonl`,
         clusters: `${folderPath}/clusters.jsonl`,
         metrics: `${folderPath}/model_cluster_scores_df.jsonl`,
+        metricsInsights: `${folderPath}/metrics_insights.json`,
       };
 
       console.log(`📡 Fetching from folder:`, endpoints);
 
-      const [conversationsRes, propertiesRes, clustersRes, metricsRes] = await Promise.all([
+      const [conversationsRes, propertiesRes, clustersRes, metricsRes, metricsInsightsRes] = await Promise.all([
         fetch(endpoints.conversations).then(async r => {
           if (!r.ok) {
             console.error(`❌ Failed to fetch conversations.jsonl: ${r.status} ${r.statusText}`);
@@ -282,6 +286,13 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
           }
           return r.text();
         }),
+        fetch(endpoints.metricsInsights).then(async r => {
+          if (!r.ok) {
+            console.warn(`⚠️  metrics_insights.json not found (optional): ${r.status} ${r.statusText}`);
+            return null;
+          }
+          return r.text();
+        }),
       ]);
 
       // Parse JSONL files
@@ -296,6 +307,9 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
       }
       if (metricsRes) {
         modelClusterScores = metricsRes.trim().split('\n').filter(l => l.trim()).map(line => JSON.parse(line));
+      }
+      if (metricsInsightsRes) {
+        metricsInsights = JSON.parse(metricsInsightsRes);
       }
 
       if (conversations.length === 0) {
@@ -326,6 +340,7 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
     modelClusterScores = zipData.metrics.model_cluster_scores;
     clusterScores = zipData.metrics.cluster_scores;
     modelScores = zipData.metrics.model_scores;
+    metricsInsights = zipData.metrics_insights;
   }
   
   // Calculate totals from conversations
@@ -362,6 +377,7 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
       cluster_scores: clusterScores,
       model_scores: modelScores,
     },
+    metrics_insights: metricsInsights,
     total_conversations_by_model: totalConversationsByModel,
     total_unique_conversations: totalUniqueConversations,
   };

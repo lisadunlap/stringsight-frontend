@@ -7,6 +7,21 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import ModelResponseCard from './ModelResponseCard';
 import { evidenceToHighlightRanges } from './ResponseContent';
+import { getBehaviorTypeColor, getBehaviorTypeDisplayLabel } from '../lib/utils';
+
+// Helper function to get role color (consistent with PropertiesTab)
+function getRoleColor(role: string): string {
+  const r = String(role).toLowerCase().trim();
+  if (r === 'user') return '#3B82F6';      // blue
+  if (r === 'assistant') return '#10B981'; // green
+  if (r === 'tool') return '#8B5CF6';      // purple
+  if (r === 'system') return '#F59E0B';    // amber
+  // Custom roles: hash for consistent color
+  let h = 0;
+  for (let i = 0; i < r.length; i++) h = ((h << 5) - h) + r.charCodeAt(i) | 0;
+  const hue = Math.abs(h % 360);
+  return `hsl(${hue}, 65%, 45%)`;
+}
 
 export interface ConversationLike {
   question_id: string;
@@ -23,6 +38,7 @@ export interface PropertyLike {
   property_description?: string;
   category?: string;
   behavior_type?: string;
+  role?: string;
   reason?: string;
   evidence?: string | string[];
   contains_errors?: boolean;
@@ -92,12 +108,36 @@ export default function PropertyCard({ property, conversation, method, onOpenCon
               {property.category && (
                 <Chip label={property.category} size="small" variant="outlined" />
               )}
-              {property.behavior_type && (
-                <Chip 
-                  label={property.behavior_type}
+              {property.behavior_type && (() => {
+                const c = getBehaviorTypeColor(property.behavior_type);
+                return (
+                  <Chip
+                    label={getBehaviorTypeDisplayLabel(property.behavior_type)}
+                    size="small"
+                    sx={{
+                      backgroundColor: c.startsWith('#') ? `${c}20` : c,
+                      color: c,
+                      borderColor: c,
+                      fontWeight: 600,
+                      borderWidth: 1,
+                      borderStyle: 'solid',
+                      '& .MuiChip-label': { color: c },
+                    }}
+                    variant="outlined"
+                  />
+                );
+              })()}
+              {property.role && (
+                <Chip
+                  label={property.role}
                   size="small"
-                  color={property.behavior_type?.toLowerCase().includes('positive') ? 'success' : property.behavior_type?.toLowerCase().includes('negative') ? 'error' : 'default'}
-                  variant="outlined"
+                  sx={{
+                    textTransform: 'capitalize',
+                    fontWeight: 600,
+                    backgroundColor: getRoleColor(property.role),
+                    color: '#fff',
+                    border: 'none'
+                  }}
                 />
               )}
               <Chip label={property.model} size="small" variant="outlined" />

@@ -8,7 +8,7 @@
  * - Inline percentage labels
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Alert, Stack, Paper, Chip, Tooltip, Select, MenuItem, FormControl, IconButton, TextField, InputAdornment, Checkbox, ListItemText } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
@@ -27,13 +27,33 @@ function getModelColor(model: string, allModels: string[]): string {
 
 // Normalize group names to standard categories
 function normalizeGroup(value: unknown): string {
-  const v = String(value || '').trim().toLowerCase();
+  const v = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
   if (!v) return '';
-  if (v === 'negative (critical)' || v === 'negative critical') return 'negative_critical';
-  if (v === 'negative (non-critical)' || v === 'negative non-critical' || v === 'negative (non critical)') return 'negative_non_critical';
+  if (v === 'negative_(critical)' || v === 'negative_critical' || v === 'negative(critical)') return 'negative_critical';
+  if (v === 'negative_(non-critical)' || v === 'negative_non-critical' || v === 'negative_non_critical' || v === 'negative(non-critical)') return 'negative_non_critical';
   if (v === 'positive') return 'positive';
   if (v === 'style') return 'style';
+  if (v === 'phrasing') return 'phrasing';
+  if (v === 'domain' || v === 'problem_domain') return 'problem_domain';
+  if (v === 'skills_required' || v === 'skillsrequired') return 'skills_required';
   return v;
+}
+
+function getBehaviorTypeNormalized(row: ModelClusterRow): string {
+  const metadata = row.metadata || {};
+  const behaviorType = (metadata as Record<string, unknown>).behavior_type;
+  if (typeof behaviorType === 'string' && behaviorType.trim()) {
+    return normalizeGroup(behaviorType);
+  }
+
+  const groupValue = (metadata as Record<string, unknown>).group;
+  const group = String(groupValue || '').trim();
+  if (group.includes('_')) {
+    const parts = group.split('_');
+    const tail = parts[parts.length - 1];
+    return normalizeGroup(tail);
+  }
+  return normalizeGroup(group);
 }
 
 // Get color for each category
@@ -43,17 +63,23 @@ function getCategoryColor(category: string): string {
     case 'negative_non_critical': return '#CA8A04'; // orange
     case 'style': return '#9C27B0'; // purple
     case 'positive': return '#16A34A'; // green
+    case 'phrasing': return '#0EA5E9'; // sky blue
+    case 'problem_domain': return '#06B6D4'; // cyan
+    case 'skills_required': return '#14B8A6'; // teal
     default: return '#9E9E9E'; // gray
   }
 }
 
-// Get display name for category
+// Get display name for category (capitalized labels for user types)
 function getCategoryDisplayName(category: string): string {
   switch (category) {
     case 'negative_critical': return 'Negative (critical)';
     case 'negative_non_critical': return 'Negative (non-critical)';
     case 'style': return 'Style';
     case 'positive': return 'Positive';
+    case 'phrasing': return 'Phrasing';
+    case 'problem_domain': return 'Problem Domain';
+    case 'skills_required': return 'Skills Required';
     case '': return 'Uncategorized';
     default: return category || 'Uncategorized';
   }
@@ -74,6 +100,12 @@ interface FrequencyChartAltProps {
   height?: number;
   /** Callback to navigate to a cluster */
   onNavigateToCluster?: (clusterName: string) => void;
+  /** Metric shown in per-model bars on each cluster card */
+  modelBarMetric?: 'frequency' | 'quality_delta';
+  /** Optional initial sort key for this view */
+  defaultSortBy?: 'frequency' | 'frequency_delta' | 'quality' | 'quality_delta' | 'quality_delta_abs';
+  /** Optional initial sort direction for this view */
+  defaultSortDirection?: 'asc' | 'desc';
 }
 
 export function FrequencyChartAlt({
@@ -82,26 +114,29 @@ export function FrequencyChartAlt({
   summary,
   topClusters,
   showCI = false,
-  onNavigateToCluster
+  onNavigateToCluster,
+  modelBarMetric = 'frequency',
+  defaultSortBy = 'frequency_delta',
+  defaultSortDirection = 'desc'
 }: FrequencyChartAltProps) {
 
-  // Local state for list view filters
-  // Include empty string to show uncategorized clusters by default
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    'negative_critical',
-    'negative_non_critical',
-    'style',
-    'positive',
-    '' // Include uncategorized clusters
-  ]);
-  const [sortBy, setSortBy] = useState<string>('frequency_delta');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  // Local state for list view filters.
+  // Empty selection means "All Types" so role-based groups are visible by default.
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<string>(defaultSortBy);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(defaultSortDirection);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
+  // Keep sort defaults in sync when this component is reused across tabs/modes.
+  useEffect(() => {
+    setSortBy(defaultSortBy);
+    setSortDirection(defaultSortDirection);
+  }, [defaultSortBy, defaultSortDirection, modelBarMetric]);
+
   const handleReset = () => {
-    setSelectedCategories(['negative_critical', 'negative_non_critical', 'style', 'positive', '']);
-    setSortBy('frequency_delta');
-    setSortDirection('desc');
+    setSelectedCategories([]);
+    setSortBy(defaultSortBy);
+    setSortDirection(defaultSortDirection);
     setSearchTerm('');
   };
 
@@ -138,9 +173,11 @@ export function FrequencyChartAlt({
 
     // Build cluster data with model bars
     let maxProp = 0;
+    let maxAbsQualityDelta = 0;
+    let maxAbsQualityScore = 0;
     const clusterData = clustersToShow.map(cluster => {
       const clusterRows = clusterGroups[cluster] || [];
-      const category = clusterRows.length > 0 ? normalizeGroup(clusterRows[0].metadata?.group) : '';
+      const category = clusterRows.length > 0 ? getBehaviorTypeNormalized(clusterRows[0]) : '';
       const totalSize = clusterRows.reduce((sum, r) => sum + (r.size || 0), 0);
       const proportionOverall = computeOverallProportion(clusterRows);
       const globalQualityDelta = computeGlobalQualityDelta(clusterRows, filters.qualityMetric);
@@ -162,10 +199,25 @@ export function FrequencyChartAlt({
         const proportion = row?.proportion || 0;
         maxProp = Math.max(maxProp, proportion);
 
+        const qualityDeltaNested = row?.quality_delta?.[filters.qualityMetric];
+        const qualityDeltaFlat = row ? (row as unknown as Record<string, any>)[`quality_delta_${filters.qualityMetric}`] : undefined;
+        const qualityDelta = typeof qualityDeltaNested === 'number' && isFinite(qualityDeltaNested)
+          ? qualityDeltaNested
+          : (typeof qualityDeltaFlat === 'number' && isFinite(qualityDeltaFlat) ? qualityDeltaFlat : 0);
+        maxAbsQualityDelta = Math.max(maxAbsQualityDelta, Math.abs(qualityDelta));
+
+        const qualityScoreNested = row?.quality?.[filters.qualityMetric];
+        const qualityScoreFlat = row ? (row as unknown as Record<string, any>)[`quality_${filters.qualityMetric}`] : undefined;
+        const qualityScore = typeof qualityScoreNested === 'number' && isFinite(qualityScoreNested)
+          ? qualityScoreNested
+          : (typeof qualityScoreFlat === 'number' && isFinite(qualityScoreFlat) ? qualityScoreFlat : 0);
+        maxAbsQualityScore = Math.max(maxAbsQualityScore, Math.abs(qualityScore));
+
         return {
           model,
           modelShortName: getModelDisplayName(model),
           proportion,
+          qualityDelta,
           ciLower: showCI ? row?.proportion_ci_lower : undefined,
           ciUpper: showCI ? row?.proportion_ci_upper : undefined,
           size: row?.size || 0,
@@ -253,7 +305,7 @@ export function FrequencyChartAlt({
         return values.reduce((sum, v) => sum + v, 0) / values.length;
       };
 
-      const getMaxAbsQualityDelta = (rows: ModelClusterRow[]) => {
+      const getAvgQualityDelta = (rows: ModelClusterRow[]) => {
         if (rows.length === 0) return 0;
         const qualityMetric = filters.qualityMetric;
         if (!qualityMetric) return 0;
@@ -263,11 +315,33 @@ export function FrequencyChartAlt({
           // Prefer nested quality_delta object when present
           const nested = r.quality_delta?.[qualityMetric];
           if (typeof nested === 'number' && isFinite(nested)) {
-            values.push(Math.abs(nested));
+            values.push(nested);
             continue;
           }
 
           // Fallback to flattened quality_delta_<metric> key from backend JSONL
+          const flat = (r as unknown as Record<string, any>)[`quality_delta_${qualityMetric}`];
+          if (typeof flat === 'number' && isFinite(flat)) {
+            values.push(flat);
+          }
+        }
+
+        if (!values.length) return 0;
+        return values.reduce((sum, v) => sum + v, 0) / values.length;
+      };
+
+      const getAvgAbsQualityDelta = (rows: ModelClusterRow[]) => {
+        if (rows.length === 0) return 0;
+        const qualityMetric = filters.qualityMetric;
+        if (!qualityMetric) return 0;
+
+        const values: number[] = [];
+        for (const r of rows) {
+          const nested = r.quality_delta?.[qualityMetric];
+          if (typeof nested === 'number' && isFinite(nested)) {
+            values.push(Math.abs(nested));
+            continue;
+          }
           const flat = (r as unknown as Record<string, any>)[`quality_delta_${qualityMetric}`];
           if (typeof flat === 'number' && isFinite(flat)) {
             values.push(Math.abs(flat));
@@ -275,7 +349,7 @@ export function FrequencyChartAlt({
         }
 
         if (!values.length) return 0;
-        return Math.max(...values);
+        return values.reduce((sum, v) => sum + v, 0) / values.length;
       };
 
       let comparison = 0;
@@ -290,7 +364,10 @@ export function FrequencyChartAlt({
           comparison = getAvgQuality(clusterB) - getAvgQuality(clusterA);
           break;
         case 'quality_delta':
-          comparison = getMaxAbsQualityDelta(clusterB) - getMaxAbsQualityDelta(clusterA);
+          comparison = getAvgQualityDelta(clusterB) - getAvgQualityDelta(clusterA);
+          break;
+        case 'quality_delta_abs':
+          comparison = getAvgAbsQualityDelta(clusterB) - getAvgAbsQualityDelta(clusterA);
           break;
         default:
           comparison = 0;
@@ -299,7 +376,7 @@ export function FrequencyChartAlt({
       return sortDirection === 'desc' ? comparison : -comparison;
     });
 
-      return { clusterData: sortedClusterData, maxProportion: maxProp };
+      return { clusterData: sortedClusterData, maxProportion: maxProp, maxAbsQualityDelta, maxAbsQualityScore };
   }, [data, filters, showCI, selectedCategories, sortBy, sortDirection, searchTerm]);
 
   if (!data.length) {
@@ -356,15 +433,15 @@ export function FrequencyChartAlt({
                   if (selected.length === 0) {
                     return 'All Types';
                   }
-                  if (selected.length === 5) {
-                    return 'All Types';
-                  }
                   const labels = selected.map(cat => {
                     switch (cat) {
                       case 'negative_critical': return 'Neg (crit)';
                       case 'negative_non_critical': return 'Neg (non-crit)';
                       case 'style': return 'Style';
                       case 'positive': return 'Positive';
+                      case 'phrasing': return 'Phrasing';
+                      case 'problem_domain': return 'Problem Domain';
+                      case 'skills_required': return 'Skills Req';
                       case '': return 'Uncat';
                       default: return cat || 'Uncat';
                     }
@@ -373,26 +450,16 @@ export function FrequencyChartAlt({
                 }}
                 sx={{ fontSize: '0.875rem' }}
               >
-                <MenuItem value="negative_critical">
-                  <Checkbox checked={selectedCategories.indexOf('negative_critical') > -1} />
-                  <ListItemText primary="Negative (critical)" />
-                </MenuItem>
-                <MenuItem value="negative_non_critical">
-                  <Checkbox checked={selectedCategories.indexOf('negative_non_critical') > -1} />
-                  <ListItemText primary="Negative (non-critical)" />
-                </MenuItem>
-                <MenuItem value="style">
-                  <Checkbox checked={selectedCategories.indexOf('style') > -1} />
-                  <ListItemText primary="Style" />
-                </MenuItem>
-                <MenuItem value="positive">
-                  <Checkbox checked={selectedCategories.indexOf('positive') > -1} />
-                  <ListItemText primary="Positive" />
-                </MenuItem>
-                <MenuItem value="">
-                  <Checkbox checked={selectedCategories.indexOf('') > -1} />
-                  <ListItemText primary="Uncategorized" />
-                </MenuItem>
+                {[...new Set(
+                  data.map(row => getBehaviorTypeNormalized(row))
+                )]
+                  .sort((a, b) => getCategoryDisplayName(a).localeCompare(getCategoryDisplayName(b)))
+                  .map((category) => (
+                    <MenuItem key={category || '__uncategorized'} value={category}>
+                      <Checkbox checked={selectedCategories.indexOf(category) > -1} />
+                      <ListItemText primary={getCategoryDisplayName(category)} />
+                    </MenuItem>
+                  ))}
               </Select>
             </FormControl>
 
@@ -408,6 +475,7 @@ export function FrequencyChartAlt({
                 <MenuItem value="frequency_delta">Frequency Δ</MenuItem>
                 <MenuItem value="quality">Quality</MenuItem>
                 <MenuItem value="quality_delta">Quality Impact</MenuItem>
+                <MenuItem value="quality_delta_abs">|Quality Δ|</MenuItem>
               </Select>
             </FormControl>
 
@@ -456,7 +524,17 @@ export function FrequencyChartAlt({
                 {modelBars.map(bar => {
                   // Build tooltip with CI if available
                   const hasCI = bar.ciLower !== undefined && bar.ciUpper !== undefined;
-                  const tooltipText = `${bar.modelShortName}: ${(bar.proportion * 100).toFixed(1)}%${hasCI ? ` (95% CI: [${(bar.ciLower * 100).toFixed(1)}%, ${(bar.ciUpper * 100).toFixed(1)}%])` : ''} (${bar.size} conversations)`;
+                  const tooltipText = modelBarMetric === 'quality_delta'
+                    ? `${bar.modelShortName}: ${bar.qualityDelta >= 0 ? '+' : ''}${bar.qualityDelta.toFixed(3)} ${filters.qualityMetric} delta`
+                    : `${bar.modelShortName}: ${(bar.proportion * 100).toFixed(1)}%${hasCI ? ` (95% CI: [${(bar.ciLower * 100).toFixed(1)}%, ${(bar.ciUpper * 100).toFixed(1)}%])` : ''} (${bar.size} conversations)`;
+
+                  const qualityDeltaDenom = listData.maxAbsQualityScore > 0 ? listData.maxAbsQualityScore : 1;
+                  const barWidthPercent = modelBarMetric === 'quality_delta'
+                    ? Math.min(100, (Math.abs(bar.qualityDelta) / qualityDeltaDenom) * 100)
+                    : Math.min(100, bar.proportion * 100);
+                  const barColor = modelBarMetric === 'quality_delta'
+                    ? (bar.qualityDelta >= 0 ? '#22C55E' : '#EF4444')
+                    : bar.color;
 
                   return (
                   <Tooltip key={bar.model} title={tooltipText} arrow placement="top">
@@ -480,9 +558,9 @@ export function FrequencyChartAlt({
                             left: 0,
                             top: 0,
                             height: '100%',
-                            // Absolute percentage scale (0-100)
-                            width: `${Math.min(100, bar.proportion * 100)}%`,
-                            bgcolor: bar.color,
+                            // Absolute percentage scale (0-100), metric-dependent
+                            width: `${barWidthPercent}%`,
+                            bgcolor: barColor,
                             opacity: 0.8,
                             transition: 'width 0.3s ease'
                           }}

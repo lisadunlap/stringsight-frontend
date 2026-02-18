@@ -53,6 +53,7 @@ interface MetricsTabProps {
     model_cluster_scores?: any;
     cluster_scores?: any;
     model_scores?: any;
+    metrics_insights?: unknown;
   };
 
   /** Filters controlled by the sidebar */
@@ -442,6 +443,26 @@ export function MetricsTab({
 
   
 
+  // For overview banner: assistant clusters only when role metadata exists
+  const bannerData = useMemo(() => {
+    if (!modelClusterData?.data?.length) return [];
+    const data = modelClusterData.data;
+    const hasRoleMetadata = data.some((row: any) => {
+      const meta = row.metadata || {};
+      return (meta.role != null && String(meta.role).trim() !== '') ||
+             (meta.group != null && String(meta.group).trim() !== '');
+    });
+    if (!hasRoleMetadata) return data;
+    const isUserRow = (row: any): boolean => {
+      const meta = row.metadata || {};
+      const role = meta.role != null ? String(meta.role).toLowerCase() : '';
+      if (role === 'user') return true;
+      const group = meta.group != null ? String(meta.group).toLowerCase() : '';
+      return group === 'user' || group.startsWith('user_');
+    };
+    return data.filter((row: any) => !isUserRow(row));
+  }, [modelClusterData?.data]);
+
   // Ref for scrolling to misaligned patterns section
   const misalignedSectionRef = useRef<HTMLDivElement>(null);
 
@@ -468,7 +489,7 @@ export function MetricsTab({
       <Box sx={{ height: 'calc(100vh - 120px)', overflow: 'auto', pb: 3 }}>
         {/* Overview Banner */}
         <MetricsOverviewBanner
-          data={modelClusterData.data}
+          data={bannerData}
           qualityMetrics={qualityMetrics || []}
           onNavigateToMisalignedSection={handleNavigateToMisalignedSection}
         />

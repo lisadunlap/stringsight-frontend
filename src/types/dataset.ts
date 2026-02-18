@@ -42,6 +42,7 @@ export interface LoadedDataset {
     cluster_scores?: any[];
     model_scores?: any[];
   };
+  metrics_insights?: any;
   total_conversations_by_model?: Record<string, number>;
   total_unique_conversations?: number;
 }

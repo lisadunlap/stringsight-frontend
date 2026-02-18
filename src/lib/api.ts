@@ -82,6 +82,7 @@ export async function resultsLoad(resultsDir: string): Promise<{
     cluster_scores?: any[];
     model_scores?: any[];
   };
+  metrics_insights?: any;
   total_conversations_by_model?: Record<string, number>;
   total_unique_conversations?: number;
 }> {
@@ -198,6 +199,8 @@ export async function extractSingle(body: {
   return_debug?: boolean;
   use_dynamic_prompts?: boolean;  // Enable dynamic prompt generation
   custom_clustering_prompts?: Record<string, string>;  // Pre-generated clustering prompts
+  extract_by_role?: string[];  // Role-based extraction
+  use_dynamic_role_prompts?: boolean;  // Use dynamic prompts for role extraction
 }): Promise<{
   rows: any[];
   columns: string[];
@@ -207,6 +210,13 @@ export async function extractSingle(body: {
   properties?: any[];
   prompts?: PromptsMetadata;
 }> {
+  // DEBUG: Log what we're sending to the backend
+  console.log('🔍 [api.ts] extractSingle called with:', {
+    has_extract_by_role: !!body.extract_by_role,
+    extract_by_role: body.extract_by_role,
+    use_dynamic_role_prompts: body.use_dynamic_role_prompts
+  });
+
   const res = await fetch(`${API_BASE}/extract/single`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
   return res.json();
@@ -229,6 +239,8 @@ export async function extractBatch(body: {
   return_debug?: boolean;
   sample_size?: number;
   custom_clustering_prompts?: Record<string, string>;  // Pre-generated clustering prompts
+  extract_by_role?: string[];  // Role-based extraction
+  use_dynamic_role_prompts?: boolean;  // Use dynamic prompts for role extraction
 }) {
   const res = await fetch(`${API_BASE}/extract/batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
@@ -339,7 +351,7 @@ export async function getEmbeddingModels(): Promise<{ models: string[] }> {
 export async function runClustering(body: {
   operationalRows: any[];
   properties: any[];
-  params: { minClusterSize?: number | null; embeddingModel: string; groupBy?: 'none' | 'category' | 'behavior_type'; summarizationModel?: string; matchingModel?: string };
+  params: { minClusterSize?: number | null; embeddingModel: string; groupBy?: 'none' | 'category' | 'behavior_type' | 'role'; summarizationModel?: string; matchingModel?: string };
   score_columns?: string[];
   method?: 'single_model' | 'side_by_side' | 'unknown';
   model_column_map?: Record<string, string>; // e.g., {"gpt-4": "model_a", "claude-3": "model_b"}
@@ -360,6 +372,7 @@ export async function runClustering(body: {
     clusters: any[];
     total_conversations_by_model?: Record<string, number>;
     total_unique_conversations?: number;
+    metrics_insights?: any;
     metrics?: {
       model_cluster_scores: any[];
       cluster_scores: any[];
@@ -393,7 +406,7 @@ export async function recomputeClusterMetrics(body: {
 export async function startClusterJob(body: {
   operationalRows: any[];
   properties: any[];
-  params: { minClusterSize?: number | null; embeddingModel: string; groupBy?: 'none' | 'category' | 'behavior_type'; summarizationModel?: string; matchingModel?: string };
+  params: { minClusterSize?: number | null; embeddingModel: string; groupBy?: 'none' | 'category' | 'behavior_type' | 'role'; summarizationModel?: string; matchingModel?: string };
   score_columns?: string[];
   method?: 'single_model' | 'side_by_side' | 'unknown';
   model_column_map?: Record<string, string>;
@@ -440,6 +453,7 @@ export async function getClusterJobResult(jobId: string) {
       clusters: any[];
       total_conversations_by_model?: Record<string, number>;
       total_unique_conversations?: number;
+      metrics_insights?: any;
       metrics?: {
         model_cluster_scores: any[];
         cluster_scores: any[];

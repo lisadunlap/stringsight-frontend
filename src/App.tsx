@@ -698,6 +698,9 @@ function App() {
   const [selectedProperty, setSelectedProperty] = useState<any | null>(null); // Track the property when viewing from properties table
   const [propertiesByKey, setPropertiesByKey] = useState<Map<string, any[]>>(new Map());
   const [propertiesRows, setPropertiesRows] = useState<any[]>([]);
+  const [roleExtractionEnabled, setRoleExtractionEnabled] = useState<boolean>(
+    () => localStorage.getItem('stringsight.enableRoleExtraction') === 'true'
+  );
   const [activeSection, setActiveSection] = useState<SidebarSection>('data');
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
   const [hasViewedClusters, setHasViewedClusters] = useState<boolean>(false);
@@ -722,7 +725,12 @@ function App() {
   const [clusteringJustCompleted, setClusteringJustCompleted] = useState<boolean>(false);
   // Results mode (when loading full_dataset.json)
   const [isResultsMode, setIsResultsMode] = useState<boolean>(false);
-  const [resultsMetrics, setResultsMetrics] = useState<{ model_cluster_scores?: any; cluster_scores?: any; model_scores?: any } | null>(null);
+  const [resultsMetrics, setResultsMetrics] = useState<{
+    model_cluster_scores?: any;
+    cluster_scores?: any;
+    model_scores?: any;
+    metrics_insights?: any;
+  } | null>(null);
   // Removed explainBusy (no separate panel submit)
   const [backendAvailable, setBackendAvailable] = useState<boolean>(true);
 
@@ -1147,7 +1155,10 @@ function App() {
             );
           }
 
-          setResultsMetrics(normalizedMetrics);
+          setResultsMetrics({
+            ...normalizedMetrics,
+            metrics_insights: (urlDataset as any).metrics_insights,
+          });
         }
 
         // Load clusters
@@ -1326,6 +1337,7 @@ function App() {
       let properties: any[] = [];
       let clusters: any[] = [];
       let metrics: any = null;
+      let metricsInsights: any = null;
 
       // Load each file based on name
       for (const file of jsonFiles) {
@@ -1443,6 +1455,9 @@ function App() {
                 }
               }
             }
+          } else if (name === 'metrics_insights.json') {
+            metricsInsights = JSON.parse(text);
+            console.log('✅ Loaded metrics insights from metrics_insights.json');
           } else {
             console.log(`⚠️ Skipping unrecognized file: ${file.name}`);
           }
@@ -1554,7 +1569,10 @@ function App() {
           console.log('✅ Enriched model_cluster_scores with cluster metadata');
         }
 
-        setResultsMetrics(normalizedMetrics);
+        setResultsMetrics({
+          ...normalizedMetrics,
+          metrics_insights: metricsInsights,
+        });
         console.log('✅ setResultsMetrics called with:', {
           model_cluster_scores: normalizedMetrics.model_cluster_scores?.length || 0,
           cluster_scores: normalizedMetrics.cluster_scores?.length || 0,
@@ -1642,7 +1660,8 @@ function App() {
         setActiveSection('metrics');
         console.log('📊 Switched to Metrics view');
       } else if (!isLoadingBundledDemo && clusters.length > 0) {
-        setActiveSection('clusters');
+        setActiveSection('metrics');
+        setInsightsTab('clusters');
         console.log('📊 Switched to Clusters view');
       } else if (properties.length > 0) {
         setActiveSection('extraction');
@@ -1723,7 +1742,8 @@ function App() {
           `- clusters.jsonl (optional)\n` +
           `- model_cluster_scores_df.jsonl (optional)\n` +
           `- cluster_scores_df.jsonl (optional)\n` +
-          `- model_scores_df.jsonl (optional)`
+          `- model_scores_df.jsonl (optional)\n` +
+          `- metrics_insights.json (optional)`
         );
       }
 
@@ -1731,6 +1751,7 @@ function App() {
       let properties: any[] = [];
       let clusters: any[] = [];
       let metrics: any = null;
+      let metricsInsights: any = null;
 
       // Load each file based on name (same logic as onLoadResultsLocal)
       for (const file of jsonFiles) {
@@ -1839,6 +1860,9 @@ function App() {
                 }
               }
             }
+          } else if (name === 'metrics_insights.json') {
+            metricsInsights = JSON.parse(text);
+            console.log('✅ Loaded metrics insights from metrics_insights.json');
           } else {
             console.log(`⚠️ Skipping unrecognized file: ${file.name}`);
           }
@@ -1946,7 +1970,10 @@ function App() {
           console.log('✅ Enriched model_cluster_scores with cluster metadata');
         }
 
-        setResultsMetrics(normalizedMetrics);
+        setResultsMetrics({
+          ...normalizedMetrics,
+          metrics_insights: metricsInsights,
+        });
         console.log('✅ setResultsMetrics called with:', {
           model_cluster_scores: normalizedMetrics.model_cluster_scores?.length || 0,
           cluster_scores: normalizedMetrics.cluster_scores?.length || 0,
@@ -2027,7 +2054,8 @@ function App() {
         setActiveSection('metrics');
         console.log('📊 Switched to Metrics view');
       } else if (clusters.length > 0) {
-        setActiveSection('clusters');
+        setActiveSection('metrics');
+        setInsightsTab('clusters');
         console.log('📊 Switched to Clusters view');
       } else if (properties.length > 0) {
         setActiveSection('extraction');
@@ -3523,6 +3551,7 @@ function App() {
       <PropertiesTab
         rows={propertiesRows}
         originalData={operationalRows}
+        roleExtractionEnabled={roleExtractionEnabled}
         onOpenProperty={(prop) => {
           console.log('[App] onOpenProperty - Clicked property:', {
             fullProperty: prop,
@@ -3844,7 +3873,10 @@ function App() {
       }
 
       console.log('📊 resultsMetrics set:', normalizedMetrics.model_scores?.length || 0, 'model_scores');
-      setResultsMetrics(normalizedMetrics);
+      setResultsMetrics({
+        ...normalizedMetrics,
+        metrics_insights: data.metrics_insights,
+      });
     } else {
       console.error('❌ NO METRICS IN CLUSTERING RESPONSE!', {
         hasData: !!data,
@@ -3892,6 +3924,10 @@ function App() {
       if (resultsMetrics?.model_scores && resultsMetrics.model_scores.length > 0) {
         zip.file('model_scores_df.jsonl',
           resultsMetrics.model_scores.map(m => JSON.stringify(m)).join('\n'));
+      }
+
+      if (resultsMetrics?.metrics_insights) {
+        zip.file('metrics_insights.json', JSON.stringify(resultsMetrics.metrics_insights, null, 2));
       }
 
       const blob = await zip.generateAsync({ type: 'blob' });
@@ -3968,7 +4004,6 @@ function App() {
   }, []);
 
   const onBatchStartCb = useCallback(() => {
-    console.log('[onBatchStart] Setting batchRunning=true, batchProgress=0');
     setBatchRunning(true);
     setPipelineStage('extraction');
     setBatchProgress(0);
@@ -3976,7 +4011,6 @@ function App() {
   }, []);
 
   const onBatchStatusCb = useCallback((progress: number, state: string | null, stage?: 'extraction' | 'clustering', details?: string) => {
-    console.log(`[onBatchStatus] BEFORE: batchProgress was ${batchProgress}, setting to ${progress} (${Math.round(progress * 100)}%) - stage: ${stage}, state: ${state}`);
     setBatchProgress(progress);
     setBatchState(state);
     if (stage === 'clustering') {
@@ -4441,11 +4475,6 @@ function App() {
               console.log('📊 Extraction selected with no properties yet; keeping data table visible for context');
             }
             setSidebarExpanded(true);
-          } else if (section === 'clusters') {
-            if (!hasClusters) {
-              console.log('📊 Clusters section selected but no clusters are available yet');
-            }
-            setSidebarExpanded(false);
           } else if (section === 'metrics') {
             if (!hasMetrics) {
               console.log('📊 Metrics section selected but no metrics are available yet');
@@ -4737,6 +4766,7 @@ function App() {
                   onNavigateToMetrics={onNavigateToMetricsCb}
                   onNavigateToClusters={onNavigateToClustersCb}
                   onScrollToProperties={scrollToPropertiesCb}
+                  onRoleExtractionEnabledChange={setRoleExtractionEnabled}
                   onOpenTrace={(row) => {
                     // Format trace data properly based on method (same as onView function)
                     if (method === "single_model") {
@@ -4813,10 +4843,8 @@ function App() {
                   clusterScores={resultsMetrics?.cluster_scores}
                   externalSearchQuery={clusterSearchQuery}
                   onClusterClick={(cluster) => {
-                    console.log('[App] onClusterClick called with cluster:', cluster);
                     setSelectedCluster(cluster);
                     setClusterSidecardOpen(true);
-                    console.log('[App] Sidecard state set to open');
                   }}
                 />
               </Box>

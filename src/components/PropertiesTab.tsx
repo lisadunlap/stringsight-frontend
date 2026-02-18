@@ -3,6 +3,7 @@ import { Box, Table, TableHead, TableRow, TableCell, TableBody, Button, TableCon
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { retroColors } from '../theme';
+import { getBehaviorTypeColor, getBehaviorTypeDisplayLabel } from '../lib/utils';
 import FilterBar from './FilterBar';
 import FormattedCell from './FormattedCell';
 import PropertiesOverviewBanner from './PropertiesOverviewBanner';
@@ -20,13 +21,58 @@ interface Filter {
   operator?: 'AND' | 'OR';
 }
 
+const ROLE_SORT_PRIORITY: Readonly<Record<string, number>> = {
+  assistant: 0,
+  non_user: 0,
+  tool: 1,
+  system: 1,
+  user: 2,
+};
+
+/**
+ * Sort properties by role priority for display.
+ *
+ * Input format:
+ * - `rows`: Array of property records where each record may include:
+ *   - `role`: role label string such as `assistant`, `non_user`, `tool`, `system`, or `user`
+ *
+ * Output format:
+ * - Returns a new array sorted by role priority:
+ *   1) assistant/non_user
+ *   2) tool/system
+ *   3) user
+ *   4) unknown/missing roles
+ */
+function sortPropertiesByRolePriority(rows: any[]): any[] {
+  return [...rows].sort((a, b) => {
+    const roleA = String(a?.role || '').trim().toLowerCase();
+    const roleB = String(b?.role || '').trim().toLowerCase();
+    const priorityA = ROLE_SORT_PRIORITY[roleA] ?? 99;
+    const priorityB = ROLE_SORT_PRIORITY[roleB] ?? 99;
+
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+
+    // Keep original order for rows with same priority (stable sort).
+    return 0;
+  });
+}
+
+function isRoleColumnName(columnName: string): boolean {
+  const normalized = columnName.trim().toLowerCase();
+  return normalized === 'role' || normalized.startsWith('role_') || normalized.endsWith('_role');
+}
+
 export default function PropertiesTab({
   rows,
   originalData,
+  roleExtractionEnabled,
   onOpenProperty,
 }: {
   rows: any[];
   originalData?: any[]; // Original dataset to get model_response from
+  roleExtractionEnabled?: boolean;
   onOpenProperty: (prop: any) => void;
 }) {
   // (No prompt/task description controls here; Properties table remains focused on data only.)
@@ -37,6 +83,25 @@ export default function PropertiesTab({
   const [pendingNegated, setPendingNegated] = React.useState<boolean>(false);
   const [filters, setFilters] = React.useState<Filter[]>([]);
   const [groupBy, setGroupBy] = React.useState<string | null>(null);
+  const [showRoleColumn, setShowRoleColumn] = React.useState<boolean>(
+    () => roleExtractionEnabled ?? (localStorage.getItem('stringsight.enableRoleExtraction') === 'true')
+  );
+
+  React.useEffect(() => {
+    if (typeof roleExtractionEnabled === 'boolean') {
+      setShowRoleColumn(roleExtractionEnabled);
+      return;
+    }
+
+    const syncRoleVisibilityFromStorage = () => {
+      setShowRoleColumn(localStorage.getItem('stringsight.enableRoleExtraction') === 'true');
+    };
+
+    window.addEventListener('storage', syncRoleVisibilityFromStorage);
+    return () => {
+      window.removeEventListener('storage', syncRoleVisibilityFromStorage);
+    };
+  }, [roleExtractionEnabled]);
 
   // Enrich properties with model_response from original data for display
   const enrichedRows = React.useMemo(() => {
@@ -96,16 +161,20 @@ export default function PropertiesTab({
   const availableColumns = React.useMemo(() => {
     // When no rows, show default expected columns for properties
     if (enrichedRows.length === 0) {
-      return [
+      const defaultColumns = [
         'property_description',
         'model_response',
         'model',
+        'role',
         'behavior_type',
         'evidence',
         'unexpected_behavior',
         'question_id',
         'reason'
       ];
+      return showRoleColumn
+        ? defaultColumns
+        : defaultColumns.filter(col => !isRoleColumnName(col));
     }
     const allKeys = new Set<string>();
     enrichedRows.forEach(row => {
@@ -117,6 +186,9 @@ export default function PropertiesTab({
     // Columns to exclude
     const excludedColumns = new Set(['id', 'meta', 'raw_response', 'row_index', '__index', 'contains_errors']);
 
+    // Always include behavior_type and role (may be empty for some rows; formatCellValue uses category fallback)
+    const alwaysInclude = new Set(['behavior_type', 'role']);
+
     // Filter out excluded columns and columns with all NaN/null values
     const validColumns = allKeysArray.filter(col => {
       // Skip excluded columns
@@ -124,6 +196,8 @@ export default function PropertiesTab({
         console.log(`[PropertiesTab] Excluding column: ${col} (in exclusion list)`);
         return false;
       }
+
+      if (alwaysInclude.has(col)) return true;
 
       // Check if column has any non-null, non-undefined, non-NaN values
       const hasValidValues = enrichedRows.some(row => {
@@ -143,17 +217,20 @@ export default function PropertiesTab({
     });
 
     console.log(`[PropertiesTab] Valid columns after filtering:`, validColumns);
+    const visibleColumns = showRoleColumn
+      ? validColumns
+      : validColumns.filter(col => !isRoleColumnName(col));
 
     // Custom ordering: question_id first, property_description second, then model_response, then model, then the rest, with reason at the very end
     const orderedColumns: string[] = [];
 
     // Add question_id first if it exists and is valid
-    if (validColumns.includes('question_id')) {
+    if (visibleColumns.includes('question_id')) {
       orderedColumns.push('question_id');
     }
 
     // Add property_description second if it exists and is valid
-    if (validColumns.includes('property_description')) {
+    if (visibleColumns.includes('property_description')) {
       orderedColumns.push('property_description');
     }
 
@@ -161,24 +238,35 @@ export default function PropertiesTab({
     orderedColumns.push('model_response');
 
     // Add model fourth if it exists and is valid
-    if (validColumns.includes('model')) {
+    if (visibleColumns.includes('model')) {
       orderedColumns.push('model');
     }
 
+    // Add role fifth if it exists (for role-based extraction)
+    if (visibleColumns.includes('role')) {
+      orderedColumns.push('role');
+    }
+
     // Add all other valid columns in alphabetical order (excluding reason which goes last)
-    const remainingColumns = validColumns
-      .filter(col => col !== 'question_id' && col !== 'property_description' && col !== 'model' && col !== 'model_response' && col !== 'reason')
+    const remainingColumns = visibleColumns
+      .filter(col => col !== 'question_id' && col !== 'property_description' && col !== 'model' && col !== 'model_response' && col !== 'role' && col !== 'reason')
       .sort();
 
     orderedColumns.push(...remainingColumns);
 
     // Add reason at the very end if it exists and is valid
-    if (validColumns.includes('reason')) {
+    if (visibleColumns.includes('reason')) {
       orderedColumns.push('reason');
     }
 
     return orderedColumns;
-  }, [enrichedRows]);
+  }, [enrichedRows, showRoleColumn]);
+
+  React.useEffect(() => {
+    if (!showRoleColumn && groupBy?.trim().toLowerCase() === 'role') {
+      setGroupBy(null);
+    }
+  }, [showRoleColumn, groupBy]);
 
   // Get categorical columns (columns with reasonable number of unique values)
   const categoricalColumns = React.useMemo(() => {
@@ -245,7 +333,7 @@ export default function PropertiesTab({
       });
     }
 
-    return result;
+    return sortPropertiesByRolePriority(result);
   }, [enrichedRows, query, filters, availableColumns]);
 
   // Filter management functions
@@ -288,31 +376,68 @@ export default function PropertiesTab({
       .replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  // Helper function to get behavior type color
-  const getBehaviorTypeColor = (behaviorType: string): string => {
-    const type = String(behaviorType).toLowerCase().trim();
-
-    if (type === 'positive') {
-      return '#10B981'; // Green
-    } else if (type === 'negative (critical)' || type === 'negative(critical)') {
-      return '#EF4444'; // Red
-    } else if (type === 'negative (non-critical)' || type === 'negative(non-critical)') {
-      return '#F97316'; // Orange
-    } else if (type === 'style') {
-      return '#8B5CF6'; // Purple
-    }
-
-    return 'transparent'; // Default/no color
+  // Helper function to get role color (for role-based extraction)
+  const getRoleColor = (role: string): string => {
+    const r = String(role).toLowerCase().trim();
+    if (r === 'user') return '#3B82F6';      // blue
+    if (r === 'assistant') return '#10B981'; // green
+    if (r === 'tool') return '#8B5CF6';      // purple
+    if (r === 'system') return '#F59E0B';    // amber
+    // Custom roles: hash for consistent color
+    let h = 0;
+    for (let i = 0; i < r.length; i++) h = ((h << 5) - h) + r.charCodeAt(i) | 0;
+    const hue = Math.abs(h % 360);
+    return `hsl(${hue}, 65%, 45%)`;
   };
 
   // Helper function to format cell values
   const formatCellValue = (value: any, columnName: string, rowData: any): React.ReactNode => {
+    // For behavior_type: render colored text (fall back to category when empty)
+    if (columnName === 'behavior_type') {
+      const rawVal = (value != null && String(value).trim() !== '')
+        ? String(value)
+        : (rowData?.category != null && String(rowData.category).trim() !== '' ? String(rowData.category) : '');
+      if (!rawVal) return '';
+      const displayLabel = getBehaviorTypeDisplayLabel(rawVal);
+      const color = getBehaviorTypeColor(rawVal);
+      return (
+        <Typography
+          component="span"
+          sx={{
+            color,
+            fontWeight: 600,
+            fontSize: '0.8rem',
+          }}
+        >
+          {displayLabel}
+        </Typography>
+      );
+    }
+
     if (value === null || value === undefined) return '';
 
-    // Special handling for question_id - strip suffix (e.g. "26-0" -> "26")
+    // Special handling for question_id
     // Special handling for question_id - show full ID
     if (columnName === 'question_id') {
       return String(value);
+    }
+
+    // Special handling for role - show colored text (for role-based extraction)
+    if (columnName === 'role') {
+      const role = String(value).trim();
+      if (!role) return '';
+      return (
+        <Typography
+          component="span"
+          sx={{
+            textTransform: 'capitalize',
+            fontWeight: 600,
+            color: getRoleColor(role),
+          }}
+        >
+          {role}
+        </Typography>
+      );
     }
 
     // Special handling for model_response - show as button
@@ -429,15 +554,16 @@ export default function PropertiesTab({
       return null;
     }
 
-    // Initialize counts map: model -> { positive, negativeCritical, negativeNonCritical, style }
-    const countsByModel = new Map<string, { positive: number; negativeCritical: number; negativeNonCritical: number; style: number }>();
+    // Initialize counts map including user behavior types (phrasing, domain, skills_required)
+    type Counts = { positive: number; negativeCritical: number; negativeNonCritical: number; style: number; phrasing: number; domain: number; skillsRequired: number };
+    const countsByModel = new Map<string, Counts>();
 
     filtered.forEach(row => {
       const model = String(row?.model || '');
       if (!model) return;
 
       if (!countsByModel.has(model)) {
-        countsByModel.set(model, { positive: 0, negativeCritical: 0, negativeNonCritical: 0, style: 0 });
+        countsByModel.set(model, { positive: 0, negativeCritical: 0, negativeNonCritical: 0, style: 0, phrasing: 0, domain: 0, skillsRequired: 0 });
       }
 
       const counts = countsByModel.get(model)!;
@@ -451,6 +577,12 @@ export default function PropertiesTab({
         counts.negativeNonCritical++;
       } else if (behaviorType === 'style') {
         counts.style++;
+      } else if (behaviorType === 'phrasing') {
+        counts.phrasing++;
+      } else if (behaviorType === 'domain' || behaviorType.replace(/\s+/g, '_') === 'problem_domain') {
+        counts.domain++;
+      } else if (behaviorType === 'skills_required') {
+        counts.skillsRequired++;
       }
     });
 
@@ -461,7 +593,7 @@ export default function PropertiesTab({
     <Box>
       {/* (Prompt/task description controls intentionally not included here) */}
       {/* Properties Overview Banner */}
-      <PropertiesOverviewBanner properties={filtered} />
+      <PropertiesOverviewBanner properties={filtered} roleExtractionEnabled={roleExtractionEnabled} />
 
       {/* Grouped Bar Chart: Property Distribution by Model (collapsed by default) */}
       {propertyCountsByModel && propertyCountsByModel.size > 0 && (
@@ -515,43 +647,28 @@ export default function PropertiesTab({
                     const models = Array.from(propertyCountsByModel.keys());
                     const values = Array.from(propertyCountsByModel.values());
 
-                    // Calculate total for each model
-                    const totals = values.map(c => c.positive + c.negativeCritical + c.negativeNonCritical + c.style);
+                    const sumCounts = (c: { positive: number; negativeCritical: number; negativeNonCritical: number; style: number; phrasing?: number; domain?: number; skillsRequired?: number }) =>
+                      c.positive + c.negativeCritical + c.negativeNonCritical + c.style + (c.phrasing ?? 0) + (c.domain ?? 0) + (c.skillsRequired ?? 0);
+                    const totals = values.map(sumCounts);
 
-                    return [
-                      {
-                        type: 'bar' as const,
-                        name: 'Positive',
-                        x: models,
-                        y: values.map((c, i) => totals[i] > 0 ? c.positive / totals[i] : 0),
-                        marker: { color: '#10B981' },
-                        hovertemplate: '%{x}<br>Positive: %{y:.2%}<extra></extra>',
-                      },
-                      {
-                        type: 'bar' as const,
-                        name: 'Negative (Critical)',
-                        x: models,
-                        y: values.map((c, i) => totals[i] > 0 ? c.negativeCritical / totals[i] : 0),
-                        marker: { color: '#EF4444' },
-                        hovertemplate: '%{x}<br>Negative (Critical): %{y:.2%}<extra></extra>',
-                      },
-                      {
-                        type: 'bar' as const,
-                        name: 'Negative (Non-Critical)',
-                        x: models,
-                        y: values.map((c, i) => totals[i] > 0 ? c.negativeNonCritical / totals[i] : 0),
-                        marker: { color: '#F97316' },
-                        hovertemplate: '%{x}<br>Negative (Non-Critical): %{y:.2%}<extra></extra>',
-                      },
-                      {
-                        type: 'bar' as const,
-                        name: 'Style',
-                        x: models,
-                        y: values.map((c, i) => totals[i] > 0 ? c.style / totals[i] : 0),
-                        marker: { color: '#8B5CF6' },
-                        hovertemplate: '%{x}<br>Style: %{y:.2%}<extra></extra>',
-                      },
+                    const traces = [
+                      { name: 'Positive', key: 'positive' as const, color: '#10B981' },
+                      { name: 'Negative (Critical)', key: 'negativeCritical' as const, color: '#EF4444' },
+                      { name: 'Negative (Non-Critical)', key: 'negativeNonCritical' as const, color: '#F97316' },
+                      { name: 'Style', key: 'style' as const, color: '#8B5CF6' },
+                      { name: 'Phrasing', key: 'phrasing' as const, color: '#0EA5E9' },
+                      { name: 'Problem Domain', key: 'domain' as const, color: '#06B6D4' },
+                      { name: 'Skills Required', key: 'skillsRequired' as const, color: '#14B8A6' },
                     ];
+
+                    return traces.map(({ name, key, color }) => ({
+                      type: 'bar' as const,
+                      name,
+                      x: models,
+                      y: values.map((c, i) => totals[i] > 0 ? (c[key] ?? 0) / totals[i] : 0),
+                      marker: { color },
+                      hovertemplate: `%{x}<br>${name}: %{y:.2%}<extra></extra>`,
+                    }));
                   })()}
                   layout={{
                     height: 280,
@@ -787,7 +904,7 @@ export default function PropertiesTab({
                             fontSize: 12,
                             letterSpacing: 0.4,
                             textTransform: 'uppercase',
-                            minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 250 : column === 'category' ? 75 : column === 'model' ? 180 : 'auto'
+                            minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 250 : column === 'category' ? 75 : column === 'model' ? 180 : column === 'role' ? 100 : 'auto'
                           }}
                         >
                           {formatColumnName(column)}
@@ -870,7 +987,7 @@ export default function PropertiesTab({
                         fontSize: 12,
                         letterSpacing: 0.4,
                         textTransform: 'uppercase',
-                        minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 250 : column === 'category' ? 125 : column === 'model' ? 180 : 'auto'
+                        minWidth: column === 'property_description' ? 300 : column === 'evidence' ? 200 : column === 'reason' ? 250 : column === 'category' ? 125 : column === 'model' ? 180 : column === 'role' ? 100 : 'auto'
                       }}
                     >
                       {formatColumnName(column)}

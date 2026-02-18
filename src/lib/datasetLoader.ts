@@ -199,6 +199,7 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
   let modelClusterScores: any[] | undefined;
   let clusterScores: any[] | undefined;
   let modelScores: any[] | undefined;
+  let metricsInsights: any;
 
   if (isZip) {
     console.log(`📦 Loading from ZIP file: ${datasetUrl}`);
@@ -211,6 +212,7 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
     modelClusterScores = zipData.metrics.model_cluster_scores;
     clusterScores = zipData.metrics.cluster_scores;
     modelScores = zipData.metrics.model_scores;
+    metricsInsights = zipData.metrics_insights;
   } else {
     console.log(`📂 Loading individual files from: ${datasetUrl}`);
 
@@ -243,6 +245,12 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
     modelScores = await loadDatasetFile(
       datasetConfig,
       'model_scores_df.jsonl',
+      false,
+      datasetName
+    ) || undefined;
+    metricsInsights = await loadDatasetFile(
+      datasetConfig,
+      'metrics_insights.json',
       false,
       datasetName
     ) || undefined;
@@ -282,6 +290,7 @@ export async function loadDataset(datasetName: string): Promise<LoadedDataset> {
       cluster_scores: clusterScores,
       model_scores: modelScores,
     },
+    metrics_insights: metricsInsights,
     total_conversations_by_model: totalConversationsByModel,
     total_unique_conversations: totalUniqueConversations,
   };

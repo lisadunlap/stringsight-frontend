@@ -22,7 +22,8 @@ import {
   DialogActions,
   IconButton,
   InputAdornment,
-  Tooltip
+  Tooltip,
+  Chip
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
@@ -249,13 +250,100 @@ function transformRowsForBackend(
   return rows;
 }
 
+function hasExplicitUserRoleInValue(value: unknown): boolean {
+  /**
+   * Detect whether raw trace payload explicitly contains role="user".
+   *
+   * Expected input examples:
+   * - OpenAI-style message arrays:
+   *   [{ role: "user", content: "..." }, { role: "assistant", content: "..." }]
+   * - Nested structures containing message arrays/objects with `role` keys
+   * - Non-structured strings/values (treated as no explicit role metadata)
+   *
+   * Returns:
+   * - true: at least one explicit `role: "user"` found
+   * - false: no explicit user role metadata present
+   */
+  const stack: unknown[] = [value];
+  const visited = new WeakSet<object>();
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+
+    if (Array.isArray(current)) {
+      for (const item of current) stack.push(item);
+      continue;
+    }
+
+    if (typeof current !== 'object') {
+      continue;
+    }
+
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    const record = current as Record<string, unknown>;
+    if (typeof record.role === 'string' && record.role.toLowerCase() === 'user') {
+      return true;
+    }
+
+    for (const nestedValue of Object.values(record)) {
+      stack.push(nestedValue);
+    }
+  }
+
+  return false;
+}
+
+function hasExplicitUserRoleInRows(
+  rows: Record<string, any>[],
+  method: Method,
+  maxRowsToScan: number = 100
+): boolean {
+  /**
+   * Determine whether loaded traces include user content (for role-based extraction).
+   *
+   * Returns true if:
+   * 1. Any response payload has explicit role="user" in its structure, OR
+   * 2. Any row has a non-empty "prompt" column (standard prompt+response format
+   *    where prompt = user input).
+   */
+  const limit = Math.min(rows.length, maxRowsToScan);
+  for (let idx = 0; idx < limit; idx += 1) {
+    const row = rows[idx];
+    if (!row || typeof row !== 'object') continue;
+
+    // Fallback: prompt column with content = user input (common format)
+    const promptVal = row.prompt;
+    if (promptVal != null && typeof promptVal === 'string' && promptVal.trim() !== '') {
+      return true;
+    }
+
+    const candidates: unknown[] = [];
+    if (method === 'side_by_side') {
+      candidates.push(row.model_a_response, row.model_b_response, row.responses);
+    } else {
+      candidates.push(row.model_response, row.responses);
+    }
+
+    for (const candidate of candidates) {
+      if (hasExplicitUserRoleInValue(candidate)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // Demo mode fixed settings
 const DEMO_MODE_SETTINGS = {
-  modelName: 'gpt-4.1',
+  modelName: 'gpt-5.2',
   embeddingModel: 'openai/text-embedding-3-large',
-  summarizationModel: 'gpt-4.1-mini',
-  matchingModel: 'gpt-4.1-mini',
-  groupBy: 'behavior_type' as 'none' | 'category' | 'behavior_type',
+  summarizationModel: 'gpt-5.2',
+  matchingModel: 'gpt-5-mini',
 };
 
 interface PropertyExtractionPanelProps {
@@ -291,6 +379,7 @@ interface PropertyExtractionPanelProps {
   onNavigateToMetrics?: () => void;
   onNavigateToClusters?: () => void;
   onScrollToProperties?: () => void;
+  onRoleExtractionEnabledChange?: (enabled: boolean) => void;
 }
 
 // Helper to fetch and parse JSONL file directly from public directory
@@ -350,6 +439,7 @@ export default function PropertyExtractionPanel({
   onNavigateToMetrics,
   onNavigateToClusters,
   onScrollToProperties,
+  onRoleExtractionEnabledChange,
 }: PropertyExtractionPanelProps) {
   const tutorial = useTutorial();
 
@@ -386,14 +476,40 @@ export default function PropertyExtractionPanel({
   );
   const [expandedTaskDescription, setExpandedTaskDescription] = React.useState<string | null>(null);
 
+  // Role-based extraction state
+  const [enableRoleExtraction, setEnableRoleExtraction] = React.useState<boolean>(
+    () => (localStorage.getItem('stringsight.enableRoleExtraction') === 'true') || false
+  );
+  const [selectedRoles, setSelectedRoles] = React.useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('stringsight.selectedRoles') || '["user", "assistant"]');
+    } catch {
+      return ['user', 'assistant'];
+    }
+  });
+  const [useDynamicRolePrompts, setUseDynamicRolePrompts] = React.useState<boolean>(
+    () => (localStorage.getItem('stringsight.useDynamicRolePrompts') === 'true') || false
+  );
+  const [customRoleInput, setCustomRoleInput] = React.useState<string>('');
+
   // Demo mode detection
   const isDemoMode = !!demoSampleSize;
 
   // Check if using demo dataset (airline data)
   const isUsingDemoData = isDemoMode && (uploadedFileName === 'taubench_airline' || uploadedFileName === 'taubench_airline_sbs');
+  const hasUserRoleInLoadedTraces: boolean = hasExplicitUserRoleInRows(getAllRows(), method);
+  const effectiveEnableRoleExtraction: boolean = enableRoleExtraction && hasUserRoleInLoadedTraces;
+
+  React.useEffect(() => {
+    if (!hasUserRoleInLoadedTraces && enableRoleExtraction) {
+      setEnableRoleExtraction(false);
+      localStorage.setItem('stringsight.enableRoleExtraction', 'false');
+      onRoleExtractionEnabledChange?.(false);
+    }
+  }, [hasUserRoleInLoadedTraces, enableRoleExtraction, onRoleExtractionEnabledChange]);
 
   // Use demo mode settings when applicable
-  const [modelName, setModelName] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.modelName : 'gpt-4.1');
+  const [modelName, setModelName] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.modelName : 'gpt-5.2');
   const [temperature, setTemperature] = React.useState<number>(0.6);
   const [topP, setTopP] = React.useState<number>(0.95);
   const [maxTokens, setMaxTokens] = React.useState<number>(2048);
@@ -417,9 +533,8 @@ export default function PropertyExtractionPanel({
   const [minClusterSize, setMinClusterSize] = React.useState<number>(5);
   const [embeddingModel, setEmbeddingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : 'openai/text-embedding-3-large');
   const [embeddingModels, setEmbeddingModels] = React.useState<string[]>([]);
-  const [groupBy, setGroupBy] = React.useState<'none' | 'category' | 'behavior_type'>(isDemoMode ? DEMO_MODE_SETTINGS.groupBy : 'behavior_type');
-  const [summarizationModel, setSummarizationModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : 'gpt-4.1');
-  const [matchingModel, setMatchingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : 'gpt-4.1-mini');
+  const [summarizationModel, setSummarizationModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : 'gpt-5.2');
+  const [matchingModel, setMatchingModel] = React.useState<string>(isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : 'gpt-5-mini');
   const [clusteringBusy, setClusteringBusy] = React.useState<boolean>(false);
   const [currentStage, setCurrentStage] = React.useState<'extraction' | 'clustering' | null>(null);
 
@@ -605,9 +720,17 @@ export default function PropertyExtractionPanel({
   }
 
   async function runExtractSingle() {
+
     const row = getSelectedRow();
     const methodValid = method === 'single_model' || method === 'side_by_side';
     if (!row || !methodValid) return;
+
+    // Validate role extraction settings
+    if (effectiveEnableRoleExtraction && selectedRoles.length === 0) {
+      setErrorMsg('Role-based extraction is enabled but no roles are selected. Please select at least one role or disable role extraction.');
+      return;
+    }
+    
     setBusy(true);
     setExtractionProgress(0);
     let progressInterval: NodeJS.Timeout | null = null;
@@ -694,6 +817,11 @@ export default function PropertyExtractionPanel({
 
       const promptConfig = preparePromptsForAPI();
 
+      // Role extraction decision
+      const willExtractByRole = effectiveEnableRoleExtraction && !isUsingDemoData && selectedRoles.length > 0;
+
+      // Removed debug logs - check batch extraction log instead
+
       const body: any = {
         row: sanitizedRow,
         sample_rows: sampleRows.length > 0 ? sampleRows : undefined,
@@ -701,6 +829,8 @@ export default function PropertyExtractionPanel({
         system_prompt: promptConfig.system_prompt,
         task_description: promptConfig.task_description,
         use_dynamic_prompts: promptConfig.use_dynamic_prompts && !isUsingDemoData,  // Disable for demo dataset
+        extract_by_role: willExtractByRole ? selectedRoles : undefined,
+        use_dynamic_role_prompts: effectiveEnableRoleExtraction && !isUsingDemoData ? useDynamicRolePrompts : false,
         model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
@@ -709,30 +839,7 @@ export default function PropertyExtractionPanel({
         output_dir: outputDir,
       };
 
-      console.log('[PropertyExtraction] Making API call with:', {
-        method,
-        useCustomSystemPrompt,
-        system_prompt_type: useCustomSystemPrompt
-          ? 'custom (literal string)'
-          : body.use_dynamic_prompts
-            ? `dynamic (fallback: ${selectedPrompt})`
-            : `template (${selectedPrompt})`,
-        system_prompt_length: body.system_prompt?.length || 0,
-        task_description: body.task_description,
-        model_name: body.model_name,
-        hasRow: !!body.row,
-        rowKeys: Object.keys(body.row),
-        row_question_id: body.row?.question_id,
-        row___index: body.row?.__index,
-        sample_rows_count: sampleRows.length,
-        use_dynamic_prompts: body.use_dynamic_prompts,
-      });
-
-      if (useCustomSystemPrompt) {
-        console.log('[PropertyExtraction] 🎯 Using CUSTOM system prompt (first 200 chars):',
-          body.system_prompt?.substring(0, 200) + '...');
-        console.log('[PropertyExtraction] ✓ Custom prompt will be used exactly as provided (no dynamic generation)');
-      }
+      // Removed debug logs - check batch extraction log instead
 
       // DEMO MODE INTERCEPTION: Load cached properties for the selected row
       if (isDemoMode && (uploadedFileName === 'taubench_airline' || uploadedFileName === 'taubench_airline_sbs')) {
@@ -836,6 +943,8 @@ export default function PropertyExtractionPanel({
         );
         return;
       }
+
+      console.log('🚀 CALLING extractSingle() with extract_by_role:', body.extract_by_role);
 
       const res = await extractSingle({ ...body, return_debug: true });
       if (progressInterval) clearInterval(progressInterval);
@@ -947,6 +1056,12 @@ export default function PropertyExtractionPanel({
       return;
     }
 
+    // Validate role extraction settings
+    if (effectiveEnableRoleExtraction && selectedRoles.length === 0) {
+      setErrorMsg('Role-based extraction is enabled but no roles are selected. Please select at least one role or disable role extraction.');
+      return;
+    }
+
     // Collapse the control panel into an accordion when running on all traces.
     setPanelExpanded(false);
 
@@ -1024,6 +1139,8 @@ export default function PropertyExtractionPanel({
         system_prompt: promptConfig.system_prompt,
         task_description: promptConfig.task_description,
         use_dynamic_prompts: promptConfig.use_dynamic_prompts && !isUsingDemoData,  // Disable for demo dataset
+        extract_by_role: effectiveEnableRoleExtraction && !isUsingDemoData && selectedRoles.length > 0 ? selectedRoles : undefined,
+        use_dynamic_role_prompts: effectiveEnableRoleExtraction && !isUsingDemoData ? useDynamicRolePrompts : false,
         model_name: isDemoMode ? DEMO_MODE_SETTINGS.modelName : modelName,
         temperature,
         top_p: topP,
@@ -1034,16 +1151,24 @@ export default function PropertyExtractionPanel({
         // Clustering params REMOVED - we will run clustering separately after extraction
       };
 
+      // DEBUG: Log role extraction settings
+      console.log('🎯 BATCH EXTRACTION with:', {
+        enableRoleExtraction: effectiveEnableRoleExtraction,
+        localStorage_value: localStorage.getItem('stringsight.enableRoleExtraction'),
+        isUsingDemoData,
+        selectedRoles,
+        extract_by_role: extractBody.extract_by_role,
+        use_dynamic_role_prompts: extractBody.use_dynamic_role_prompts
+      });
+
       // Use extractJobStart instead of pipelineJobStart
       const startRes = await extractJobStart(extractBody);
       setJobId(startRes.job_id);
 
       await new Promise<void>((resolve, reject) => {
-        console.error('[PropertyExtraction] 🚀 STARTING POLLING LOOP for extraction job', startRes.job_id);
         const t = setInterval(async () => {
           try {
             const s = await extractJobStatus(startRes.job_id);
-            console.error(`[PropertyExtraction] 🔄 Polling job ${startRes.job_id}: ${s.status} (${Math.round((s.progress || 0) * 100)}%)`);
 
             setJobState(s.status);
             setJobProgress(s.progress || 0);
@@ -1055,16 +1180,13 @@ export default function PropertyExtractionPanel({
 
             if (s.status === 'completed') {
               clearInterval(t);
-              console.log('[PropertyExtraction] Extraction job completed! Fetching results...');
 
               // Load results from the extraction job
               const r = await extractJobResult(startRes.job_id);
-              console.error('[PropertyExtraction] 📊 Job result path:', r.result_path);
 
               // Capture generated prompts if available
               if (r.prompts) {
                 setGeneratedPrompts(r.prompts);
-                console.log('[PropertyExtraction] 📋 Captured generated prompts');
 
                 // Capture expanded task description if dynamic prompts were used
                 if (r.prompts.expanded_task_description) {
@@ -1077,11 +1199,9 @@ export default function PropertyExtractionPanel({
                 }
               }
               const extractedProperties = r.properties || [];
-              console.log('[PropertyExtraction] 📦 Extracted properties:', extractedProperties.length);
 
               // Update properties table immediately!
               if (onBatchLoaded) {
-                console.log('[PropertyExtraction] 📋 Calling onBatchLoaded with', extractedProperties.length, 'properties');
                 onBatchLoaded(extractedProperties);
               }
 
@@ -1096,7 +1216,6 @@ export default function PropertyExtractionPanel({
               setCurrentStage(null);
 
               // STAGE 2: Trigger clustering automatically
-              console.log('[PropertyExtraction] 🚀 Triggering clustering with extracted properties...');
               await runClusteringWithProperties(extractedProperties);
 
               resolve();
@@ -1222,9 +1341,14 @@ export default function PropertyExtractionPanel({
         }, {})
       );
 
-      // Determine which properties to cluster based on groupBy
+      const effectiveGroupBy: 'behavior_type' | 'role' =
+        effectiveEnableRoleExtraction && !isUsingDemoData && selectedRoles.length > 0
+          ? 'role'
+          : 'behavior_type';
+
+      // Determine which properties to cluster based on fixed grouping strategy
       const propertiesToCluster = properties.map((prop: any) => {
-        const groupKey = groupBy && groupBy !== 'none' ? prop[groupBy] : undefined;
+        const groupKey = prop[effectiveGroupBy];
         return groupKey ? `${groupKey}: ${prop.property_description || ''}` : prop.property_description || '';
       });
 
@@ -1263,7 +1387,7 @@ export default function PropertyExtractionPanel({
         params: {
           minClusterSize,
           embeddingModel: isDemoMode ? DEMO_MODE_SETTINGS.embeddingModel : embeddingModel,
-          groupBy: isDemoMode ? DEMO_MODE_SETTINGS.groupBy : groupBy,
+          groupBy: effectiveGroupBy,
           summarizationModel: isDemoMode ? DEMO_MODE_SETTINGS.summarizationModel : summarizationModel,
           matchingModel: isDemoMode ? DEMO_MODE_SETTINGS.matchingModel : matchingModel,
         },
@@ -1308,7 +1432,6 @@ export default function PropertyExtractionPanel({
       console.log('🚀 Starting clustering job...');
       const jobResponse = await startClusterJob(body as any);
       const jobId = jobResponse.job_id;
-      console.log(`✅ Clustering job started: ${jobId}`);
 
       // Poll for job completion
       let completed = false;
@@ -1316,7 +1439,6 @@ export default function PropertyExtractionPanel({
         await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1 second
 
         const statusResponse = await getClusterJobStatus(jobId);
-        console.log(`🔄 Clustering job ${jobId}: ${statusResponse.status} (${Math.round((statusResponse.progress || 0) * 100)}%)`);
 
         // Update progress
         onBatchStatus?.(statusResponse.progress || 0, statusResponse.status as any, 'clustering',
@@ -1829,15 +1951,114 @@ export default function PropertyExtractionPanel({
           {labelMode === 'extract' && (
           <Box>
             <Stack spacing={2} data-tutorial-id="extract-properties-trace">
-              {/* Prompt Mode Selector */}
-              <PromptModeSelector
-                mode={promptMode}
-                onModeChange={(mode) => {
-                  setPromptMode(mode);
-                  localStorage.setItem('stringsight.promptMode', mode);
-                }}
-                disabled={busy || clusteringBusy || isUsingDemoData}
-              />
+              {/* Prompt Mode Selector and Role-Based Extraction */}
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                <Box sx={{ flex: 1 }}>
+                  <PromptModeSelector
+                    mode={promptMode}
+                    onModeChange={(mode) => {
+                      setPromptMode(mode);
+                      localStorage.setItem('stringsight.promptMode', mode);
+                    }}
+                    disabled={busy || clusteringBusy || isUsingDemoData}
+                  />
+                </Box>
+
+                {/* Role-Based Extraction Toggle - Compact Right Side */}
+                {hasUserRoleInLoadedTraces && (
+                <Box sx={{ minWidth: 200 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          size="small"
+                          checked={effectiveEnableRoleExtraction}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            console.log('🔄 Role extraction toggle clicked:', checked);
+                            setEnableRoleExtraction(checked);
+                            localStorage.setItem('stringsight.enableRoleExtraction', String(checked));
+                            onRoleExtractionEnabledChange?.(checked);
+                            console.log('✅ Saved to localStorage:', localStorage.getItem('stringsight.enableRoleExtraction'));
+                          }}
+                          disabled={busy || clusteringBusy || isUsingDemoData}
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                          Analyze by role
+                        </Typography>
+                      }
+                      sx={{ m: 0 }}
+                    />
+                    <Tooltip
+                      title="Extract and cluster properties separately for each conversation role (e.g., user prompts vs assistant responses)"
+                      arrow
+                      placement="top"
+                    >
+                      <InfoOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary', cursor: 'help' }} />
+                    </Tooltip>
+                  </Box>
+
+                  {effectiveEnableRoleExtraction && (
+                    <Box>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+                        {['user', 'assistant', 'tool', 'system'].map((role) => (
+                          <Chip
+                            key={role}
+                            label={role}
+                            size="small"
+                            onClick={() => {
+                              const newRoles = selectedRoles.includes(role)
+                                ? selectedRoles.filter(r => r !== role)
+                                : [...selectedRoles, role];
+                              setSelectedRoles(newRoles);
+                              localStorage.setItem('stringsight.selectedRoles', JSON.stringify(newRoles));
+                            }}
+                            color={selectedRoles.includes(role) ? 'primary' : 'default'}
+                            variant={selectedRoles.includes(role) ? 'filled' : 'outlined'}
+                            disabled={busy || clusteringBusy}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                        ))}
+                      </Box>
+                      
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            size="small"
+                            checked={useDynamicRolePrompts}
+                            onChange={(e) => {
+                              setUseDynamicRolePrompts(e.target.checked);
+                              localStorage.setItem('stringsight.useDynamicRolePrompts', String(e.target.checked));
+                            }}
+                            disabled={busy || clusteringBusy}
+                          />
+                        }
+                        label={
+                          <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                            Dynamic role prompts
+                          </Typography>
+                        }
+                        sx={{ m: 0, mt: 0.5 }}
+                      />
+
+                      {selectedRoles.length === 0 && (
+                        <Typography variant="caption" sx={{ color: 'error.main', display: 'block', mt: 0.5 }}>
+                          Select at least one role
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+
+                  {isUsingDemoData && (
+                    <Typography variant="caption" sx={{ color: 'warning.main', display: 'block', mt: 0.5 }}>
+                      Disabled for demo data
+                    </Typography>
+                  )}
+                </Box>
+                )}
+              </Box>
 
               {/* Template Mode UI */}
               {promptMode === 'template' && (

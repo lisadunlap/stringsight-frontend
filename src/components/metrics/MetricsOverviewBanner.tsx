@@ -17,15 +17,56 @@ interface MetricsOverviewBannerProps {
   onNavigateToMisalignedSection?: () => void;
 }
 
+/**
+ * Extract behavior-type text from a metrics row metadata object.
+ *
+ * Expected metadata format:
+ * - `behavior_type`: string (preferred), e.g. "Style", "Negative (critical)"
+ * - `group`: string, either:
+ *   - plain behavior type (legacy): "Style"
+ *   - combined role + behavior type: "assistant_Style", "user_Negative (critical)"
+ *
+ * Returns:
+ * - behavior-type label string when available
+ * - null when no behavior-type-like value can be derived
+ */
+function getBehaviorTypeFromMetadata(
+  metadata: ModelClusterRow['metadata'] | undefined,
+): string | null {
+  if (!metadata) return null;
+
+  const rawBehaviorType =
+    metadata.behavior_type != null ? String(metadata.behavior_type).trim() : '';
+  if (rawBehaviorType) {
+    return rawBehaviorType;
+  }
+
+  const rawGroup = metadata.group != null ? String(metadata.group).trim() : '';
+  if (!rawGroup) {
+    return null;
+  }
+
+  // Support combined role_behavior_type values by taking suffix after first underscore.
+  if (rawGroup.includes('_')) {
+    const suffix = rawGroup.split('_').slice(1).join('_').trim();
+    return suffix || null;
+  }
+
+  return rawGroup;
+}
+
 // Normalize group values to standard categories
 function normalizeGroup(group: string | undefined): string | null {
   if (!group) return null;
   const v = group.toLowerCase().trim().replace(/[_\s]+/g, '_');
 
-  if (v === 'negative_(critical)' || v === 'negative_critical' || v === 'negative (critical)') return 'negative_critical';
-  if (v === 'negative_(non-critical)' || v === 'negative_non-critical' || v === 'negative_non_critical' || v === 'negative (non-critical)') return 'negative_non_critical';
+  if (v === 'negative_(critical)' || v === 'negative_critical' || v === 'negative(critical)') return 'negative_critical';
+  if (v === 'negative_(non-critical)' || v === 'negative_non-critical' || v === 'negative_non_critical' || v === 'negative(non-critical)') return 'negative_non_critical';
   if (v === 'positive') return 'positive';
   if (v === 'style' || v === 'stylistic') return 'style';
+  if (v === 'phrasing') return 'phrasing';
+  if (v === 'domain' || v === 'problem_domain') return 'problem_domain';
+  if (v === 'skills_required' || v === 'skillsrequired') return 'skills_required';
 
   return null;
 }
@@ -36,6 +77,9 @@ function getGroupColor(group: string): string {
     case 'negative_critical': return retroColors.red;
     case 'negative_non_critical': return retroColors.orange;
     case 'style': return '#8B5CF6';
+    case 'phrasing': return '#0EA5E9';
+    case 'problem_domain': return '#06B6D4';
+    case 'skills_required': return '#14B8A6';
     default: return '#6B7280'; // gray
   }
 }
@@ -46,6 +90,9 @@ function getGroupLabel(group: string): string {
     case 'negative_critical': return 'Negative (critical)';
     case 'negative_non_critical': return 'Negative (non-critical)';
     case 'style': return 'Stylistic';
+    case 'phrasing': return 'Phrasing';
+    case 'problem_domain': return 'Problem Domain';
+    case 'skills_required': return 'Skills Required';
     default: return group;
   }
 }
@@ -63,7 +110,8 @@ export function MetricsOverviewBanner({ data, qualityMetrics, onNavigateToMisali
       // Count total unique clusters
       allClusters.add(row.cluster);
 
-      const group = normalizeGroup(row.metadata?.group);
+      const behaviorType = getBehaviorTypeFromMetadata(row.metadata);
+      const group = normalizeGroup(behaviorType ?? undefined);
 
       // Count clusters by group
       if (group) {

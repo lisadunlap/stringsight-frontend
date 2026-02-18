@@ -97,6 +97,7 @@ The ZIP must contain these JSONL files:
 - `model_cluster_scores_df.jsonl` - Model-cluster metrics
 - `cluster_scores_df.jsonl` - Cluster-level metrics
 - `model_scores_df.jsonl` - Model-level metrics
+- `metrics_insights.json` - LLM-generated sectioned metrics overview
 
 ### JSONL Format
 
