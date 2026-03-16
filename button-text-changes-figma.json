@@ -1,0 +1,433 @@
+{
+  "name": "Button Text Changes",
+  "type": "FRAME",
+  "children": [
+    {
+      "name": "Title",
+      "type": "TEXT",
+      "characters": "Button Text",
+      "style": {
+        "fontSize": 24,
+        "fontWeight": 700,
+        "fontFamily": "Inter",
+        "color": "#000000"
+      },
+      "absoluteBoundingBox": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 32
+      }
+    },
+    {
+      "name": "Table Container",
+      "type": "FRAME",
+      "children": [
+        {
+          "name": "Table Header",
+          "type": "FRAME",
+          "layoutMode": "HORIZONTAL",
+          "children": [
+            {
+              "name": "Current Header",
+              "type": "TEXT",
+              "characters": "Current",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 600,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            },
+            {
+              "name": "Replace With Header",
+              "type": "TEXT",
+              "characters": "Replace With",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 600,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 300,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            }
+          ],
+          "absoluteBoundingBox": {
+            "x": 0,
+            "y": 48,
+            "width": 600,
+            "height": 24
+          }
+        },
+        {
+          "name": "Row 1",
+          "type": "FRAME",
+          "layoutMode": "HORIZONTAL",
+          "children": [
+            {
+              "name": "Current 1",
+              "type": "TEXT",
+              "characters": "Start Demo",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            },
+            {
+              "name": "Replace With 1",
+              "type": "TEXT",
+              "characters": "Load Demo Dataset",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 300,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            }
+          ],
+          "absoluteBoundingBox": {
+            "x": 0,
+            "y": 72,
+            "width": 600,
+            "height": 24
+          }
+        },
+        {
+          "name": "Row 2",
+          "type": "FRAME",
+          "layoutMode": "HORIZONTAL",
+          "children": [
+            {
+              "name": "Current 2",
+              "type": "TEXT",
+              "characters": "Load Results",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            },
+            {
+              "name": "Replace With 2",
+              "type": "TEXT",
+              "characters": "Load Saved Results",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 300,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            }
+          ],
+          "absoluteBoundingBox": {
+            "x": 0,
+            "y": 96,
+            "width": 600,
+            "height": 24
+          }
+        },
+        {
+          "name": "Row 3",
+          "type": "FRAME",
+          "layoutMode": "HORIZONTAL",
+          "children": [
+            {
+              "name": "Current 3",
+              "type": "TEXT",
+              "characters": "Upload File",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            },
+            {
+              "name": "Replace With 3",
+              "type": "TEXT",
+              "characters": "Upload Trace File",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 300,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            }
+          ],
+          "absoluteBoundingBox": {
+            "x": 0,
+            "y": 120,
+            "width": 600,
+            "height": 24
+          }
+        },
+        {
+          "name": "Row 4",
+          "type": "FRAME",
+          "layoutMode": "HORIZONTAL",
+          "children": [
+            {
+              "name": "Current 4",
+              "type": "TEXT",
+              "characters": "Extract on Row 0",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            },
+            {
+              "name": "Replace With 4",
+              "type": "TEXT",
+              "characters": "Extract for Selected Row",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 300,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            }
+          ],
+          "absoluteBoundingBox": {
+            "x": 0,
+            "y": 144,
+            "width": 600,
+            "height": 24
+          }
+        },
+        {
+          "name": "Row 5",
+          "type": "FRAME",
+          "layoutMode": "HORIZONTAL",
+          "children": [
+            {
+              "name": "Current 5",
+              "type": "TEXT",
+              "characters": "Run on all traces",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            },
+            {
+              "name": "Replace With 5",
+              "type": "TEXT",
+              "characters": "Run Extraction on Entire Dataset",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 300,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            }
+          ],
+          "absoluteBoundingBox": {
+            "x": 0,
+            "y": 168,
+            "width": 600,
+            "height": 24
+          }
+        },
+        {
+          "name": "Row 6",
+          "type": "FRAME",
+          "layoutMode": "HORIZONTAL",
+          "children": [
+            {
+              "name": "Current 6",
+              "type": "TEXT",
+              "characters": "Full system prompt",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            },
+            {
+              "name": "Replace With 6",
+              "type": "TEXT",
+              "characters": "Show System Prompt",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 300,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            }
+          ],
+          "absoluteBoundingBox": {
+            "x": 0,
+            "y": 192,
+            "width": 600,
+            "height": 24
+          }
+        },
+        {
+          "name": "Row 7",
+          "type": "FRAME",
+          "layoutMode": "HORIZONTAL",
+          "children": [
+            {
+              "name": "Current 7",
+              "type": "TEXT",
+              "characters": "Reset to default",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 0,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            },
+            {
+              "name": "Replace With 7",
+              "type": "TEXT",
+              "characters": "Reset Extraction Settings",
+              "style": {
+                "fontSize": 14,
+                "fontWeight": 400,
+                "fontFamily": "Inter",
+                "color": "#000000"
+              },
+              "absoluteBoundingBox": {
+                "x": 300,
+                "y": 0,
+                "width": 300,
+                "height": 24
+              }
+            }
+          ],
+          "absoluteBoundingBox": {
+            "x": 0,
+            "y": 216,
+            "width": 600,
+            "height": 24
+          }
+        }
+      ],
+      "absoluteBoundingBox": {
+        "x": 0,
+        "y": 48,
+        "width": 600,
+        "height": 264
+      }
+    }
+  ],
+  "absoluteBoundingBox": {
+    "x": 0,
+    "y": 0,
+    "width": 600,
+    "height": 312
+  },
+  "backgroundColor": "#FFFFFF",
+  "fills": [
+    {
+      "type": "SOLID",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1
+      }
+    }
+  ]
+}
+
+
+
+
+

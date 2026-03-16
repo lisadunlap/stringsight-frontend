@@ -1,0 +1,47 @@
+{
+  "title": "Button Text Changes",
+  "description": "Mapping of current button text to suggested replacements for improved clarity",
+  "table": {
+    "headers": ["Current", "Replace With"],
+    "rows": [
+      {
+        "current": "Start Demo",
+        "replaceWith": "Load Demo Dataset"
+      },
+      {
+        "current": "Load Results",
+        "replaceWith": "Load Saved Results"
+      },
+      {
+        "current": "Upload File",
+        "replaceWith": "Upload Trace File"
+      },
+      {
+        "current": "Extract on Row 0",
+        "replaceWith": "Extract for Selected Row"
+      },
+      {
+        "current": "Run on all traces",
+        "replaceWith": "Run Extraction on Entire Dataset"
+      },
+      {
+        "current": "Full system prompt",
+        "replaceWith": "Show System Prompt"
+      },
+      {
+        "current": "Reset to default",
+        "replaceWith": "Reset Extraction Settings"
+      }
+    ]
+  },
+  "metadata": {
+    "created": "2024",
+    "purpose": "UI/UX improvement - clearer button labels",
+    "status": "suggested"
+  }
+}
+
+
+
+
+

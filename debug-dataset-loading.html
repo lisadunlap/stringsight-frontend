@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>StringSight Dataset Debug Tool</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background: #f5f5f5;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        h1, h2 { color: #333; }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .error { color: #d32f2f; }
+        .success { color: #2e7d32; }
+        .warning { color: #f57c00; }
+        button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #1565c0; }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 400px;
+            margin-right: 10px;
+        }
+        .log {
+            font-family: monospace;
+            font-size: 11px;
+            line-height: 1.6;
+        }
+        .log-error { color: #d32f2f; }
+        .log-success { color: #2e7d32; }
+        .log-info { color: #1976d2; }
+    </style>
+</head>
+<body>
+    <h1>🔍 StringSight Dataset Debug Tool</h1>
+
+    <div class="section">
+        <h2>Test Dataset Loading</h2>
+        <p>Enter a ZIP URL or dataset name from datasets.yaml:</p>
+        <input type="text" id="urlInput" value="https://stringsight-results.s3.us-east-2.amazonaws.com/telecom_2026-01-02.zip" />
+        <button onclick="testLoad()">Load & Inspect</button>
+        <button onclick="testFromConfig()">Load from datasets.yaml</button>
+    </div>
+
+    <div class="section">
+        <h2>Console Logs</h2>
+        <div id="logs" class="log"></div>
+    </div>
+
+    <div class="section" id="resultsSection" style="display:none;">
+        <h2>Loaded Data Inspection</h2>
+        <div id="results"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+
+    <script>
+        const logsDiv = document.getElementById('logs');
+        const resultsDiv = document.getElementById('results');
+        const resultsSection = document.getElementById('resultsSection');
+
+        function log(message, type = 'info') {
+            const className = `log-${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            logsDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            console.log(message);
+        }
+
+        function parseJsonl(text) {
+            const lines = text.trim().split('\n').filter(line => line.trim());
+            return lines.map(line => JSON.parse(line));
+        }
+
+        async function loadAndExtractZip(url) {
+            log(`📦 Downloading ZIP from ${url}`, 'info');
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Failed to download ZIP: ${response.statusText}`);
+            }
+
+            log(`✓ Downloaded, extracting...`, 'success');
+
+            const blob = await response.blob();
+            const zip = new JSZip();
+            const zipContents = await zip.loadAsync(blob);
+
+            const files = new Map();
+
+            for (const [filename, file] of Object.entries(zipContents.files)) {
+                if (file.dir) continue;
+                if (!filename.endsWith('.json') && !filename.endsWith('.jsonl')) continue;
+
+                const content = await file.async('text');
+                const basename = filename.split('/').pop() || filename;
+                files.set(basename, content);
+
+                log(`  ✓ Extracted: ${basename} (${Math.round(content.length / 1024)} KB)`, 'success');
+            }
+
+            return files;
+        }
+
+        function inspectData(data) {
+            const stats = {
+                conversations: data.conversations?.length || 0,
+                properties: data.properties?.length || 0,
+                clusters: data.clusters?.length || 0,
+                sampleConversation: data.conversations?.[0],
+                conversationColumns: data.conversations?.[0] ? Object.keys(data.conversations[0]) : [],
+                models: new Set()
+            };
+
+            // Detect models
+            if (data.conversations) {
+                data.conversations.forEach(conv => {
+                    if (conv.model) stats.models.add(conv.model);
+                    if (conv.model_a) stats.models.add(conv.model_a);
+                    if (conv.model_b) stats.models.add(conv.model_b);
+                });
+            }
+
+            stats.models = Array.from(stats.models);
+
+            return stats;
+        }
+
+        async function testLoad() {
+            logsDiv.innerHTML = '';
+            resultsDiv.innerHTML = '';
+            resultsSection.style.display = 'none';
+
+            const url = document.getElementById('urlInput').value;
+
+            try {
+                log('🔄 Starting load test...', 'info');
+
+                // Extract ZIP
+                const files = await loadAndExtractZip(url);
+                log(`✓ Extracted ${files.size} files`, 'success');
+
+                // Parse files
+                const conversations = files.has('conversation.jsonl')
+                    ? parseJsonl(files.get('conversation.jsonl'))
+                    : [];
+                const properties = files.has('properties.jsonl')
+                    ? parseJsonl(files.get('properties.jsonl'))
+                    : [];
+                const clusters = files.has('clusters.jsonl')
+                    ? parseJsonl(files.get('clusters.jsonl'))
+                    : [];
+
+                log(`✓ Parsed conversations: ${conversations.length}`, 'success');
+                log(`✓ Parsed properties: ${properties.length}`, 'success');
+                log(`✓ Parsed clusters: ${clusters.length}`, 'success');
+
+                const data = { conversations, properties, clusters };
+                const stats = inspectData(data);
+
+                // Display results
+                resultsSection.style.display = 'block';
+                resultsDiv.innerHTML = `
+                    <h3>Data Statistics</h3>
+                    <pre>${JSON.stringify(stats, null, 2)}</pre>
+
+                    <h3>Sample Conversation (First Row)</h3>
+                    <pre>${JSON.stringify(stats.sampleConversation, null, 2)}</pre>
+
+                    <h3>All Available Files in ZIP</h3>
+                    <pre>${Array.from(files.keys()).join('\n')}</pre>
+                `;
+
+                log('✅ Load test complete!', 'success');
+
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        async function testFromConfig() {
+            logsDiv.innerHTML = '';
+            resultsDiv.innerHTML = '';
+            resultsSection.style.display = 'none';
+
+            try {
+                log('📋 Loading datasets.yaml...', 'info');
+
+                const response = await fetch('/datasets.yaml');
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch datasets.yaml: ${response.statusText}`);
+                }
+
+                const yamlText = await response.text();
+                const config = jsyaml.load(yamlText);
+
+                log(`✓ Found ${Object.keys(config.datasets).length} datasets`, 'success');
+
+                // List all datasets
+                resultsSection.style.display = 'block';
+                resultsDiv.innerHTML = `
+                    <h3>Available Datasets</h3>
+                    <pre>${JSON.stringify(config.datasets, null, 2)}</pre>
+                `;
+
+                // Test first dataset
+                const firstDataset = Object.keys(config.datasets)[0];
+                const datasetConfig = config.datasets[firstDataset];
+
+                log(`🔄 Testing first dataset: ${firstDataset}`, 'info');
+                log(`   Config: ${JSON.stringify(datasetConfig)}`, 'info');
+
+                if (datasetConfig.cdn_url) {
+                    document.getElementById('urlInput').value = datasetConfig.cdn_url;
+                    log(`   CDN URL: ${datasetConfig.cdn_url}`, 'info');
+                    log('   Click "Load & Inspect" to test this dataset', 'warning');
+                }
+
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        // Auto-load on page load
+        log('🚀 Debug tool ready. Click "Load & Inspect" to test a ZIP URL', 'info');
+    </script>
+</body>
+</html>

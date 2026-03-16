@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Network-Only Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #000;
+            color: #0f0;
+        }
+        .log { margin: 2px 0; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+        .info { color: #0ff; }
+    </style>
+</head>
+<body>
+    <h1>Network Test - Open DevTools (F12)</h1>
+    <div id="log"></div>
+
+    <script>
+        function log(msg, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = `[${new Date().toISOString()}] ${msg}`;
+            document.getElementById('log').appendChild(div);
+            console.log(msg);
+        }
+
+        async function runTest() {
+            const url = 'https://stringsight-results.s3.us-east-2.amazonaws.com/telecom_2026-01-02.zip';
+
+            log('Starting network test...', 'info');
+            log(`URL: ${url}`, 'info');
+            log(`Origin: ${window.location.origin}`, 'info');
+
+            try {
+                log('Sending fetch request...', 'info');
+                const response = await fetch(url);
+
+                log(`Response received!`, 'success');
+                log(`  Status: ${response.status}`, response.ok ? 'success' : 'error');
+                log(`  StatusText: ${response.statusText}`, 'info');
+                log(`  Type: ${response.type}`, 'info');
+                log(`  OK: ${response.ok}`, 'info');
+
+                log('Response headers:', 'info');
+                for (const [key, value] of response.headers.entries()) {
+                    log(`  ${key}: ${value}`, 'info');
+                }
+
+                if (response.ok) {
+                    log('Downloading blob...', 'info');
+                    const blob = await response.blob();
+                    log(`Downloaded ${blob.size} bytes (${(blob.size/1024/1024).toFixed(2)} MB)`, 'success');
+                    log('✅ TEST PASSED', 'success');
+                } else {
+                    log(`❌ TEST FAILED: HTTP ${response.status}`, 'error');
+                    const text = await response.text();
+                    log(`Response body: ${text}`, 'error');
+                }
+            } catch (error) {
+                log('❌ TEST FAILED WITH EXCEPTION', 'error');
+                log(`Error name: ${error.name}`, 'error');
+                log(`Error message: ${error.message}`, 'error');
+                log(`Error stack: ${error.stack}`, 'error');
+
+                // Check if it's a CORS error
+                if (error.message.includes('CORS') || error.message.includes('fetch')) {
+                    log('', 'error');
+                    log('This looks like a CORS error!', 'error');
+                    log('The S3 bucket needs CORS configuration.', 'error');
+                    log('', 'error');
+                    log('To fix, run:', 'info');
+                    log('  ./fix-s3-cors.sh', 'info');
+                }
+            }
+        }
+
+        // Run immediately
+        runTest();
+    </script>
+</body>
+</html>

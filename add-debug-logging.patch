@@ -1,0 +1,25 @@
+Add this temporary debug logging to App.tsx to see what's happening:
+
+After line 1064 (after the useEffect that loads URL dataset), add:
+
+```typescript
+// DEBUG: Log state after URL dataset loads
+useEffect(() => {
+  console.log('=== DEBUG: UI State ===');
+  console.log('currentRows.length:', currentRows.length);
+  console.log('originalRows.length:', originalRows.length);
+  console.log('operationalRows.length:', operationalRows.length);
+  console.log('propertiesRows.length:', propertiesRows.length);
+  console.log('clusters.length:', clusters.length);
+  console.log('method:', method);
+  console.log('isResultsMode:', isResultsMode);
+  console.log('tabValue:', tabValue);
+  console.log('Sample currentRow:', currentRows[0]);
+  console.log('Sample property:', propertiesRows[0]);
+  console.log('=======================');
+}, [currentRows, originalRows, operationalRows, propertiesRows, clusters, method, isResultsMode, tabValue]);
+```
+
+This will show you exactly what data is (or isn't) in the app state.
+
+Then reload the page and check the console output.

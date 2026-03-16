@@ -1,0 +1,258 @@
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     URL-Based Dataset Loading Flow                      │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────┐
+│     User     │
+└──────┬───────┘
+       │ Visits: stringsight.com/taubench_airline
+       ↓
+┌──────────────────────────────────────────────────────────────────────┐
+│                         React Frontend                                │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  App.tsx                                                        │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │  useDatasetFromUrl() Hook                                 │  │  │
+│  │  │  ↓                                                         │  │  │
+│  │  │  1. Extract "taubench_airline" from URL                   │  │  │
+│  │  │  2. Call getDatasetNameFromUrl()                          │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                  ↓                                     │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  datasetLoader.ts                                               │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │  fetchDatasetsConfig()                                     │  │  │
+│  │  │  ↓                                                         │  │  │
+│  │  │  Fetch: /datasets.yaml                                     │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ HTTP GET
+┌──────────────────────────────────────────────────────────────────────┐
+│                        public/datasets.yaml                           │
+│  ────────────────────────────────────────────────────────────────── │
+│  datasets:                                                            │
+│    taubench_airline:                                                  │
+│      name: "TauBench Airline"                                         │
+│      cdn_url: "https://results.stringsight.com/taubench_airline"     │
+│      files:                                                           │
+│        - conversation.jsonl                                           │
+│        - properties.jsonl                                             │
+│        - clusters.jsonl                                               │
+│      method: "single_model"                                           │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ Parse YAML, get config for "taubench_airline"
+┌──────────────────────────────────────────────────────────────────────┐
+│                         datasetLoader.ts                              │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  loadDataset("taubench_airline")                               │  │
+│  │  ↓                                                             │  │
+│  │  For each file in config.files:                                │  │
+│  │    - Construct URL from cdn_url or s3_bucket/path             │  │
+│  │    - Fetch from S3/CloudFront                                  │  │
+│  │    - Parse JSONL/JSON                                          │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ Multiple HTTP GET requests
+┌──────────────────────────────────────────────────────────────────────┐
+│                    AWS S3 / CloudFront CDN                            │
+│                                                                       │
+│  Bucket: stringsight-results                                          │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │  taubench_airline/                                           │    │
+│  │    ├── conversation.jsonl          ← 200 KB                  │    │
+│  │    ├── properties.jsonl            ← 500 KB                  │    │
+│  │    ├── clusters.jsonl              ← 50 KB                   │    │
+│  │    ├── model_cluster_scores_df.jsonl ← 100 KB               │    │
+│  │    ├── cluster_scores_df.jsonl     ← 20 KB                   │    │
+│  │    └── model_scores_df.jsonl       ← 10 KB                   │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                                                                       │
+│  CORS: Enabled ✓                                                      │
+│  Access: Public Read ✓                                                │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ Files downloaded and parsed
+┌──────────────────────────────────────────────────────────────────────┐
+│                         React Frontend                                │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  useDatasetFromUrl() → Returns:                                │  │
+│  │  {                                                             │  │
+│  │    dataset: {                                                  │  │
+│  │      name: "taubench_airline",                                 │  │
+│  │      config: { ... },                                          │  │
+│  │      conversations: [...],    // From conversation.jsonl       │  │
+│  │      properties: [...],        // From properties.jsonl        │  │
+│  │      clusters: [...],          // From clusters.jsonl          │  │
+│  │      metrics: { ... },         // From *_df.jsonl files        │  │
+│  │    },                                                          │  │
+│  │    isLoading: false,                                           │  │
+│  │    error: null                                                 │  │
+│  │  }                                                             │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                  ↓                                     │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  App.tsx - useEffect()                                          │  │
+│  │  ↓                                                              │  │
+│  │  if (dataset) {                                                 │  │
+│  │    setOriginalRows(dataset.conversations);                      │  │
+│  │    setPropertiesRows(dataset.properties);                       │  │
+│  │    setClusters(dataset.clusters);                               │  │
+│  │    // ... populate all state                                    │  │
+│  │  }                                                              │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓
+┌──────────────────────────────────────────────────────────────────────┐
+│                      UI Rendered with Data                            │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  ┌─────────┐  ┌────────────┐  ┌──────────┐  ┌─────────┐      │  │
+│  │  │  Data   │  │ Properties │  │ Clusters │  │ Metrics │      │  │
+│  │  │  Tab    │  │    Tab     │  │   Tab    │  │   Tab   │      │  │
+│  │  └─────────┘  └────────────┘  └──────────┘  └─────────┘      │  │
+│  │                                                                │  │
+│  │  All tabs populated with data from S3                          │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       Alternative: No Dataset in URL                    │
+└─────────────────────────────────────────────────────────────────────────┘
+
+User visits: stringsight.com/
+       ↓
+┌──────────────────────────────────────────────────────────────────────┐
+│  useDatasetFromUrl()                                                  │
+│    ↓ getDatasetNameFromUrl() → null                                  │
+│    ↓ listDatasets()                                                   │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ Fetch /datasets.yaml
+┌──────────────────────────────────────────────────────────────────────┐
+│  Returns: availableDatasets = [                                       │
+│    { name: "taubench_airline", config: {...} },                       │
+│    { name: "taubench_airline_sbs", config: {...} },                   │
+│    ...                                                                 │
+│  ]                                                                     │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓
+┌──────────────────────────────────────────────────────────────────────┐
+│                    DatasetBrowser Component                           │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                  StringSight Datasets                           │  │
+│  │                                                                 │  │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐ │  │
+│  │  │ TauBench Airline│  │ TauBench (SBS)  │  │  Koala Eval    │ │  │
+│  │  │                 │  │                 │  │                │ │  │
+│  │  │ Airline customer│  │ Side-by-side    │  │ Koala benchmark│ │  │
+│  │  │ service         │  │ comparison      │  │ dataset        │ │  │
+│  │  │                 │  │                 │  │                │ │  │
+│  │  │ [Click to view] │  │ [Click to view] │  │ [Click to view]│ │  │
+│  │  └─────────────────┘  └─────────────────┘  └────────────────┘ │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ User clicks "TauBench Airline"
+       ↓ Navigate to: /taubench_airline
+       ↓ (Go back to top diagram)
+
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          Deployment Process                              │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Admin has new dataset in: ./results/my_dataset/
+       ↓
+┌──────────────────────────────────────────────────────────────────────┐
+│  $ ./deploy-dataset.sh my_dataset ./results/my_dataset/              │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓
+┌──────────────────────────────────────────────────────────────────────┐
+│  Script:                                                              │
+│    1. Check if S3 bucket exists (create if needed)                    │
+│    2. Configure CORS automatically                                    │
+│    3. Upload all .json and .jsonl files                               │
+│    4. Show access URLs                                                │
+│    5. Print YAML config to add                                        │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ Files uploaded to S3
+┌──────────────────────────────────────────────────────────────────────┐
+│  S3: stringsight-results/my_dataset/                                  │
+│    ✓ conversation.jsonl                                               │
+│    ✓ properties.jsonl                                                 │
+│    ✓ clusters.jsonl                                                   │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ Admin copies output from script
+┌──────────────────────────────────────────────────────────────────────┐
+│  Edit: public/datasets.yaml                                           │
+│  ────────────────────────────────────────────────────────────────── │
+│  my_dataset:                                                          │
+│    name: "My Dataset"                                                 │
+│    cdn_url: "https://stringsight-results.s3.us-west-2.amazonaws.com/my_dataset" │
+│    files: [...]                                                       │
+│    method: "single_model"                                             │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ Commit and push (optional - can test locally first)
+┌──────────────────────────────────────────────────────────────────────┐
+│  $ npm run build                                                      │
+│  $ vercel --prod                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+       ↓ Deployed!
+┌──────────────────────────────────────────────────────────────────────┐
+│  ✅ Dataset now accessible at:                                        │
+│     https://stringsight.com/my_dataset                                │
+└──────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     Key Components & Their Roles                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+datasets.yaml              Configuration file (maps names → S3 paths)
+    ↓
+datasetLoader.ts          Core logic (fetch, parse, construct URLs)
+    ↓
+useDatasetFromUrl.ts      React hook (state management, loading)
+    ↓
+App.tsx                   Main app (integrates hook, populates state)
+    ↓
+DatasetBrowser.tsx        UI (shows available datasets when no URL)
+
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          URL → Data Mapping                              │
+└─────────────────────────────────────────────────────────────────────────┘
+
+URL Path                     Dataset Name            S3 Path
+────────────────────────────────────────────────────────────────────────
+/                            (none)                  Show dataset browser
+/taubench_airline            taubench_airline        s3://.../taubench_airline/
+/taubench_airline_sbs        taubench_airline_sbs    s3://.../taubench_airline_sbs/
+/my_custom_dataset           my_custom_dataset       s3://.../my_custom_dataset/
+
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          Error Handling Flow                             │
+└─────────────────────────────────────────────────────────────────────────┘
+
+User visits /unknown_dataset
+       ↓
+getDatasetConfig("unknown_dataset")
+       ↓
+Dataset not in datasets.yaml
+       ↓
+Throw Error: "Dataset not found. Available: ..."
+       ↓
+useDatasetFromUrl() catches error
+       ↓
+Returns { error: Error(...), dataset: null, ... }
+       ↓
+App.tsx shows error UI
+       ↓
+Display: Alert with error message + DatasetBrowser as fallback
+```
+
+
+
+
+

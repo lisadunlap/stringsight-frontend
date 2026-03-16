@@ -154,6 +154,29 @@ export async function nl2pandas(body: {
 }
 
 
+/**
+ * Compute Pearson correlations between numeric metadata columns and score columns.
+ *
+ * @param body.rows - Lightweight row dicts (large text columns should be stripped).
+ * @param body.score_columns - Flattened score column names (e.g. "score_accuracy").
+ * @param body.numeric_columns - Numeric metadata column names to correlate against scores.
+ * @returns List of pairwise correlation entries with pearson_r and sample count.
+ */
+export async function dfCorrelations(body: {
+  rows: Record<string, any>[];
+  score_columns: string[];
+  numeric_columns: string[];
+}): Promise<{ correlations: Array<{ column: string; score_column: string; pearson_r: number; count: number }> }> {
+  const res = await fetch(`${API_BASE}/df/correlations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(formatErrorMessage(await res.text()));
+  return res.json();
+}
+
+
 // ----------------------------
 // Extraction/Prompts endpoints
 // ----------------------------

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple S3 Fetch Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        h1 { color: #4ec9b0; }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover { background: #1177bb; }
+        .result {
+            background: #252526;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 3px solid #3e3e42;
+        }
+        .success { border-left-color: #4ec9b0; }
+        .error { border-left-color: #f48771; }
+        pre {
+            background: #1e1e1e;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+            font-size: 11px;
+        }
+        input {
+            width: 100%;
+            background: #3c3c3c;
+            color: #d4d4d4;
+            border: 1px solid #3e3e42;
+            padding: 8px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔬 Minimal S3 Fetch Test</h1>
+    <p style="color: #6e7681;">The simplest possible test to see if we can reach S3</p>
+
+    <div>
+        <label>Test URL:</label>
+        <input type="text" id="testUrl" value="https://stringsight-results.s3.us-east-2.amazonaws.com/telecom_2026-01-02.zip" />
+    </div>
+
+    <div>
+        <button onclick="test1()">Test 1: Basic Fetch</button>
+        <button onclick="test2()">Test 2: With Credentials</button>
+        <button onclick="test3()">Test 3: CORS Details</button>
+        <button onclick="clearResults()">Clear</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+        }
+
+        function addResult(title, content, isError = false) {
+            const div = document.createElement('div');
+            div.className = `result ${isError ? 'error' : 'success'}`;
+            div.innerHTML = `<strong>${title}</strong><pre>${escapeHtml(content)}</pre>`;
+            resultsDiv.appendChild(div);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function test1() {
+            const url = document.getElementById('testUrl').value;
+
+            try {
+                console.log('Test 1: Basic fetch to', url);
+
+                const startTime = Date.now();
+                const response = await fetch(url);
+                const elapsed = Date.now() - startTime;
+
+                const result = `
+Status: ${response.status} ${response.statusText}
+Time: ${elapsed}ms
+Type: ${response.type}
+URL: ${response.url}
+
+Headers:
+${Array.from(response.headers.entries())
+    .map(([k, v]) => `  ${k}: ${v}`)
+    .join('\n')}
+`;
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    addResult('✅ Test 1: Basic Fetch PASSED', result + `\nSize: ${(blob.size / 1024 / 1024).toFixed(2)} MB`, false);
+                } else {
+                    addResult('❌ Test 1: Basic Fetch FAILED', result, true);
+                }
+            } catch (error) {
+                addResult('❌ Test 1: Basic Fetch ERROR', `${error.name}: ${error.message}\n\nStack:\n${error.stack}`, true);
+            }
+        }
+
+        async function test2() {
+            const url = document.getElementById('testUrl').value;
+
+            try {
+                console.log('Test 2: Fetch with credentials', url);
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    credentials: 'omit',
+                    mode: 'cors'
+                });
+
+                const result = `
+Status: ${response.status} ${response.statusText}
+Mode: cors
+Credentials: omit
+
+CORS Headers:
+  Access-Control-Allow-Origin: ${response.headers.get('access-control-allow-origin') || 'NOT SET'}
+  Access-Control-Allow-Methods: ${response.headers.get('access-control-allow-methods') || 'NOT SET'}
+  Access-Control-Allow-Headers: ${response.headers.get('access-control-allow-headers') || 'NOT SET'}
+`;
+
+                if (response.ok) {
+                    addResult('✅ Test 2: CORS Fetch PASSED', result, false);
+                } else {
+                    addResult('❌ Test 2: CORS Fetch FAILED', result, true);
+                }
+            } catch (error) {
+                addResult('❌ Test 2: CORS Fetch ERROR', `${error.name}: ${error.message}`, true);
+            }
+        }
+
+        async function test3() {
+            const url = document.getElementById('testUrl').value;
+
+            try {
+                console.log('Test 3: Detailed CORS analysis');
+
+                // First try HEAD
+                let headResult = '';
+                try {
+                    const head = await fetch(url, { method: 'HEAD' });
+                    headResult = `HEAD Request:
+  Status: ${head.status}
+  CORS Allow-Origin: ${head.headers.get('access-control-allow-origin') || 'MISSING'}
+  CORS Allow-Methods: ${head.headers.get('access-control-allow-methods') || 'MISSING'}
+  Content-Length: ${head.headers.get('content-length')}
+`;
+                } catch (e) {
+                    headResult = `HEAD Request FAILED: ${e.message}`;
+                }
+
+                // Then try GET
+                const get = await fetch(url);
+                const getResult = `
+GET Request:
+  Status: ${get.status}
+  CORS Allow-Origin: ${get.headers.get('access-control-allow-origin') || 'MISSING'}
+
+Browser Info:
+  Origin: ${window.location.origin}
+  Protocol: ${window.location.protocol}
+
+Expected CORS Headers (S3 needs to return):
+  access-control-allow-origin: * OR ${window.location.origin}
+  access-control-allow-methods: GET, HEAD
+
+Actual CORS Headers:
+${Array.from(get.headers.entries())
+    .filter(([k]) => k.startsWith('access-control'))
+    .map(([k, v]) => `  ${k}: ${v}`)
+    .join('\n') || '  (none found)'}
+`;
+
+                const fullResult = headResult + '\n' + getResult;
+
+                if (get.ok) {
+                    addResult('✅ Test 3: CORS Analysis PASSED', fullResult, false);
+                } else {
+                    addResult('❌ Test 3: CORS Analysis FAILED', fullResult, true);
+                }
+            } catch (error) {
+                const diagnosis = `
+Error Type: ${error.name}
+Error Message: ${error.message}
+
+Common Causes:
+1. CORS not configured on S3 bucket
+2. Bucket policy doesn't allow public read
+3. Network/firewall blocking request
+4. File doesn't exist at URL
+
+To Fix (if CORS issue):
+  aws s3api put-bucket-cors --bucket stringsight-results --cors-configuration file://cors.json
+
+  cors.json:
+  {
+    "CORSRules": [{
+      "AllowedOrigins": ["*"],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedHeaders": ["*"],
+      "MaxAgeSeconds": 3000
+    }]
+  }
+`;
+                addResult('❌ Test 3: CORS Analysis ERROR', diagnosis, true);
+            }
+        }
+
+        // Auto-run test 1 on load
+        window.onload = () => {
+            setTimeout(test1, 500);
+        };
+    </script>
+</body>
+</html>

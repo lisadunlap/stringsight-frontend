@@ -26,6 +26,7 @@ export interface ColumnMapping {
   responseCols: string[];
   modelCols: string[];
   scoreCols: string[];
+  metadataCols: string[];
   method: 'single_model' | 'side_by_side';
   selectedModels?: { column: string; modelA: string; modelB: string };
 }
@@ -52,6 +53,7 @@ export function ColumnSelector({
     responseCols: [],
     modelCols: [],
     scoreCols: [],
+    metadataCols: [],
     method: 'single_model'
   });
 
@@ -151,6 +153,36 @@ export function ColumnSelector({
     setMapping(prev => ({ ...prev, scoreCols: value }));
     setUseAutoDetection(false);
   };
+
+  const handleMetadataChange = (event: any) => {
+    const value = typeof event.target.value === 'string' ? [event.target.value] : event.target.value;
+    setMapping(prev => ({ ...prev, metadataCols: value }));
+    setUseAutoDetection(false);
+  };
+
+  // Columns already assigned to core roles (not available for metadata)
+  const mappedCoreCols = React.useMemo(() => {
+    const set = new Set<string>();
+    if (mapping.promptCol) set.add(mapping.promptCol);
+    mapping.responseCols.forEach(c => set.add(c));
+    mapping.modelCols.forEach(c => set.add(c));
+    mapping.scoreCols.forEach(c => set.add(c));
+    return set;
+  }, [mapping.promptCol, mapping.responseCols, mapping.modelCols, mapping.scoreCols]);
+
+  // Available metadata columns: everything not mapped to a core role
+  const availableMetadataCols = React.useMemo(
+    () => columns.filter(c => !mappedCoreCols.has(c)),
+    [columns, mappedCoreCols]
+  );
+
+  // Auto-select all remaining columns as metadata whenever core mappings change
+  React.useEffect(() => {
+    setMapping(prev => ({
+      ...prev,
+      metadataCols: availableMetadataCols,
+    }));
+  }, [availableMetadataCols]);
 
   const resetToAutoDetection = () => {
     if (autoDetectedMapping) {
@@ -392,6 +424,42 @@ export function ColumnSelector({
         </FormControl>
       </Box>
 
+      {/* Metadata Columns */}
+      {availableMetadataCols.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <FormControl fullWidth>
+            <InputLabel>Metadata Columns (Optional)</InputLabel>
+            <Select
+              multiple
+              value={mapping.metadataCols}
+              label="Metadata Columns (Optional)"
+              onChange={handleMetadataChange}
+              renderValue={(selected) => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+                  {renderChips(selected, 'primary', (col) => {
+                    setMapping(prev => ({ ...prev, metadataCols: prev.metadataCols.filter(c => c !== col) }));
+                    setUseAutoDetection(false);
+                  })}
+                </Box>
+              )}
+              MenuProps={{
+                PaperProps: { sx: { maxHeight: 360 } }
+              }}
+            >
+              {availableMetadataCols.map(col => (
+                <MenuItem key={col} value={col}>
+                  <Checkbox checked={mapping.metadataCols.indexOf(col) > -1} />
+                  <ListItemText primary={col} />
+                </MenuItem>
+              ))}
+            </Select>
+            <FormHelperText>
+              Extra columns to include for filtering and grouping. All remaining columns are included by default.
+            </FormHelperText>
+          </FormControl>
+        </Box>
+      )}
+
       {/* Model A/B pickers only when method is side_by_side (tidy path) */}
       {mapping.method === 'side_by_side' && mapping.modelCols[0] && (
         <Box sx={{ mt: 3, mb: 2 }}>
@@ -466,7 +534,12 @@ export function ColumnSelector({
             )}
             {mapping.scoreCols.length > 0 && (
               <>
-                <strong>Scores:</strong> {mapping.scoreCols.join(', ')}
+                <strong>Scores:</strong> {mapping.scoreCols.join(', ')}<br/>
+              </>
+            )}
+            {mapping.metadataCols.length > 0 && (
+              <>
+                <strong>Metadata:</strong> {mapping.metadataCols.join(', ')}
               </>
             )}
           </Typography>

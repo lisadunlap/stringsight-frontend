@@ -17,7 +17,7 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import ArticleIcon from '@mui/icons-material/Article';
-import { detectAndValidate, dfGroupPreview, dfCustom, nl2pandas, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
+import { detectAndValidate, dfGroupPreview, dfCustom, nl2pandas, dfCorrelations, recomputeClusterMetrics, checkBackendHealth } from "./lib/api";
 import { flattenScores, normalizeMetricsColumnNames, enrichModelClusterScoresWithMetadata } from "./lib/normalize";
 import { parseFile, inferColumns } from "./lib/parse";
 import { detectMethodFromColumns, ensureOpenAIFormat } from "./lib/traces";
@@ -37,7 +37,7 @@ import type { NlSuggestion } from "./components/FilterBar";
 import PermanentIconSidebar, { type SidebarSection } from "./components/PermanentIconSidebar";
 import DataOverviewBanner from "./components/DataOverviewBanner";
 import PropertiesOverviewBanner from "./components/PropertiesOverviewBanner";
-import DataStatsPanel from "./components/sidebar-sections/DataStatsPanel";
+import CorrelationTable, { type CorrelationEntry } from "./components/CorrelationTable";
 import PropertyExtractionPanel from "./components/sidebar-sections/PropertyExtractionPanel";
 // ClusteringPanel removed - clustering now integrated into PropertyExtractionPanel
 // ClustersTab kept for viewing cluster results
@@ -995,15 +995,23 @@ function App() {
     const legacyDetected = detectMethodFromColumns(columns);
 
     // Create auto-detected mapping based on legacy detection and available columns
+    const promptCol = columns.find(c => c.toLowerCase() === 'prompt') || '';
+    const responseCols = legacyDetected === 'side_by_side'
+      ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
+      : columns.filter(c => c.includes('model_response'));
+    const modelCols = legacyDetected === 'side_by_side'
+      ? columns.filter(c => (c.includes('model_a') || c.includes('model_b')) && !c.includes('response'))
+      : columns.filter(c => c.toLowerCase() === 'model');
+    const scoreCols = columns.filter(c => c.toLowerCase().includes('score'));
+    const coreSet = new Set([promptCol, ...responseCols, ...modelCols, ...scoreCols].filter(Boolean));
+    const metadataCols = columns.filter(c => !coreSet.has(c));
+
     const autoMapping: ColumnMapping = {
-      promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
-      responseCols: legacyDetected === 'side_by_side'
-        ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
-        : columns.filter(c => c.includes('model_response')),
-      modelCols: legacyDetected === 'side_by_side'
-        ? columns.filter(c => (c.includes('model_a') || c.includes('model_b')) && !c.includes('response'))
-        : columns.filter(c => c.toLowerCase() === 'model'),
-      scoreCols: columns.filter(c => c.toLowerCase().includes('score')),
+      promptCol,
+      responseCols,
+      modelCols,
+      scoreCols,
+      metadataCols,
       method: legacyDetected === 'unknown' ? 'single_model' : legacyDetected
     };
 
@@ -1273,21 +1281,29 @@ function App() {
       setIsDemoSession(true); // Added
 
       // Create mapping based on user-selected mode
+      const demoPromptCol = columns.find(c => c.toLowerCase() === 'prompt') || '';
+      const demoResponseCols = selectedMode === 'side_by_side'
+        ? [
+          columns.find(c => c.includes('model_a_response')) || '',
+          columns.find(c => c.includes('model_b_response')) || ''
+        ].filter(Boolean)
+        : columns.filter(c => c === 'model_response');
+      const demoModelCols = selectedMode === 'side_by_side'
+        ? [
+          columns.find(c => c.includes('model_a') && !c.includes('response')) || '',
+          columns.find(c => c.includes('model_b') && !c.includes('response')) || ''
+        ].filter(Boolean)
+        : columns.filter(c => c.toLowerCase() === 'model');
+      const demoScoreCols = columns.filter(c => c.toLowerCase().includes('score'));
+      const demoCoreSet = new Set([demoPromptCol, ...demoResponseCols, ...demoModelCols, ...demoScoreCols].filter(Boolean));
+      const demoMetadataCols = columns.filter(c => !demoCoreSet.has(c));
+
       const autoMapping: ColumnMapping = {
-        promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
-        responseCols: selectedMode === 'side_by_side'
-          ? [
-            columns.find(c => c.includes('model_a_response')) || '',
-            columns.find(c => c.includes('model_b_response')) || ''
-          ].filter(Boolean)
-          : columns.filter(c => c === 'model_response'),
-        modelCols: selectedMode === 'side_by_side'
-          ? [
-            columns.find(c => c.includes('model_a') && !c.includes('response')) || '',
-            columns.find(c => c.includes('model_b') && !c.includes('response')) || ''
-          ].filter(Boolean)
-          : columns.filter(c => c.toLowerCase() === 'model'),
-        scoreCols: columns.filter(c => c.toLowerCase().includes('score')),
+        promptCol: demoPromptCol,
+        responseCols: demoResponseCols,
+        modelCols: demoModelCols,
+        scoreCols: demoScoreCols,
+        metadataCols: demoMetadataCols,
         method: selectedMode
       };
       setAutoDetectedMapping(autoMapping);
@@ -2525,7 +2541,13 @@ function App() {
         }
       }
 
-      // Do not include any other columns to keep the operational data clean
+      // Carry metadata columns through for filtering, grouping, and stats
+      if (mapping.metadataCols) {
+        for (const col of mapping.metadataCols) {
+          if (row[col] !== undefined) opRow[col] = row[col];
+        }
+      }
+
       return opRow;
     });
 
@@ -3135,6 +3157,46 @@ function App() {
   const [nlSuggestion, setNlSuggestion] = useState<NlSuggestion | null>(null);
   const [nlQueryLoading, setNlQueryLoading] = useState(false);
   const [nlError, setNlError] = useState<string | null>(null);
+
+  const [correlations, setCorrelations] = useState<CorrelationEntry[]>([]);
+
+  // Automatically compute correlations between numeric metadata columns and score columns
+  useEffect(() => {
+    if (currentRows.length === 0 || !columnMapping) {
+      setCorrelations([]);
+      return;
+    }
+
+    const scoreColumns = Object.keys(currentRows[0]).filter(c => c.startsWith('score_'));
+    const metaCols = columnMapping.metadataCols || [];
+    // Identify which metadata columns are numeric
+    const numericMeta = metaCols.filter(col => {
+      const sample = currentRows.find(r => r[col] != null)?.[col];
+      return typeof sample === 'number' || (typeof sample === 'string' && sample.trim() !== '' && !isNaN(Number(sample)));
+    });
+
+    if (numericMeta.length === 0 || scoreColumns.length === 0) {
+      setCorrelations([]);
+      return;
+    }
+
+    // Build lightweight rows (only the columns we need)
+    const needed = new Set([...numericMeta, ...scoreColumns]);
+    const lightRows = currentRows.map(row => {
+      const slim: Record<string, any> = {};
+      for (const k of needed) {
+        if (row[k] !== undefined) slim[k] = row[k];
+      }
+      return slim;
+    });
+
+    let cancelled = false;
+    dfCorrelations({ rows: lightRows, score_columns: scoreColumns, numeric_columns: numericMeta })
+      .then(res => { if (!cancelled) setCorrelations(res.correlations); })
+      .catch(() => { if (!cancelled) setCorrelations([]); });
+
+    return () => { cancelled = true; };
+  }, [currentRows, columnMapping]);
 
   const handleNlQuerySubmit = useCallback(async (query: string) => {
     if (!currentRows.length) return;
@@ -4842,6 +4904,10 @@ function App() {
 
             {activeSection === 'data' && dataOverview && (
               <DataOverviewBanner dataOverview={dataOverview} method={method} />
+            )}
+
+            {activeSection === 'data' && correlations.length > 0 && (
+              <CorrelationTable correlations={correlations} />
             )}
 
             {/* Extraction panel in main content for Extraction step */}
